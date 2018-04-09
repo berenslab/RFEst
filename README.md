@@ -13,7 +13,7 @@ To install, clone this repo into local directory and then use `pip install -e`:
 
 * Ridge Regression 
     * Ridge (parameters updated by gradient descent)
-    * RidgeFixPoint (parameters updated by iterative fixed-point method)
+    * RidgeFixedPoint (parameters updated by iterative fixed-point method)
 * Automatic Smoothness Determination [1]
     * ASD (parameters updated by gradient descent)
 
