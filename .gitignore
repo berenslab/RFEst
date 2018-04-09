@@ -1,0 +1,14 @@
+# caching data
+
+.cache
+.cache/*
+
+*__pycache__*
+
+
+# others
+
+*.egg-info/
+
+# jupyter
+*.ipynb*
