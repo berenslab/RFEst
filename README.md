@@ -1,6 +1,6 @@
 # RFEst
 
-A Python 3 tool for receptive field (RF) estimation using Emprical Bayes and automatic differentiation. 
+A Python 3 tool for receptive field (RF) estimation using Empirical Bayes and automatic differentiation. 
 
 ## Installation
 
@@ -30,7 +30,7 @@ Given a stimulus matrix (X) and the corresponding response matrix (Y), a optimiz
 
 The optimized spatial and temporal RFs are stored in `self.sRF_opt` and `self.tRF_opt`.
 
-This package also comes with a simple lineare gaussian data generator with three spatial filters.
+This package also comes with a simple linear gaussian data generator with three spatial filters ('gaussian', 'mexican_hat', 'gabor').
 
     from rfest import make_data
 
