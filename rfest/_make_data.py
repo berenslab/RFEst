@@ -105,11 +105,11 @@ def make_true_filter(dims, sigma, filter_type='gaussian'):
     if len(dims) ==3:
         
         nT = dims[2]
-        temporal_filter = np.gradient(gaussian((nT*10,), 6).flatten())
-        temporal_filter = temporal_filter / np.linalg.norm(temporal_filter)
-        spatial_filter = w_true.flatten()
+        tRF = np.gradient(gaussian((nT*10,), 6).ravel())
+        tRF = tRF / np.linalg.norm(tRF)
+        sRF = w_true.ravel()
         
-        w_true = np.array([spatial_filter * temporal_filter[i] for i in range(nT*10)]).T
+        w_true = np.array([sRF * tRF[i] for i in range(len(tRF))]).T
         w_true = w_true[:, ::10]
         w_true = w_true.reshape(*dims)
 
@@ -136,9 +136,7 @@ def make_response(stimulus, w_true, nsevar):
     elif len(w_true.shape) == 2:
         response = stimulus @ w_true.reshape(np.product([*w_true.shape]), 1) + np.random.randn(stimulus.shape[0], 1) * nsevar
     elif len(w_true.shape) == 3:
-
         nlag = w_true.shape[2]
-
         stimulus = get_sdm(stimulus, nlag)
         w_true = w_true.reshape(np.product([*w_true.shape]), 1)
         response = stimulus @ w_true + np.random.randn(stimulus.shape[0], 1) * nsevar

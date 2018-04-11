@@ -23,7 +23,7 @@ class EmpiricalBayes:
         if len(rf_dims) == 3:
             self.dims_tRF = rf_dims[2]
             self.dims_sRF = rf_dims[:2]
-            self.Y = lag_weights(Y.flatten(), self.dims_tRF)
+            self.Y = get_rdm(Y, self.dims_tRF)
         else:
             self.dims_sRF = rf_dims
             self.dims_tRF = None
@@ -92,20 +92,27 @@ class EmpiricalBayes:
         
         return -0.5 * (t0 + t1 + t2 + t3)
     
-    def objective(self, params, t):    
+    def objective(self, params, t):
         return -self.log_evidence(params)
 
+    def optimize_params(self, initial_params, step_size, num_iters, bounds, callback, ):
+        params = adam(grad(self.objective),
+                            x0 = initial_params,
+                            step_size = step_size,
+                            num_iters = num_iters,
+                            callback = callback)
+        return params
+
     
-    def fit(self, initial_params=None, step_size=0.001, num_iters=1, callback=None):
+    def fit(self, initial_params=None, step_size=0.001, num_iters=1, bounds=None, callback=None):
+
+        self.step_size = step_size
+        self.num_iters = num_iters
         
         if initial_params is None:
             initial_params = self.initialize_params()
         
-        self.optimized_params = adam(grad(self.objective),
-                                x0 = initial_params,
-                                step_size = step_size,
-                                num_iters = num_iters,
-                                callback = callback)
+        self.optimized_params = self.optimize_params(initial_params, step_size, num_iters, bounds, callback)
 
         (optimized_C_prior, 
          optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
