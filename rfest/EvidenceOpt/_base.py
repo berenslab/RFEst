@@ -107,7 +107,7 @@ class EmpiricalBayes:
     def fit(self, initial_params=None, step_size=0.001, num_iters=1, bounds=None, callback=None):
 
         self.step_size = step_size
-        self.num_iters = num_iters
+        self.num_iters = num_ iters
         
         if initial_params is None:
             initial_params = self.initialize_params()

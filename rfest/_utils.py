@@ -18,26 +18,6 @@ def get_sdm(stim, nlag):
         
     return S
 
-
-
-# def get_rdm(resp, nLag):
-
-#     '''
-#     Get response desgin matrix.
-#     '''
-
-#     lagW = np.zeros([resp.shape[0],nLag])
-    
-#     for iLag in range(nLag):
-#         start = iLag
-#         end = -nLag+iLag+1
-#         if end != 0:
-#             lagW[start:end,iLag] = resp[nLag-1:]
-#         else:
-#             lagW[start:,iLag] = resp[nLag-1:]
-        
-#     return lagW
-
 def get_rdm(resp, nlag):
     
     n_samples = resp.shape[0]
