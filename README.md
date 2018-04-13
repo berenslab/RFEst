@@ -14,12 +14,9 @@ To install, clone this repo into local directory and then use `pip install -e`:
 * Ridge Regression 
     * Ridge 
     * RidgeFixedPoint 
-* Automatic Relevance Determination [1]
-    * ARD 
-* Automatic Smoothness Determination [2]
-    * ASD
-* Automatic Locality Determination [3]
-    * ALDs 
+* Automatic Relevance Determination (ARD) [1]
+* Automatic Smoothness Determination (ASD) [2]
+* Automatic Locality Determination (ALD) [3]
 
 **NOTED** In case of data with 3 dimensions, the current implementations does not optimized for temporal dimension due to limited amount of data in our own dataset. Instead, we lagged the response matrix, and treat each time-lagged response as a 2D mapping, and optimized the average loss of each time-lagged with a shared set of parameters.
 

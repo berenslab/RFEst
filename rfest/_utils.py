@@ -31,3 +31,24 @@ def get_rdm(resp, nlag):
             R[:, i] = np.pad(resp[:-i].ravel(), (i, 0), mode='constant')
     
     return R
+
+def realfftbasis(nx):
+    
+    nn = nx
+    
+    ncos = np.ceil((nn + 1) / 2)
+    nsin = np.floor((nn-1) / 2)
+    
+    wvec = np.hstack([np.arange(ncos), np.arange(-nsin, 0)])
+    
+    wcos = wvec[wvec >= 0]
+    wsin = wvec[wvec < 0]
+    
+    x = np.arange(nx)
+    
+    t0 = np.cos(np.outer(wcos * 2 * np.pi / nn, x))
+    t1 = np.sin(np.outer(wsin * 2 * np.pi / nn, x))
+    
+    B = np.vstack([t0, t1]) / np.sqrt(nn * 0.5)
+    
+    return B, wvec

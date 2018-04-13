@@ -1,3 +1,5 @@
+import scipy.fftpack
+
 import autograd.numpy as np
 import autograd.numpy.random as npr
 import autograd.scipy.stats.norm as norm
@@ -5,6 +7,7 @@ from autograd import grad
 from autograd.misc import flatten
 from autograd.misc.optimizers import adam
 from sklearn.utils.extmath import randomized_svd
+
 
 from .._utils import *
 
@@ -127,4 +130,4 @@ class EmpiricalBayes:
         self.optimized_C_post = optimized_C_post
         self.optimized_m_post = optimized_m_post
         self.w_opt = optimized_m_post
-        self.sRF_opt, self.tRF_opt = self.SVD(self.w_opt)
+        self.sRF_opt, self.tRF_opt = self.SVD(self.w_opt)   
