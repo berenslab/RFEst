@@ -40,7 +40,7 @@ class ASD(EmpiricalBayes):
     
     def initialize_params(self):
         
-        sigma = np.sum((self.Y - self.X @ self.w_mle) ** 2) / self.n_samples
+        sigma = np.sqrt(np.sum((self.Y - self.X @ self.w_mle) ** 2) / self.n_samples)
         rho = -2.3
         delta = 1.
 

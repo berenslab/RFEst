@@ -61,10 +61,10 @@ class EmpiricalBayes:
 
         sigma = params[0]
 
-        C_post_inv = self.XtX / sigma + C_prior_inv
+        C_post_inv = self.XtX / sigma**2 + C_prior_inv
         C_post = np.linalg.inv(C_post_inv)
         
-        m_post = C_post @ self.XtY / sigma
+        m_post = C_post @ self.XtY / (sigma**2)
         
         return C_post, C_post_inv, m_post
         
@@ -76,18 +76,14 @@ class EmpiricalBayes:
         
         (C_post, C_post_inv, m_post) = self.update_posterior(params, C_prior, C_prior_inv)
         
-        C_post_inv = self.XtX / sigma + C_prior_inv
-        C_post = np.linalg.inv(C_post_inv)
-        m_post = C_post @ self.XtY / sigma
-        
-        t0 = np.log(np.abs(2 * np.pi * sigma)) * self.n_samples
+        t0 = np.log(np.abs(2 * np.pi * sigma**2)) * self.n_samples
         t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
         t2 = m_post.T @ C_post @ m_post
         if len(np.shape(t2)) != 0:
             t2 = - np.mean(np.diag(t2))
         else:
             t2 = - t2
-        t3 = self.YtY / sigma
+        t3 = self.YtY / sigma**2
         if len(np.shape(t3)) != 0:
             t3 = np.mean(np.diag(t3))
         else:
