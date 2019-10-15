@@ -1,13 +1,11 @@
-import scipy.fftpack
+import numpy as onp
+import jax.numpy as np
+from jax import grad
+from jax import jit
+from jax.experimental import optimizers
 
-import autograd.numpy as np
-import autograd.numpy.random as npr
-import autograd.scipy.stats.norm as norm
-from autograd import grad
-from autograd.misc import flatten
-from autograd.misc.optimizers import adam
-from sklearn.utils.extmath import randomized_svd
-
+from jax.config import config
+config.update("jax_enable_x64", True)
 
 from .._utils import *
 
@@ -15,49 +13,25 @@ __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
 
-    def __init__(self, X, Y, rf_dims):
+    def __init__(self, X, Y, dims):
         
-        self.X = X
-        self.n_samples = X.shape[0]
-        self.n_features = X.shape[1]
+        self.X = X # stimulus design matrix
+        self.Y = Y # response 
+        
+        self.dims = dims # assumed order [t, y, x]
+        self.n_samples, self.n_features = X.shape
 
-        self.rf_dims = rf_dims
-        
-        if len(rf_dims) == 3:
-            self.dims_tRF = rf_dims[2]
-            self.dims_sRF = rf_dims[:2]
-            self.Y = get_rdm(Y, self.dims_tRF)
-        else:
-            self.dims_sRF = rf_dims
-            self.dims_tRF = None
-            self.Y = Y
-        
-        self.XtX = self.X.T @ self.X
-        self.XtY = self.X.T @ self.Y
-        self.YtY = self.Y.T @ self.Y
+        self.XtX = X.T @ X
+        self.XtY = X.T @ Y
+        self.YtY = Y.T @ Y
 
         self.w_mle = np.linalg.solve(self.XtX, self.XtY)
-        self.sRF_mle, self.tRF_mle = self.SVD(self.w_mle)
+                     #maximum likelihood estimation
     
-    def SVD(self, w):
-
-        if len(self.rf_dims) == 3:
-            U, S, Vt = randomized_svd(w.reshape(self.n_features,self.dims_tRF), 3)
-            sRF = U[:, 0].reshape(*self.dims_sRF)
-            tRF = Vt[0]
-        else:
-            sRF = w
-            tRF = None
-
-        return [sRF, tRF]
-
-    def initialize_params(self):
-        pass
-
     def update_C_prior(self, params):
         pass
     
-    def update_posterior(self, params, C_prior, C_prior_inv):
+    def update_C_posterior(self, params, C_prior_inv):
 
         sigma = params[0]
 
@@ -68,13 +42,13 @@ class EmpiricalBayes:
         
         return C_post, C_post_inv, m_post
         
-    def log_evidence(self, params):
+    def negative_log_evidence(self, params):
         
         sigma = params[0]
         
         (C_prior, C_prior_inv) = self.update_C_prior(params)
         
-        (C_post, C_post_inv, m_post) = self.update_posterior(params, C_prior, C_prior_inv)
+        (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
         
         t0 = np.log(np.abs(2 * np.pi * sigma**2)) * self.n_samples
         t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
@@ -89,41 +63,72 @@ class EmpiricalBayes:
         else:
             t3 = t3
         
-        return -0.5 * (t0 + t1 + t2 + t3)
+        return 0.5 * (t0 + t1 + t2 + t3)
     
-    def objective(self, params, t):
-        return -self.log_evidence(params)
+    def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal=True):
+        
+        opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
+        opt_state = opt_init(initial_params)
+        
+        @jit
+        def step(i, opt_state):
+            p = get_params(opt_state)
+            g = grad(self.negative_log_evidence)(p)
+            return opt_update(i, g, opt_state)
 
-    def optimize_params(self, initial_params, step_size, num_iters, bounds, callback, ):
-        params = adam(grad(self.objective),
-                            x0 = initial_params,
-                            step_size = step_size,
-                            num_iters = num_iters,
-                            callback = callback)
+        cost_list = []
+        params_list = []
+
+        if verbal:
+            self.print_progress_header()
+
+        for i in range(num_iters):
+            
+            opt_state = step(i, opt_state)
+            params_list.append(get_params(opt_state))
+            cost_list.append(self.negative_log_evidence(params_list[-1]))
+
+            if verbal:
+                self.print_progress(i, params_list[-1], cost_list[-1])
+    
+            if len(params_list) > tolerance:
+                
+                if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0 ):
+                    params = params_list[0]
+                    print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
+                    break
+                elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
+                    params = params_list[-1]
+                    print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
+                    break                    
+                else:
+                    params_list.pop(0)
+                    cost_list.pop(0)
+        else:
+            print('Stop: reached maxiter = {}.'.format(maxiter))
+            params = params_list[-1]
+             
         return params
 
     
-    def fit(self, initial_params=None, step_size=0.001, num_iters=1, bounds=None, callback=None):
+    def fit(self, initial_params=None, num_iters=1, step_size=1e-2, tolerance=6):
 
-        self.step_size = step_size
         self.num_iters = num_iters
         
         if initial_params is None:
             initial_params = self.initialize_params()
         
-        self.optimized_params = self.optimize_params(initial_params, step_size, num_iters, bounds, callback)
+        self.optimized_params = self.optimize_params(initial_params, num_iters, step_size, tolerance)
 
         (optimized_C_prior, 
          optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
         
         (optimized_C_post, 
          optimized_C_post_inv, 
-         optimized_m_post) = self.update_posterior(self.optimized_params,
-                                                   optimized_C_prior,
+         optimized_m_post) = self.update_C_posterior(self.optimized_params,
                                                    optimized_C_prior_inv)
         
         self.optimized_C_prior = optimized_C_prior
         self.optimized_C_post = optimized_C_post
         self.optimized_m_post = optimized_m_post
-        self.w_opt = optimized_m_post
-        self.sRF_opt, self.tRF_opt = self.SVD(self.w_opt)   
+        self.w_opt = optimized_m_post.reshape(self.dims)

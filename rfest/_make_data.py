@@ -1,4 +1,4 @@
-import autograd.numpy as np
+import numpy as onp
 import scipy
 
 from ._utils import *
@@ -9,24 +9,31 @@ def gaussian(dims, sigma):
         
         x = dims[0]
         mu = 0.5 * (x - 1)
-        xx = np.arange(x)
+        xx = onp.arange(x)
         
-        gaussian_filter = 1/(sigma*np.sqrt(2*np.pi))*np.exp(-1*(xx-mu)**2/ (2*sigma**2) )
+        gaussian_filter = 1/(sigma*onp.sqrt(2*onp.pi))*onp.exp(-1*(xx-mu)**2/ (2*sigma**2) )
         gaussian_filter = gaussian_filter.reshape(*dims, 1)
         
-    elif len(dims) > 1:
+    else:
         
-        x = dims[0]
-        y = dims[1]
+        if 1 < len(dims) < 3:
+        
+            x = dims[0]
+            y = dims[1]
+            
+        elif len(dims) > 2:
+            
+            y = dims[1]
+            x = dims[2]
         
         sigx = sigma[0]
         sigy = sigma[1]
         
-        xx, yy = np.meshgrid(np.arange(0, x), np.arange(0, y))
-        mu = [0.5 * (x - 1), 0.5 * (y - 1)]
+        xx, yy = onp.meshgrid(onp.arange(0, y), onp.arange(0, x))
+        mu = [0.5 * (y - 1), 0.5 * (x - 1)]
         
-        gaussian_window = np.exp(-0.5 * (((xx - mu[0]) / sigx)**2 + ((yy - mu[1]) / sigy)**2))
-        gaussian_filter = 0.5 * gaussian_window / (0.5 * np.pi * (sigx + sigy) ** 2)
+        gaussian_window = onp.exp(-0.5 * (((xx - mu[0]) / sigx)**2 + ((yy - mu[1]) / sigy)**2))
+        gaussian_filter = 0.5 * gaussian_window / (0.5 * onp.pi * (sigx + sigy) ** 2)
         gaussian_filter = 0.25 * gaussian_filter / gaussian_filter.max()
         gaussian_filter = gaussian_filter.T
     
@@ -43,33 +50,40 @@ def mexican_hat(dims, sigma):
         mexican_hat = gaussian1 - gaussian0
         mexican_hat = mexican_hat.reshape(*dims, 1)
 
-    elif len(dims) > 1:
+    else:
+
+        if 1 < len(dims) < 3:
         
-        x = dims[0]
-        y = dims[1]
+            x = dims[0]
+            y = dims[1]
+            
+        elif len(dims) > 2:
+            
+            y = dims[1]
+            x = dims[2]
         
         sigx = sigma[0]
         sigy = sigma[1]
-        xx, yy = np.meshgrid(np.arange(0, x), np.arange(0, y))
-        mu = [0.5 * (x - 1), 0.5 * (y - 1)]
+        xx, yy = onp.meshgrid(onp.arange(0, y), onp.arange(0, x))
+        mu = [0.5 * (y - 1), 0.5 * (x - 1)]
 
         gaussian_window = gaussian(dims, sigma).T
-        mexican_hat = 1 / ( np.pi * sigx ** 2) * (1 - (((xx - mu[0]) / sigy)**2 + ((yy - mu[1]) / sigy)**2)) * gaussian_window
+        mexican_hat = 1 / ( onp.pi * sigx ** 2) * (1 - (((xx - mu[0]) / sigy)**2 + ((yy - mu[1]) / sigy)**2)) * gaussian_window
         mexican_hat = mexican_hat.T
 
-    mexican_hat = mexican_hat / np.sqrt(np.sum(mexican_hat**2))
+    mexican_hat = mexican_hat / onp.sqrt(onp.sum(mexican_hat**2))
     
     return mexican_hat
         
     
-def gabor(dims, sigma, theta=np.pi/4, phi=np.pi/2, sf=1/6):
+def gabor(dims, sigma, theta=onp.pi/4, phi=onp.pi/2, sf=1/6):
     
     if len(dims) == 1:
         
         x = dims[0]
-        xx = np.arange(x)
+        xx = onp.arange(x)
         guassian_window = gaussian(dims, sigma)
-        sinusoidal_wave = np.sin(2 * np.pi * sf * xx  - phi)
+        sinusoidal_wave = onp.sin(2 * onp.pi * sf * xx  - phi)
         gabor_filter = guassian_window * sinusoidal_wave
         gabor_filter = gabor_filter.reshape(*dims, 1)
 
@@ -80,14 +94,14 @@ def gabor(dims, sigma, theta=np.pi/4, phi=np.pi/2, sf=1/6):
         
         sigx = sigma[0]
         sigy = sigma[1]
-        xx, yy = np.meshgrid(np.arange(0, x), np.arange(0, y))
+        xx, yy = onp.meshgrid(onp.arange(0, x), onp.arange(0, y))
         mu = [0.5 * (x - 1), 0.5 * (y - 1)]
         
         gaussian_window = gaussian(dims, sigma).T
-        sinusoidal_wave = np.sin(2 * np.pi * sf * yy  - phi)
+        sinusoidal_wave = onp.sin(2 * onp.pi * sf * yy  - phi)
         gabor_filter = (gaussian_window * sinusoidal_wave).T
         
-    gabor_filter = gabor_filter / np.sqrt(np.sum(gabor_filter**2))
+    gabor_filter = gabor_filter / onp.sqrt(onp.sum(gabor_filter**2))
         
     return gabor_filter
 
@@ -104,27 +118,26 @@ def make_true_filter(dims, sigma, filter_type='gaussian'):
         
     if len(dims) ==3:
         
-        nT = dims[2]
-        tRF = np.gradient(gaussian((nT*10,), 6).ravel())
-        tRF = tRF / np.linalg.norm(tRF)
+        nT = dims[0]
+        tRF = onp.gradient(gaussian((nT*10,), 6).ravel())[::]
+        tRF = tRF / onp.linalg.norm(tRF)
+        tRF = tRF[::10]
         sRF = w_true.ravel()
         
-        w_true = np.array([sRF * tRF[i] for i in range(len(tRF))]).T
-        w_true = w_true[:, ::10]
-        w_true = w_true.reshape(*dims)
+        w_true = onp.kron(tRF, sRF.ravel())
 
-    return w_true
+    return w_true.reshape(dims)
 
 
 def make_stimulus(n_samples, dims, nsevar, seed):
-    np.random.seed(seed)
+    onp.random.seed(seed)
     if len(dims) == 1:
         
-        stimulus = np.random.randn(*dims, n_samples).reshape(n_samples, *dims)
+        stimulus = onp.random.randn(*dims, n_samples).reshape(n_samples, *dims)
 
     elif len(dims) > 1:
 
-        stimulus = np.random.randn(n_samples, np.product([*dims[:2]]))
+        stimulus = onp.random.randn(n_samples, onp.product([*dims[1:]]))
 
     return stimulus
 
@@ -132,14 +145,13 @@ def make_stimulus(n_samples, dims, nsevar, seed):
 def make_response(stimulus, w_true, nsevar):
 
     if len(w_true.shape) == 1:
-        response = stimulus @ w_true + np.random.randn(stimulus.shape[0], 1) * nsevar
+        response = stimulus @ w_true.ravel() + onp.random.randn(stimulus.shape[0], ) * nsevar
     elif len(w_true.shape) == 2:
-        response = stimulus @ w_true.reshape(np.product([*w_true.shape]), 1) + np.random.randn(stimulus.shape[0], 1) * nsevar
+        response = stimulus @ w_true.ravel() + onp.random.randn(stimulus.shape[0], ) * nsevar
     elif len(w_true.shape) == 3:
-        nlag = w_true.shape[2]
+        nlag = w_true.shape[0]
         stimulus = get_sdm(stimulus, nlag)
-        w_true = w_true.reshape(np.product([*w_true.shape]), 1)
-        response = stimulus @ w_true + np.random.randn(stimulus.shape[0], 1) * nsevar
+        response = stimulus @ w_true.ravel() + onp.random.randn(stimulus.shape[0], ) * nsevar
 
     return response
 
@@ -152,9 +164,9 @@ def make_data(dims, sigma, n_samples, nsevar, preloaded_stimulus=None, filter_ty
     =========
     dims: array-like
         dimension of the receptive field, e.g.
-            1D: (nX,)
-            2D: (nX, nY)
-            3D: (nX, nY, nT)
+            1D: (nT,)
+            2D: (nT, nY)
+            3D: (nT, nY, nX)
 
     sigma: array-like
         the deviation of the spatial receptive field, e.g.
@@ -199,7 +211,7 @@ def make_data(dims, sigma, n_samples, nsevar, preloaded_stimulus=None, filter_ty
     n_train = int(n_samples - n_test)
 
     return ((stimulus[:n_train, :], response[:n_train]),
-            (stimulus[n_train:], response[:n_train]),
+            (stimulus[n_train:], response[n_train:]),
             w_true)
 
 

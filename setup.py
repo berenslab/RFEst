@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='RFEst',
-      version='0.0.1',
+      version='0.0.2',
       description='Python 3 tool for receptive field estimation',
       author='Ziwei Huang',
       author_email='huang-ziwei@outlook.com',
@@ -10,6 +10,8 @@ setup(name='RFEst',
         "numpy>=1.13.1",
         "scipy",
         "matplotlib",
-        "autograd"
+        "sklearn",
+        "jax",
+        "jaxlib"
       ],
      )

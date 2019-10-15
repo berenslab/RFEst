@@ -2,27 +2,13 @@ import autograd.numpy as np
 from ._base import *
 from .._utils import *
 
-__all__ = ['Ridge', 'RidgeFixedPoint']
+__all__ = ['Ridge']
 
-class Ridge(EmpiricalBayes):
-    
-    def initialize_params(self):
-        
-        sigma = np.sum((self.Y - self.X @ self.w_mle) ** 2) / self.n_samples
-        theta = 10.
-        
-        return [sigma,theta]
-    
-    def update_C_prior(self, params):
-        
-        theta = params[1]
-        C_prior = np.eye(self.n_features) * theta
-        C_prior += 1e-07 * np.eye(self.n_features)
-        C_prior_inv = np.linalg.inv(C_prior)
-    
-        return C_prior, C_prior_inv
+class Ridge:
 
-class RidgeFixedPoint(Ridge):
+    """
+    Fixed Point Method
+    """
 
     def update_theta(self, params, C_post, m_post):
         theta = params[1]

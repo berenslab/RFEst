@@ -1,4 +1,4 @@
-import autograd.numpy as np
+import jax.numpy as np
 from ._base import *
 from .._utils import *
 
@@ -6,53 +6,56 @@ __all__ = ['ASD']
 
 class ASD(EmpiricalBayes):
     
-    def __init__(self, X, Y, rf_dims):
-        super().__init__(X, Y, rf_dims)
-        self.D = self.squared_distance(self.dims_sRF)
-        
-    def squared_distance(self, rf_dims):
+    def __init__(self, X, Y, dims):
+        super().__init__(X, Y, dims)
 
-        if len(rf_dims) == 1:
+    def _make_1D_covariance(self, delta, ncoeff):
 
-            n = self.dims_sRF[0]
+        incoeffices = np.arange(ncoeff)
+        square_distance = (incoeffices - incoeffices.reshape(-1,1)) ** 2
+        C = np.exp(-.5 * square_distance / delta ** 2)
+        C_inv = np.linalg.inv(C + np.eye(ncoeff) * 1e-07)
 
-            adjM = []
-            idx = np.arange(n)
-            for x in range(n):
-                adjM.append(np.square(x - idx))        
-            adjM = np.array(adjM)
-
-        elif len(rf_dims) > 1:
-
-            n, m = self.dims_sRF
-
-            xes = np.zeros([n, m])
-            yes = np.zeros([n, m])
-            coords = []
-            counter = 0
-            for x in range(n):
-                for y in range(m):
-                    coords.append([x, y])
-            coo = np.vstack(coords)      
-            adjM = np.vstack([np.sum((coo[i] - coo) ** 2, 1) for i in range(coo.shape[0])])
-
-        return adjM 
-    
-    def initialize_params(self):
-        
-        sigma = np.sqrt(np.sum((self.Y - self.X @ self.w_mle) ** 2) / self.n_samples)
-        rho = -2.3
-        delta = 1.
-
-        return [sigma, rho, delta]
-    
+        return C, C_inv
     
     def update_C_prior(self, params):
-        
+
         rho = params[1]
-        delta = params[2]
+        delta_time = params[2]
 
-        C_prior = np.exp(-rho - 0.5 * self.D/delta**2)
-        C_prior_inv = np.linalg.inv(C_prior)
+        C_t, C_t_inv = self._make_1D_covariance(delta_time, self.dims[0])
 
-        return C_prior, C_prior_inv
+        if len(self.dims) == 1:
+            C, C_inv = C_t, C_t_inv
+
+        elif 1 < len(self.dims) < 3:
+            delta_space = params[3]
+            C_s, C_s_inv = self._make_1D_covariance(delta_space, self.dims[1])
+
+            C = rho * np.kron(C_t, C_s)
+            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
+
+        elif len(self.dims) > 2:
+
+            delta_spacey = params[3]
+            delta_spacex = params[4]
+        
+            C_sy, C_sy_inv = self._make_1D_covariance(delta_spacey, self.dims[1])
+            C_sx, C_sx_inv = self._make_1D_covariance(delta_spacex, self.dims[2])
+            
+            C_s = np.kron(C_sy, C_sx)
+            C_s_inv = np.kron(C_sy_inv, C_sx_inv)
+
+            C = rho * np.kron(C_t, C_s)
+            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
+
+        return C, C_inv
+
+    def print_progress_header(self):
+        print('Iter\tσ\tρ\tδt\tδx\tδy\tcost')
+
+    def print_progress(self, i, params, cost):
+        print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}'.format(
+            i, params[0], params[1], 
+               params[2], params[3], params[4], 
+               cost))  
