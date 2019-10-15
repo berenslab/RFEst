@@ -11,27 +11,25 @@ To install, clone this repo into local directory and then use `pip install -e`:
 
 ## Supported Methods
 
-* Ridge Regression 
-    * Ridge 
-    * RidgeFixedPoint 
+* Ridge Regression
 * Automatic Relevance Determination (ARD) [1]
 * Automatic Smoothness Determination (ASD) [2]
 * Automatic Locality Determination (ALD) [3]
 
 ## Usage
 
-Given a stimulus design matrix (X) and the corresponding response (y), a optimized RF is calculated with respect to the dimension of the RF rf_dims=(nT, nY, nX). 
+Given a stimulus design matrix (X) and the corresponding response (y), a optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` 
 
     from rfest import ASD
 
-    asd = ASD(X, y, rf_dims=(5, 20, 15))
+    asd = ASD(X, y, dims=(5, 20, 15))
     asd.fit(initial_params=[1., 1., 2., 2., 2.], num_iters=300)
 
 This package also comes with a simple linear gaussian data generator with three spatial filters ('gaussian', 'mexican_hat', 'gabor').
 
     from rfest import make_data
 
-    ((X, Y), (Xtest, Ytest), 
+    ((X, y), (Xtest, Ytest), 
      w_true) = make_data(dims=(5, 20, 15), sigma=(1.5, 1.5),
                                n_samples=2000, nsevar=0.025, 
                                filter_type='gaussian', seed=2046)    

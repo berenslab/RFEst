@@ -65,8 +65,6 @@ class ALD(EmpiricalBayes):
 
     def print_progress_header(self):
         print('Iter\tσ\tρ\tτs_t\tτf_t\tτs_y\tτf_y\tτs_x\tτf_x\tcost')
-        # i, sig, rho
-        #    nu
 
     def print_progress(self, i, params, cost):
         print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}\t{7:1.3f}\t{8:1.3f}\t{9:1.3f}'.format(
