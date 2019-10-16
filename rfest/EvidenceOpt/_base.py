@@ -105,7 +105,7 @@ class EmpiricalBayes:
                     params_list.pop(0)
                     cost_list.pop(0)
         else:
-            print('Stop: reached maxiter = {}.'.format(maxiter))
+            print('Stop: reached maxiter = {}.'.format(num_iters))
             params = params_list[-1]
              
         return params
