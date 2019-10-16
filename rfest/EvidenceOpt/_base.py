@@ -80,7 +80,7 @@ class EmpiricalBayes:
         params_list = []
 
         if verbal:
-            self.print_progress_header()
+            self.print_progress_header(initial_params)
 
         for i in range(num_iters):
             
