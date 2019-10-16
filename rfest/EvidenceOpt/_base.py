@@ -65,7 +65,7 @@ class EmpiricalBayes:
         
         return 0.5 * (t0 + t1 + t2 + t3)
     
-    def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal=True):
+    def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
         
         opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
         opt_state = opt_init(initial_params)
@@ -111,14 +111,14 @@ class EmpiricalBayes:
         return params
 
     
-    def fit(self, initial_params=None, num_iters=1, step_size=1e-2, tolerance=6):
+    def fit(self, initial_params=None, num_iters=1, step_size=1e-2, tolerance=6, verbal=True):
 
         self.num_iters = num_iters
         
         if initial_params is None:
             initial_params = self.initialize_params()
         
-        self.optimized_params = self.optimize_params(initial_params, num_iters, step_size, tolerance)
+        self.optimized_params = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal)
 
         (optimized_C_prior, 
          optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
