@@ -56,7 +56,7 @@ class ASD(EmpiricalBayes):
         if len(params) == 3:
             print('Iter\tσ\tρ\tδt\tcost')
         elif len(params) == 4:
-            print('Iter\tσ\tρ\tδt\tδy\tcost')
+            print('Iter\tσ\tρ\tδt\tδs\tcost')
         elif len(params) == 5:
             print('Iter\tσ\tρ\tδt\tδy\tδx\tcost')
 
