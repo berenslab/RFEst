@@ -51,11 +51,23 @@ class ASD(EmpiricalBayes):
 
         return C, C_inv
 
-    def print_progress_header(self):
-        print('Iter\tσ\tρ\tδt\tδx\tδy\tcost')
+    def print_progress_header(self, params):
+        
+        if len(params) == 3:
+            print('Iter\tσ\tρ\tδt\tcost')
+        elif len(params) == 4:
+            print('Iter\tσ\tρ\tδt\tδy\tcost')
+        elif len(params) == 5:
+            print('Iter\tσ\tρ\tδt\tδy\tδx\tcost')
 
     def print_progress(self, i, params, cost):
-        print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}'.format(
-            i, params[0], params[1], 
-               params[2], params[3], params[4], 
-               cost))  
+     
+        if len(params) == 3:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}'.format(
+                i, params[0], params[1], params[2], cost))  
+        elif len(params) == 4:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}'.format(
+                i, params[0], params[1], params[2], params[3], cost))  
+        elif len(params) == 5:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}'.format(
+                i, params[0], params[1], params[2], params[3], params[4], cost))  
