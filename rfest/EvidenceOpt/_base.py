@@ -13,17 +13,17 @@ __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
 
-    def __init__(self, X, Y, dims):
+    def __init__(self, X, y, dims):
         
         self.X = X # stimulus design matrix
-        self.Y = Y # response 
+        self.y = y # response 
         
         self.dims = dims # assumed order [t, y, x]
         self.n_samples, self.n_features = X.shape
 
         self.XtX = X.T @ X
-        self.XtY = X.T @ Y
-        self.YtY = Y.T @ Y
+        self.XtY = X.T @ y
+        self.YtY = y.T @ y
 
         self.w_mle = np.linalg.solve(self.XtX, self.XtY)
                      #maximum likelihood estimation
