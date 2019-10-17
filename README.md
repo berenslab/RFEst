@@ -41,7 +41,7 @@ This package also comes with a simple linear gaussian data generator with three 
     sklearn
     matplotlib
     jax
-    jaxlib
+    jaxlib[^1]
 
 ## Reference
 
@@ -50,3 +50,7 @@ This package also comes with a simple linear gaussian data generator with three 
 [2] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
 
 [3] Park, M., & Pillow, J. W. (2011). Receptive field inference with localized priors. PLoS computational biology, 7(10), e1002219.
+
+## Note
+
+[^1]: Jax doen't support Windows yet. I am sorry, Windows users, but there's nothing I can do. 
