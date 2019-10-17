@@ -1,7 +1,4 @@
-import autograd.numpy as np
-from autograd import grad
-from autograd.misc.flatten import flatten_func
-from scipy.optimize import minimize
+import jax.numpy as np
 
 from ._base import *
 from .._utils import *
