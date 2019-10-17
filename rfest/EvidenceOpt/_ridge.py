@@ -76,16 +76,19 @@ class Ridge:
             dparams = np.linalg.norm(params - params0)
             
             if dparams < threshold:
-                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-                print('Finished: Converged in {} steps'.format(iteration))
+                if verbal:
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('Finished: Converged in {} steps'.format(iteration))
                 break
             elif params[1] > MAXTHETA:
-                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-                print('Finished: ridge regression: filter is all-zeros.')
+                if verbal:
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('Finished: ridge regression: filter is all-zeros.')
                 break
         else:
-            print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-            print('Finished: reached maxiter = {}.'.format(num_iters))
+            if verbal:
+                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                print('Finished: reached maxiter = {}.'.format(num_iters))
          
         self.optimized_params = params
         
@@ -100,3 +103,20 @@ class Ridge:
         self.optimized_C_prior = optimized_C_prior
         self.optimized_C_post = optimized_C_post
         self.w_opt = optimized_m_post
+
+    def _rcv(self, w, wSTA_test, X_test, y_test):
+
+        """Relative Mean Squared Error"""
+
+        a = mean_squared_error(y_test, X_test @ w)  
+        b = mean_squared_error(y_test, X_test @ wSTA_test)
+
+        return a - b
+
+    def measure_prediction_performance(self, X_test, y_test):
+
+        wSTA_test = np.linalg.solve(X_test.T @ X_test, X_test.T @ y_test)
+
+        w = self.w_opt.ravel()
+
+        return self._rcv(w, wSTA_test, X_test, y_test)
