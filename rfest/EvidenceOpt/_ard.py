@@ -4,15 +4,99 @@ from .._utils import *
 
 __all__ = ['ARD']
 
-class ARD(EmpiricalBayes):
+class ARD:
+    
+    """Iterative fixed-point algorithm """
+    
+    def __init__(self, X, y, dims):
+        
+        self.X = X # stimulus design matrix
+        self.Y = y # response 
+        
+        self.dims = dims # assumed order [t, y, x]
+        self.n_samples, self.n_features = X.shape
+
+        self.XtX = X.T @ X
+        self.XtY = X.T @ y
+        self.YtY = y.T @ y
+
+        self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+        
+    def update_params(self, params, C_post, m_post):
+        
+        sigma = params[0]
+        theta = params[1:]
+        
+        theta = (self.n_features - theta * np.trace(C_post)) / m_post**2
+        
+        upper = np.sum(self.YtY - 2 * self.XtY * m_post + m_post.T @ self.XtX @ m_post)
+        lower = self.n_features - np.sum(1 - theta * np.diag(C_post))
+        sigma = upper / lower
+        
+        return np.hstack([sigma, theta])
     
     def update_C_prior(self, params):
-
-        theta = params[1]
-        theta = np.maximum(1e-7, theta)        
-        C_prior = np.diag(theta)
-        C_prior += 1e-07 * np.eye(self.n_features)
-        C_prior_inv = np.linalg.inv(C_prior)
+        
+        theta = params[1:]
+        
+        C_prior = np.identity(self.n_features) *  1 / theta
+        C_prior_inv = np.identity(self.n_features) * theta
+        
+        return C_prior, C_prior_inv
     
-        return C_prior, C_prior_inv    
-   
+    def update_C_posterior(self, params, C_prior_inv):
+
+        sigma = params[0]
+
+        C_post_inv = self.XtX / sigma**2 + C_prior_inv
+        C_post = np.linalg.inv(C_post_inv)
+        
+        m_post = C_post @ self.XtY / (sigma**2)
+        
+        return C_post, C_post_inv, m_post
+    
+    def fit(self, initial_params, num_iters=100, threshold=1e-6, MAXALPHA=1e6, verbal=True):
+        
+        params = initial_params
+        
+        if verbal:
+            print('Iter\tσ\tθ0\tθ1')
+            print('{0}\t{1:.3f}\t{2:.3f}\t{2:.3f}'.format(0, params[0], params[1], params[2]))
+
+            
+        for iteration in np.arange(1, num_iters+1):
+
+            params0 = params
+            
+            (C_prior, C_prior_inv) = self.update_C_prior(params)
+            (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
+            
+            params = self.update_params(params, C_post, m_post)
+            
+            dparams = np.linalg.norm(params - params0)
+            
+            if dparams < threshold:
+                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                print('Finished: Converged in {} steps'.format(iteration))
+                break
+            elif (params[1:] > MAXALPHA).any():
+                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                print('Finished: Theta reached maximum threshold.')
+                break
+        else:
+            print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+            print('Finished: reached maxiter = {}.'.format(num_iters))
+         
+        self.optimized_params = params
+        
+        (optimized_C_prior, 
+         optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
+        
+        (optimized_C_post, 
+         optimized_C_post_inv, 
+         optimized_m_post) = self.update_C_posterior(self.optimized_params,
+                                                   optimized_C_prior_inv)
+        
+        self.optimized_C_prior = optimized_C_prior
+        self.optimized_C_post = optimized_C_post
+        self.w_opt = optimized_m_post
