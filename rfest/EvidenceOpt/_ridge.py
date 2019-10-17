@@ -1,4 +1,6 @@
-import autograd.numpy as np
+import jax.numpy as np
+from sklearn.metrics import r2_score, mean_squared_error
+
 from ._base import *
 from .._utils import *
 
