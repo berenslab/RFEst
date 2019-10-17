@@ -111,13 +111,9 @@ class EmpiricalBayes:
         return params
 
     
-    def fit(self, initial_params=None, num_iters=1, step_size=1e-2, tolerance=6, verbal=True):
+    def fit(self, initial_params, num_iters=20, step_size=1e-2, tolerance=10, verbal=True):
 
-        self.num_iters = num_iters
-        
-        if initial_params is None:
-            initial_params = self.initialize_params()
-        
+        self.num_iters = num_iters       
         self.optimized_params = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal)
 
         (optimized_C_prior, 
@@ -130,5 +126,4 @@ class EmpiricalBayes:
         
         self.optimized_C_prior = optimized_C_prior
         self.optimized_C_post = optimized_C_post
-        self.optimized_m_post = optimized_m_post
-        self.w_opt = optimized_m_post.reshape(self.dims)
+        self.w_opt = optimized_m_post
