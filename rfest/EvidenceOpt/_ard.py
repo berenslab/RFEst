@@ -76,16 +76,19 @@ class ARD:
             dparams = np.linalg.norm(params - params0)
             
             if dparams < threshold:
-                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-                print('Finished: Converged in {} steps'.format(iteration))
+                if verbal:
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('Finished: Converged in {} steps'.format(iteration))
                 break
             elif (params[1:] > MAXALPHA).any():
-                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-                print('Finished: Theta reached maximum threshold.')
+                if verbal:
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('Finished: Theta reached maximum threshold.')
                 break
         else:
-            print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-            print('Finished: reached maxiter = {}.'.format(num_iters))
+            if verbal:
+                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                print('Finished: reached maxiter = {}.'.format(num_iters))
          
         self.optimized_params = params
         
