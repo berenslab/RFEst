@@ -7,6 +7,8 @@ from jax.experimental import optimizers
 from jax.config import config
 config.update("jax_enable_x64", True)
 
+from sklearn.metrics import mean_squared_error
+
 from .._utils import *
 
 __all__ = ['EmpiricalBayes']
