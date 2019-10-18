@@ -26,7 +26,7 @@ To enable GPU support on **Linux**, you need to consult the [JAX installation gu
     
 ### For Windows Users
 
-Jax doen't support Windows yet. However, if you are running Windows 10, you can install JAX within the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (but only with relatively outdated versions of JAX and jaxlib, sadly).
+JAX doen't support Windows yet. However, if you are running Windows 10, you can install JAX within the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (but only the relatively outdated versions of JAX and jaxlib, sadly).
 
     git clone https://github.com/berenslab/RFEst
     pip install -r RFEst/requirements_win.txt
