@@ -1,14 +1,37 @@
 # RFEst
 
-A Python 3 tool for receptive field (RF) estimation using Empirical Bayes and automatic differentiation. 
+A Python 3 tool for neural receptive field (RF) estimation.
 
 ## Installation
 
-To install, clone this repo into local directory and then use `pip install -e`:
+RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation and JIT compilation to GPU/CPU, so you need to install JAX first. 
+
+### For Linux and MacOS users** 
+
+To install CPU-only version, simply clone this repo into local directory and then run `pip install -e`, JAX and other dependencies will be installed automatically:
 
     git clone https://github.com/berenslab/RFEst
     pip install -e RFEst
 
+To enable GPU support on **Linux**, you need to consult the [JAX installation guide](https://github.com/google/jax#pip-installation). For reference purpose, I copied the relevant steps here, but please always check the JAX README page for up-to-date information.
+
+    # install jaxlib
+    PYTHON_VERSION=cp37  # alternatives: cp27, cp35, cp36, cp37
+    CUDA_VERSION=cuda92  # alternatives: cuda90, cuda92, cuda100, cuda101
+    PLATFORM=linux_x86_64  # alternatives: linux_x86_64
+    BASE_URL='https://storage.googleapis.com/jax-releases'
+    pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.30-$PYTHON_VERSION-none-$PLATFORM.whl
+
+    pip install --upgrade jax  # install jax
+    
+### For Windows Users
+
+Jax doen't support Windows yet. However, if you are running Windows 10, you can install JAX within the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (but only with relatively outdated versions of JAX and jaxlib, sadly).
+
+    git clone https://github.com/berenslab/RFEst
+    pip install -r RFEst/requirements_win.txt
+    pip install -e RFEst
+    
 ## Supported Methods
 
 * Ridge Regression
@@ -41,7 +64,7 @@ This package also comes with a simple linear gaussian data generator with three 
     sklearn
     matplotlib
     jax
-    jaxlib[^1]
+    jaxlib
 
 ## Reference
 
@@ -50,9 +73,3 @@ This package also comes with a simple linear gaussian data generator with three 
 [2] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
 
 [3] Park, M., & Pillow, J. W. (2011). Receptive field inference with localized priors. PLoS computational biology, 7(10), e1002219.
-
-## Note
-
-[^1]: Jax doen't support Windows yet, but it might work on Windows Subsystem for Linux. Quoted from Jax's installation guide:
-
-> We support installing or building jaxlib on Linux (Ubuntu 16.04 or later) and macOS (10.12 or later) platforms, but not yet Windows. We're not currently working on Windows support, but contributions are welcome (see #438). Some users have reported success with building a CPU-only jaxlib from source using the Windows Subsytem for Linux.
