@@ -53,4 +53,6 @@ This package also comes with a simple linear gaussian data generator with three 
 
 ## Note
 
-[^1]: Jax doen't support Windows yet. I am sorry, Windows users, but there's nothing I can do. 
+[^1]: Jax doen't support Windows yet, but it might work on Windows Subsystem for Linux. Quoted from Jax's installation guide:
+
+> We support installing or building jaxlib on Linux (Ubuntu 16.04 or later) and macOS (10.12 or later) platforms, but not yet Windows. We're not currently working on Windows support, but contributions are welcome (see #438). Some users have reported success with building a CPU-only jaxlib from source using the Windows Subsytem for Linux.
