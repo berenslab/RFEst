@@ -8,10 +8,11 @@ RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation an
 
 ### For Linux and MacOS users
 
-To install CPU-only version, simply clone this repo into local directory and then run `pip install -e`, JAX and other dependencies will be installed automatically:
+To install CPU-only version, simply clone this repo into local directory and then run the following steps:
 
 ```bash
 git clone https://github.com/berenslab/RFEst
+pip install -r RFEst/requirements.txt
 pip install -e RFEst
 ```
 
@@ -27,7 +28,7 @@ pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.30-$PYTHON_VERSION-none
 
 pip install --upgrade jax  # install jax
 ```
- 
+
    
 ### For Windows Users
 
