@@ -43,10 +43,12 @@ JAX doen't support Windows yet. However, if you are running Windows 10, you can 
 
 Given a stimulus design matrix (X) and the corresponding response (y), a optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` 
 
+    ```python
     from rfest import ASD
 
     asd = ASD(X, y, dims=(5, 20, 15))
     asd.fit(initial_params=[1., 1., 2., 2., 2.], num_iters=300)
+    ```
 
 This package also comes with a simple linear gaussian data generator with three spatial filters ('gaussian', 'mexican_hat', 'gabor').
 
