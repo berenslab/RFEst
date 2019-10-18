@@ -6,12 +6,4 @@ setup(name='RFEst',
       author='Ziwei Huang',
       author_email='huang-ziwei@outlook.com',
       packages=find_packages(),
-      install_requires=[
-        "numpy>=1.13.1",
-        "scipy",
-        "matplotlib",
-        "sklearn",
-        "jax",
-        "jaxlib"
-      ],
      )
