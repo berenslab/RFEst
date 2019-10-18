@@ -6,7 +6,7 @@ A Python 3 tool for neural receptive field (RF) estimation.
 
 RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation and JIT compilation to GPU/CPU, so you need to install JAX first. 
 
-### For Linux and MacOS users** 
+### For Linux and MacOS users
 
 To install CPU-only version, simply clone this repo into local directory and then run `pip install -e`, JAX and other dependencies will be installed automatically:
 
