@@ -10,27 +10,34 @@ RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation an
 
 To install CPU-only version, simply clone this repo into local directory and then run `pip install -e`, JAX and other dependencies will be installed automatically:
 
-    git clone https://github.com/berenslab/RFEst
-    pip install -e RFEst
+```bash
+git clone https://github.com/berenslab/RFEst
+pip install -e RFEst
+```
 
 To enable GPU support on **Linux**, you need to consult the [JAX installation guide](https://github.com/google/jax#pip-installation). For reference purpose, I copied the relevant steps here, but please always check the JAX README page for up-to-date information.
 
-    # install jaxlib
-    PYTHON_VERSION=cp37  # alternatives: cp27, cp35, cp36, cp37
-    CUDA_VERSION=cuda92  # alternatives: cuda90, cuda92, cuda100, cuda101
-    PLATFORM=linux_x86_64  # alternatives: linux_x86_64
-    BASE_URL='https://storage.googleapis.com/jax-releases'
-    pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.30-$PYTHON_VERSION-none-$PLATFORM.whl
+```bash
+# install jaxlib
+PYTHON_VERSION=cp37  # alternatives: cp27, cp35, cp36, cp37
+CUDA_VERSION=cuda92  # alternatives: cuda90, cuda92, cuda100, cuda101
+PLATFORM=linux_x86_64  # alternatives: linux_x86_64
+BASE_URL='https://storage.googleapis.com/jax-releases'
+pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.30-$PYTHON_VERSION-none-$PLATFORM.whl
 
-    pip install --upgrade jax  # install jax
-    
+pip install --upgrade jax  # install jax
+```
+ 
+   
 ### For Windows Users
 
 JAX doen't support Windows yet. However, if you are running Windows 10, you can install JAX within the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (but only the relatively outdated versions of JAX and jaxlib, sadly).
 
-    git clone https://github.com/berenslab/RFEst
-    pip install -r RFEst/requirements_win.txt
-    pip install -e RFEst
+```bash
+git clone https://github.com/berenslab/RFEst
+pip install -r RFEst/requirements_win.txt
+pip install -e RFEst
+```
     
 ## Supported Methods
 
@@ -52,12 +59,14 @@ asd.fit(initial_params=[1., 1., 2., 2., 2.], num_iters=300)
 
 This package also comes with a simple linear gaussian data generator with three spatial filters ('gaussian', 'mexican_hat', 'gabor').
 
-    from rfest import make_data
+```python
+from rfest import make_data
 
-    ((X, y), (Xtest, Ytest), 
-     w_true) = make_data(dims=(5, 20, 15), sigma=(1.5, 1.5),
-                               n_samples=2000, nsevar=0.025, 
-                               filter_type='gaussian', seed=2046)    
+((X, y), (Xtest, Ytest), 
+ w_true) = make_data(dims=(5, 20, 15), sigma=(1.5, 1.5),
+                           n_samples=2000, nsevar=0.025, 
+                           filter_type='gaussian', seed=2046)    
+```
 
 ## Dependencies
 
