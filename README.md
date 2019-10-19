@@ -31,7 +31,7 @@ pip install --upgrade jax  # install jax
 
 ### For Windows Users
 
-JAX doen't support Windows yet. However, if you are running Windows 10, you can install JAX within the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (but only the relatively outdated versions of JAX==0.1.43 and jaxlib==0.1.23, sadly). To install, run:
+JAX doen't support Windows yet, so RFEst also won't be able to be installed on Windows. However, if you are running Windows 10, you can install JAX within the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (but only the relatively outdated versions of JAX==0.1.43 and jaxlib==0.1.23, sadly). To install, run:
 
 ```bash
 git clone https://github.com/berenslab/RFEst 
