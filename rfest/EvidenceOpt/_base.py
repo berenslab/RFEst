@@ -15,7 +15,7 @@ __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
 
-    def __init__(self, X, y, dims):
+    def __init__(self, X, y, dims, compute_mle=False):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
@@ -27,8 +27,9 @@ class EmpiricalBayes:
         self.XtY = X.T @ y
         self.YtY = y.T @ y
 
-        self.w_mle = np.linalg.solve(self.XtX, self.XtY)
-                     #maximum likelihood estimation
+        if compute_mle:
+            self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+                         #maximum likelihood estimation
     
     def update_C_prior(self, params):
         pass
