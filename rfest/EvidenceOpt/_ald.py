@@ -37,14 +37,14 @@ class ALD(EmpiricalBayes):
         if len(self.dims) == 1:
             C, C_inv = C_t, C_t_inv
 
-        elif 1 < len(self.dims) < 3:
+        elif len(self.dims) == 2:
             params_space = params[6:10]
             C_s, C_s_inv = self._make_1D_covariance(params_space, self.dims[1])
 
             C = rho * np.kron(C_t, C_s)
             C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
 
-        elif len(self.dims) > 2:
+        elif len(self.dims) == 3:
 
             params_spacey = params[6:10]
             params_spacex = params[10:]
