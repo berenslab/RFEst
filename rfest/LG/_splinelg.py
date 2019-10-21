@@ -10,7 +10,7 @@ __all__ = ['splineLG']
 
 class splineLG:
     
-    def __init__(self, X, y, df_splines, dims, compute_mle=True):
+    def __init__(self, X, y, dims, df_splines, compute_mle=True):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
