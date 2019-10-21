@@ -1,4 +1,5 @@
 import jax.numpy as np
+import jax.random as random
 from jax import grad
 from jax import jit
 from jax.experimental import optimizers
