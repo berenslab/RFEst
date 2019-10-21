@@ -30,7 +30,7 @@ class splineLG:
         S = self._make_splines_matrix(df_splines)
         self.S = S
         self.n_spline_coeff = self.S.shape[1]
-        self.w_spl = S @ np.linalg.inv(S.T @ X.T @ X @ S) @ S.T @ X.T @ y
+        self.w_spl = S @ np.linalg.solve(S.T @ X.T @ X @ S, S.T @ X.T @ y)
         
     def _make_splines_matrix(self, df):
         
