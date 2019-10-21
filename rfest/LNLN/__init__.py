@@ -1,2 +1,2 @@
-from ._LNLN import *
-from ._splineLNLN import *
+from ._lnln import *
+from ._splinelnln import *
