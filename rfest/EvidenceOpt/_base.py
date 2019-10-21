@@ -15,7 +15,7 @@ __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
 
-    def __init__(self, X, y, dims, compute_mle=False):
+    def __init__(self, X, y, dims, compute_mle=True):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
