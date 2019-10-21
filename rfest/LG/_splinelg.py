@@ -1,7 +1,10 @@
 import jax.numpy as np
+from jax import grad
+from jax import jit
+from jax.experimental import optimizers
 
-from ._base import *
-from .._utils import *
+from jax.config import config
+config.update("jax_enable_x64", True)
 
 __all__ = ['splineLG']
 
