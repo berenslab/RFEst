@@ -19,7 +19,7 @@ class splineLNLN:
     Spline-based multi-filters Linear-Nonliear-Poisson model with fixed (softplus) nonlinearity. 
     """
     
-    def __init__(self, X, y, dt, dims, compute_mle=True):
+    def __init__(self, X, y, dt, dims, df_splines, compute_mle=True):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
