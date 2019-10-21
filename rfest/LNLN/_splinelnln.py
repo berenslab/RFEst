@@ -66,9 +66,7 @@ class splineLNLN:
                          patsy.cr(g2.ravel(), df[2]))
             
         return S
-        
-        
-        
+       
     def neglogposterior(self, B):
         
         XS = self.X @ self.S
@@ -86,7 +84,9 @@ class splineLNLN:
 
         neglogli = term0 + term1
         
-        return neglogli
+        p = self.lambd * ((1 - self.alpha) * np.linalg.norm(B, 2) + self.alpha * np.linalg.norm(B, 1)) 
+        
+        return neglogli + p
         
     def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
         
@@ -133,15 +133,19 @@ class splineLNLN:
             
         return params      
     
-    def fit(self, initial_params=None, num_subunits=1, num_iters=5, step_size=1e-2, tolerance=10, verbal=True):
+    def fit(self, initial_params=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05,
+            step_size=1e-2, tolerance=10, verbal=True, random_seed=2046):
 
+        self.lambd = lambd # elastic net parameter
+        self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
+        
         self.n_subunits = num_subunits
         self.num_iters = num_iters   
         
         if initial_params is None:
         
-            key = random.PRNGKey(1)
+            key = random.PRNGKey(random_seed)
             initial_params = 0.01 * random.normal(key, shape=(self.n_spline_coeff, self.n_subunits)).flatten()
         
         self.B_opt = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal)   
-        self.w_opt = self.S @ self.B_opt
+        self.w_opt = self.S @ self.B_opt.reshape(self.n_spline_coeff, self.n_subunits)
