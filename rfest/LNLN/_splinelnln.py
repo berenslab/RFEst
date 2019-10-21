@@ -26,6 +26,7 @@ class splineLNLN:
         self.dt = dt # time bin size 
         
         self.dims = dims # assumed order [t, y, x]
+        self.ndim = len(dims)
         self.n_samples, self.n_features = X.shape
 
         if compute_mle:
