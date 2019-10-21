@@ -76,6 +76,7 @@ from rfest import make_data
     matplotlib
     jax
     jaxlib
+    patsy
 
 ## Reference
 
