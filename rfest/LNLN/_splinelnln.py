@@ -8,7 +8,7 @@ config.update("jax_enable_x64", True)
 
 import patsy
 
-__all__ = ['LNLN']
+__all__ = ['splineLNLN']
 
 class splineLNLN:
 
