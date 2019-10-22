@@ -40,7 +40,6 @@ class splineLNLN:
         self.n_spline_coeff = self.S.shape[1]
         self.w_spl = S @ onp.linalg.lstsq(S.T @ X.T @ X @ S, S.T @ X.T @ y, rcond=None)[0]
         
-        
     def _make_splines_matrix(self, df):
         
         if np.ndim(df) != 0 and len(df) != self.ndim:
@@ -68,7 +67,7 @@ class splineLNLN:
             
         return S
        
-    def neglogposterior(self, B):
+    def negloglikelihood(self, B):
         
         XS = self.XS
         y = self.y
@@ -87,10 +86,11 @@ class splineLNLN:
         
         l1 = np.linalg.norm(B, 1)
         l2 = np.linalg.norm(B, 2)
-        # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc')
-        nuc = np.sum(np.linalg.svd(B.reshape(self.n_spline_coeff, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
-        
-        p = self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)  + self.gamma * nuc
+        p = self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
+        # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc') # wait for JAX implementation
+        if self.gamma:
+            nuc = np.sum(np.linalg.svd(B.reshape(self.n_spline_coeff, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
+            p += self.gamma * nuc
         
         return neglogli + p
         
@@ -102,7 +102,7 @@ class splineLNLN:
         @jit
         def step(i, opt_state):
             p = get_params(opt_state)
-            g = grad(self.neglogposterior)(p)
+            g = grad(self.negloglikelihood)(p)
             return opt_update(i, g, opt_state)
 
         cost_list = []
@@ -115,7 +115,7 @@ class splineLNLN:
             
             opt_state = step(i, opt_state)
             params_list.append(get_params(opt_state))
-            cost_list.append(self.neglogposterior(params_list[-1]))
+            cost_list.append(self.negloglikelihood(params_list[-1]))
             
             if verbal:
                 print('{0}\t{1:.3f}\t'.format(i,  cost_list[-1]))
@@ -139,7 +139,7 @@ class splineLNLN:
             
         return params      
     
-    def fit(self, initial_params=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05, gamma=0.05,
+    def fit(self, initial_params=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05, gamma=0.0,
             step_size=1e-2, tolerance=10, verbal=True, random_seed=2046):
 
         self.lambd = lambd # elastic net parameter - global weight
