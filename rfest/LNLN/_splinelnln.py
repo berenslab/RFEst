@@ -85,7 +85,8 @@ class splineLNLN:
 
         neglogli = term0 + term1
         
-        p = self.lambd * ((1 - self.alpha) * np.linalg.norm(B, 2) + self.alpha * np.linalg.norm(B, 1)) 
+        p = self.lambd * ((1 - self.alpha) * np.linalg.norm(B, 2) + self.alpha * np.linalg.norm(B, 1))  + \
+            self.gamma * np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc')
         
         return neglogli + p
         
@@ -134,11 +135,12 @@ class splineLNLN:
             
         return params      
     
-    def fit(self, initial_params=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05,
+    def fit(self, initial_params=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05, gamma=0.05,
             step_size=1e-2, tolerance=10, verbal=True, random_seed=2046):
 
-        self.lambd = lambd # elastic net parameter
+        self.lambd = lambd # elastic net parameter - global weight
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
+        self.gamma = gamma # nuclear norm parameter
         
         self.n_subunits = num_subunits
         self.num_iters = num_iters   
