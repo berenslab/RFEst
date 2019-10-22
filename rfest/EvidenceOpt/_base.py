@@ -98,18 +98,22 @@ class EmpiricalBayes:
                 
                 if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0 ):
                     params = params_list[0]
-                    print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
+                    if verbal:
+                        print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
                     break
                 elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
                     params = params_list[-1]
-                    print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
+                    if verbal:
+                        print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
                     break                    
                 else:
                     params_list.pop(0)
                     cost_list.pop(0)
         else:
-            print('Stop: reached maxiter = {}.'.format(num_iters))
             params = params_list[-1]
+            if verbal:
+                print('Stop: reached maxiter = {}.'.format(num_iters))
+            
              
         return params
 
