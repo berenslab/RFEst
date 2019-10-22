@@ -87,7 +87,7 @@ class splineLNLN:
         
         l1 = np.linalg.norm(B, 1)
         l2 = np.linalg.norm(B, 2)
-        nuc = np.asarray(onp.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc'))
+        nuc = onp.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc')
         
         p = self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)  + self.gamma * nuc
         
