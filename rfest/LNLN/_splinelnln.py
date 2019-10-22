@@ -89,7 +89,7 @@ class splineLNLN:
         l2 = np.linagl.norm(B, 2)
         nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc')
         
-        p = self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1  + self.gamma * nuc
+        p = self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)  + self.gamma * nuc
         
         return neglogli + p
         
