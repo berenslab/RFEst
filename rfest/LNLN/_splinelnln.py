@@ -36,6 +36,7 @@ class splineLNLN:
         
         S = self._make_splines_matrix(df_splines)
         self.S = S
+        self.XS = X @ S
         self.n_spline_coeff = self.S.shape[1]
         self.w_spl = S @ onp.linalg.lstsq(S.T @ X.T @ X @ S, S.T @ X.T @ y, rcond=None)[0]
         
@@ -69,7 +70,7 @@ class splineLNLN:
        
     def neglogposterior(self, B):
         
-        XS = self.X @ self.S
+        XS = self.XS
         y = self.y
         dt = self.dt
         
