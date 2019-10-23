@@ -25,8 +25,10 @@ class splineLG:
         self.n_samples, self.n_features = X.shape
 
         if compute_mle:
-            self.w_mle = np.linalg.solve(X.T @ X, X.T @ y)
+            self.w_sta = X.T @ y
+            self.w_mle = onp.linalg.lstsq(X.T @ X, self.w_sta, rcond=None)[0]
         else:
+            self.w_sta = None
             self.w_mle = None
         
         S = self._make_splines_matrix(df_splines)
@@ -130,7 +132,7 @@ class splineLG:
         
         if initial_params is None:
         
-            key = random.PRNGKey(1)
+            key = random.PRNGKey(random_seed)
             B = 0.01 * random.normal(key, shape=(self.n_spline_coeff, )).flatten()
         
         self.w_opt = self.S @ self.optimize_params(B, num_iters, step_size, tolerance, verbal)    
