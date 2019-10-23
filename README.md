@@ -39,33 +39,31 @@ pip install -r RFEst/requirements_win.txt # use pip3 if alias to pip wasn't adde
 pip install -e RFEst
 ```
     
-## Supported Methods
+## Supported Methods and Usage
 
-* Ridge Regression
-* Automatic Relevance Determination (ARD) [1]
+**Spline-based Methods** [1]
+
+`splineLG` and `splineLNLN` use *natural cubic regression splines* basis functions to approximate spatio-temporal RFs. 
+
+Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` :
+
+```python
+from rfest import splineLG
+
+spl = splineLG(X, y, dims=(5, 20,15)
+spl.fit(num_iters=500, alpha=1, lambd=0.025, verbal=100)
+```
+
+**Evidence Optimization**
+
 * Automatic Smoothness Determination (ASD) [2]
 * Automatic Locality Determination (ALD) [3]
-
-## Usage
-
-Given a stimulus design matrix (X) and the corresponding response (y), a optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` 
 
 ```python
 from rfest import ASD
 
 asd = ASD(X, y, dims=(5, 20, 15))
 asd.fit(initial_params=[1., 1., 2., 2., 2.], num_iters=300)
-```
-
-This package also comes with a simple linear gaussian data generator with three spatial filters ('gaussian', 'mexican_hat', 'gabor').
-
-```python
-from rfest import make_data
-
-((X, y), (Xtest, Ytest), 
- w_true) = make_data(dims=(5, 20, 15), sigma=(1.5, 1.5),
-                           n_samples=2000, nsevar=0.025, 
-                           filter_type='gaussian', seed=2046)    
 ```
 
 ## Dependencies
@@ -87,7 +85,7 @@ Ran, Y., Huang, Z., Baden, T., Baayen, H., Berens, P., Franke, K., & Euler, T. (
 
 ## Reference
 
-[1] Tipping, M. E. (2001). Sparse Bayesian learning and the relevance vector machine. Journal of machine learning research, 1(Jun), 211-244.
+[1] Hunag, Z., &  Berens, P. (in preparation). Efficient receptive field inference using cubic regression splines.
 
 [2] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
 
