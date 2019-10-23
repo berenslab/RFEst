@@ -107,20 +107,20 @@ class splineLG:
                 if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0 ):
                     params = params_list[0]
                     if verbal:
-                        print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
+                        print('Stop at {} steps: cost has been monotonically increasing for {} steps.'.format(i, tolerance))
                     break
                 elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
                     params = params_list[-1]
                     if verbal:
-                        print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
+                        print('Stop at {} steps: cost has been changing less than 1e-5 for {} steps.'.format(i, tolerance))
                     break                    
                 else:
                     params_list.pop(0)
                     cost_list.pop(0)     
         else:
-            if verbal:
-                print('Stop: reached maxiter = {}.'.format(num_iters))
             params = params_list[-1]
+            if verbal:
+                print('Stop: reached {} steps, final cost={}.'.format(num_iters, cost_list[-1]))
             
         return params      
     
