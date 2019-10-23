@@ -98,8 +98,9 @@ class splineLG:
             params_list.append(get_params(opt_state))
             cost_list.append(self.cost(params_list[-1]))
             
-            if verbal and i % 10 == 0:
-                print('{0}\t{1:.3f}\t'.format(i,  cost_list[-1]))
+            if verbal:
+                if i % int(verbal) == 0:
+                    print('{0}\t{1:.3f}\t'.format(i,  cost_list[-1]))
             
             if len(params_list) > tolerance:
                 
