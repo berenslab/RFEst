@@ -77,6 +77,13 @@ from rfest import make_data
     jax
     jaxlib
     patsy
+    
+## Data
+
+The accompanying data for example notebooks are from:
+
+Ran, Y., Huang, Z., Baden, T., Baayen, H., Berens, P., Franke, K., & Euler, T. (2019). Type-specific dendritic integration in mouse retinal ganglion cells. bioRxiv, 753335.
+    
 
 ## Reference
 
