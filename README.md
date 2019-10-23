@@ -43,14 +43,14 @@ pip install -e RFEst
 
 **Spline-based Methods** [1]
 
-`splineLG` and `splineLNLN` use *natural cubic regression splines* basis functions to approximate spatio-temporal RFs. 
+`splineLG` and `splineLNLN` use *natural cubic regression splines* to approximate spatio-temporal RFs. 
 
 Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` :
 
 ```python
 from rfest import splineLG
 
-spl = splineLG(X, y, dims=(5, 20,15))
+spl = splineLG(X, y, dims=(5, 20, 15))
 spl.fit(num_iters=500, alpha=1, lambd=0.025, verbal=100)
 ```
 
