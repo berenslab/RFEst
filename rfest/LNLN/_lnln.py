@@ -94,24 +94,28 @@ class LNLN:
             cost_list.append(self.neglogposterior(params_list[-1]))
             
             if verbal:
-                print('{0}\t{1:.3f}\t'.format(i,  cost_list[-1]))
+                if i % int(verbal) == 0:
+                    print('{0}\t{1:.3f}\t'.format(i,  cost_list[-1]))
             
             if len(params_list) > tolerance:
                 
                 if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0 ):
                     params = params_list[0]
-                    print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
+                    if verbal:
+                        print('Stop at {} steps: cost has been monotonically increasing for {} steps.'.format(i, tolerance))
                     break
                 elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
                     params = params_list[-1]
-                    print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
+                    if verbal:
+                        print('Stop at {} steps: cost has been changing less than 1e-5 for {} steps.'.format(i, tolerance))
                     break                    
                 else:
                     params_list.pop(0)
                     cost_list.pop(0)     
         else:
-            print('Stop: reached maxiter = {}.'.format(num_iters))
             params = params_list[-1]
+            if verbal:
+                print('Stop: reached {} steps, final cost={}.'.format(num_iters, cost_list[-1]))
             
         return params      
     
