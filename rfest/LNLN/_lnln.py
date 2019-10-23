@@ -34,7 +34,7 @@ class LNLN:
     def add_C_posterior(self, Cinv):
         self.Cinv = Cinv
         
-    def neglogposterior(self, K):
+    def negloglikelihood(self, K):
         
         X = self.X
         y = self.y
@@ -78,7 +78,7 @@ class LNLN:
         @jit
         def step(i, opt_state):
             p = get_params(opt_state)
-            g = grad(self.neglogposterior)(p)
+            g = grad(self.negloglikelihood)(p)
             return opt_update(i, g, opt_state)
 
         cost_list = []
