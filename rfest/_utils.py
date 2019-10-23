@@ -21,17 +21,16 @@ def get_sdm(stim, nlag):
         
     return frames
 
-def SVD(w, dims):
-    if len(dims) == 3:
+def get_spatial_and_time_filters(w, dims):
+    
+    if len(dims) != 3:
+        raise ValueError("Only works for 3D receptive fields.")
         
-        dims_tRF = dims[0]
-        dims_sRF = dims[1:]
-        U, S, Vt = randomized_svd(w.reshape(dims_tRF, np.prod(dims_sRF)), 3)
-        sRF = Vt[0].reshape(*dims_sRF)
-        tRF = U[:, 0]
-    else:
-        sRF = w
-        tRF = None
+    dims_tRF = dims[0]
+    dims_sRF = dims[1:]
+    U, S, Vt = randomized_svd(w.reshape(dims_tRF, np.prod(dims_sRF)), 3)
+    sRF = Vt[0].reshape(*dims_sRF)
+    tRF = U[:, 0]
 
     return [sRF, tRF]
 
