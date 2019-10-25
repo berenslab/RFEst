@@ -61,16 +61,21 @@ class SemiNMF:
         WH = self.W @ self.H
         return np.mean((V - WH)**2)
 
-    def fit(self, num_iters=300, compute_cost=False):
+    def fit(self, num_iters=300, verbal=0):
 
-        # initialize cost object
-        self.cost = np.zeros(num_iters)
+        if verbal:
+            self.cost = np.zeros(int(np.ceil(num_iters / verbal)))
+            print('{}\t{}'.format('Iter', 'Cost'))
 
         # start updating
-        for itr in tqdm(range(num_iters)):
+        for itr in range(num_iters):
 
             self.W = self.update_W()
             self.H = self.update_H()
 
-            if compute_cost:
-                self.cost[itr] = self.compute_cost()
+            if verbal:
+                if itr % verbal == 0:
+                    self.cost[itr] = self.compute_cost()
+                    print('{}\t{:.3f}'.format(itr, self.cost[itr]))  
+
+
