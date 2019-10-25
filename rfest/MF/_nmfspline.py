@@ -3,10 +3,16 @@ import patsy
 
 from tqdm import tqdm
 
+__all__ = ['NMFSpline]
+
+
 class NMFSpline:
 
     """
     Spline-based Nonnegative Matrix Factorization.
+    
+    Zdunek, R. et al. (2014). B-Spline Smoothing of Feature Vectors in Nonnegative Matrix Factorization.
+    
     """
 
     def __init__(self, V, dims, df, k, random_seed=2046):
@@ -28,7 +34,7 @@ class NMFSpline:
         # initialize W and H
 
         np.random.seed(random_seed)
-        self.B = np.random.randn(self.b, self.k)
+        self.B = np.abs(np.random.rand(self.b, self.k))
         self.H = np.abs(np.random.randn(self.k, self.n))
 
 
