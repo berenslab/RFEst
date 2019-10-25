@@ -84,15 +84,16 @@ class splineLNLN:
 
         neglogli = term0 + term1
         
-        l1 = np.linalg.norm(B, 1)
-        l2 = np.linalg.norm(B, 2)
-        p = self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
+        if self.lambd:
+            l1 = np.linalg.norm(B, 1)
+            l2 = np.linalg.norm(B, 2)
+            neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
         # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc') # wait for JAX implementation
         if self.gamma:
             nuc = np.sum(np.linalg.svd(B.reshape(self.n_spline_coeff, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
-            p += self.gamma * nuc
+            neglogli += self.gamma * nuc
         
-        return neglogli + p
+        return neglogli
         
     def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
         
