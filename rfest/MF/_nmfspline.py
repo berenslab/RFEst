@@ -3,7 +3,7 @@ import patsy
 
 from tqdm import tqdm
 
-__all__ = ['NMFSpline]
+__all__ = ['NMFSpline']
 
 
 class NMFSpline:
