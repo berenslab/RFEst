@@ -71,7 +71,8 @@ class splineLG:
         
         mse = np.sum((y - XS @ B)**2) / len(y)
 
-        p = self.lambd * ((1 - self.alpha) * np.linalg.norm(B, 2) + self.alpha * np.linalg.norm(B, 1)) 
+        if self.lambd:
+            p = self.lambd * ((1 - self.alpha) * np.linalg.norm(B, 2) + self.alpha * np.linalg.norm(B, 1)) 
     
         return mse + p
     
