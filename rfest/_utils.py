@@ -1,7 +1,7 @@
 import jax.numpy as np
 from sklearn.decomposition import randomized_svd
 
-def get_stimulus_desgin_matrix(stim, nlag):
+def get_stimulus_design_matrix(stim, nlag):
     
     import numpy as np
     
