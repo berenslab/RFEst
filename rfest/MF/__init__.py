@@ -1,2 +1,2 @@
-from _seminmf import *
-from _seminmfspline import *
+from ._seminmf import *
+from ._seminmfspline import *

@@ -1,6 +1,8 @@
 import numpy as np
 import patsy
 
+from tqdm import tqdm
+
 class SemiNMFSpline:
 
     """
