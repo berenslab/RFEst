@@ -51,15 +51,14 @@ class LNLN:
 
         neglogli = term0 + term1
         
-        l1 = np.linalg.norm(K, 1)
-        l2 = np.linalg.norm(K, 2)
-        p = self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
+        if self.lambd:
+            l1 = np.linalg.norm(K, 1)
+            l2 = np.linalg.norm(K, 2)
+            neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
         # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc') # wait for JAX implementation
         if self.gamma:
             nuc = np.sum(np.linalg.svd(K.reshape(self.n_spline_coeff, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
-            p += self.gamma * nuc
-            
-        neglogli += p
+            neglogli += self.gamma * nuc
         
         if self.Cinv is not None:
             
