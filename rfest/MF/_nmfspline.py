@@ -73,8 +73,8 @@ class NMFSpline:
         upper = S.T @ VHt + 1e-7
         lower = S.T @ S @ B @ HHt + 1e-7
         
-        return B * np.sqrt(upper / lower）
-
+        return B * np.sqrt(upper / lower)
+    
     def update_H(self):
         
         V = self.V
