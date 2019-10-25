@@ -41,7 +41,7 @@ class NMFSpline:
 
         if self.ndim == 1:
 
-            self.S = patsy.cr(np.arange(self.dims[0]), df[0])
+            S = patsy.cr(np.arange(self.dims[0]), df[0])
 
         elif self.ndim == 2:
 
