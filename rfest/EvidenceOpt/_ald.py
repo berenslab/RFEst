@@ -5,8 +5,8 @@ from .._utils import *
 
 class ALD(EmpiricalBayes):
     
-    def __init__(self, X, Y, dims):
-        super().__init__(X, Y, dims)
+    def __init__(self, X, Y, dims, compute_mle=True):
+        super().__init__(X, Y, dims, compute_mle)
 
     def _make_1D_covariance(self, params, ncoeff):
         
