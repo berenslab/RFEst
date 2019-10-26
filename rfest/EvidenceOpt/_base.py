@@ -28,6 +28,7 @@ class EmpiricalBayes:
         self.YtY = y.T @ y
 
         if compute_mle:
+            self.w_sta = self.XtY
             self.w_mle = np.linalg.solve(self.XtX, self.XtY)
                          #maximum likelihood estimation
     
