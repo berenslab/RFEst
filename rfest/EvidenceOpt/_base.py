@@ -113,7 +113,7 @@ class EmpiricalBayes:
         else:
             params = params_list[-1]
             if verbal:
-                print('Stop: reached maxiter = {}.'.format(num_iters))
+                print('Stop: reached {} steps, final cost={}.'.format(num_iters, cost_list[-1]))
             
              
         return params
