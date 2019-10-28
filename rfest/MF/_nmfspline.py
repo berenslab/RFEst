@@ -37,30 +37,30 @@ class NMFSpline:
 
 
     def _make_splines_matrix(self, df):
-
+        
         if np.ndim(df) != 0 and len(df) != self.ndim:
             raise ValueError("`df` must be an integer or an array the same length as `dims`")
         elif np.ndim(df) == 0:
             df = np.ones(self.ndim) * df
-
+        
         if self.ndim == 1:
-
+        
             S = patsy.cr(np.arange(self.dims[0]), df[0])
-
+            
         elif self.ndim == 2:
-
-            g0, g1 = np.meshgrid(np.arange(self.dims[1]), np.arange(self.dims[0]))
+        
+            g0, g1 = np.meshgrid(np.arange(self.dims[0]), np.arange(self.dims[1]), indexing='ij')
             S = patsy.te(patsy.cr(g0.ravel(), df[0]), patsy.cr(g1.ravel(), df[1]))
-
+            
         elif self.ndim == 3:
-
-            g0, g1, g2 = np.meshgrid(np.arange(self.dims[1]),
-                                     np.arange(self.dims[0]),
-                                     np.arange(self.dims[2]))
-            S = patsy.te(patsy.cr(g0.ravel(), df[0]),
-                         patsy.cr(g1.ravel(), df[1]),
+            
+            g0, g1, g2 = np.meshgrid(np.arange(self.dims[0]), 
+                                     np.arange(self.dims[1]), 
+                                     np.arange(self.dims[2]), indexing='ij')
+            S = patsy.te(patsy.cr(g0.ravel(), df[0]), 
+                         patsy.cr(g1.ravel(), df[1]), 
                          patsy.cr(g2.ravel(), df[2]))
-
+            
         return S
 
 
