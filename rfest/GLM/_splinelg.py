@@ -57,7 +57,7 @@ class splineLG:
             
             g0, g1, g2 = np.meshgrid(np.arange(self.dims[0]), 
                                      np.arange(self.dims[1]), 
-                                     np.arange(self.dims[2]), indexing='ij)
+                                     np.arange(self.dims[2]), indexing='ij')
             S = patsy.te(patsy.cr(g0.ravel(), df[0]), 
                          patsy.cr(g1.ravel(), df[1]), 
                          patsy.cr(g2.ravel(), df[2]))
