@@ -53,14 +53,14 @@ class splineLNLN:
             
         elif self.ndim == 2:
         
-            g0, g1 = np.meshgrid(np.arange(self.dims[1]), np.arange(self.dims[0]))
+            g0, g1 = np.meshgrid(np.arange(self.dims[0]), np.arange(self.dims[1]), indexing='ij')
             S = patsy.te(patsy.cr(g0.ravel(), df[0]), patsy.cr(g1.ravel(), df[1]))
             
         elif self.ndim == 3:
             
-            g0, g1, g2 = np.meshgrid(np.arange(self.dims[1]), 
-                                     np.arange(self.dims[0]), 
-                                     np.arange(self.dims[2]))
+            g0, g1, g2 = np.meshgrid(np.arange(self.dims[0]), 
+                                     np.arange(self.dims[1]), 
+                                     np.arange(self.dims[2]), indexing='ij')
             S = patsy.te(patsy.cr(g0.ravel(), df[0]), 
                          patsy.cr(g1.ravel(), df[1]), 
                          patsy.cr(g2.ravel(), df[2]))
