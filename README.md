@@ -1,6 +1,6 @@
 # RFEst
 
-A Python 3 tool for neural receptive field (RF) estimation.
+A Python 3 toolbox for neural receptive field (RF) estimation.
 
 ![showcase](./images/showcase.png)
 
