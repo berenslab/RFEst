@@ -106,7 +106,7 @@ class SemiNMFSpline:
     def fit(self, num_iters=300, verbal=0):
 
         if verbal:
-            self.cost = np.zeros(int(np.ceil(num_iters / verbal)))
+            self.cost = []
             print('{}\t{}'.format('Iter', 'Cost'))
         
         # start updating
@@ -117,7 +117,7 @@ class SemiNMFSpline:
 
             if verbal:
                 if itr % verbal == 0:
-                    self.cost[itr] = self.compute_cost()
+                    self.cost.append(self.compute_cost())
                     print('{}\t{:.3f}'.format(itr, self.cost[itr]))  
 
             self.W = self.S @ self.B
