@@ -118,7 +118,7 @@ class SemiNMFSpline:
             if verbal:
                 if itr % verbal == 0:
                     self.cost.append(self.compute_cost())
-                    print('{}\t{:.3f}'.format(itr, self.cost[itr]))  
+                    print('{}\t{:.3f}'.format(itr, self.cost[-1]))  
 
             self.W = self.S @ self.B
 
