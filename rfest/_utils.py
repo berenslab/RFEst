@@ -1,27 +1,35 @@
 import jax.numpy as np
 from sklearn.decomposition import randomized_svd
 
-def get_stimulus_design_matrix(stim, nlag):
+# def get_stimulus_design_matrix(stim, nlag):
     
-    import numpy as np
+#     import numpy as np
     
-    n_samples = stim.shape[0]
-    n_features = stim.shape[1:]
-    frames = np.zeros([n_samples, np.prod(n_features) * nlag])
+#     n_samples = stim.shape[0]
+#     n_features = stim.shape[1:]
+#     frames = np.zeros([n_samples, np.prod(n_features) * nlag])
     
-    for i in range(n_samples):
+#     for i in range(n_samples):
         
-        if i < nlag-1:
-            pad = np.zeros([nlag-i-1, *n_features])
-            frame = np.ravel(np.vstack([pad, stim[:i+1]]))
-        else:
-            frame = np.ravel(stim[i-nlag+1:i+1])
+#         if i < nlag-1:
+#             pad = np.zeros([nlag-i-1, *n_features])
+#             frame = np.ravel(np.vstack([pad, stim[:i+1]]))
+#         else:
+#             frame = np.ravel(stim[i-nlag+1:i+1])
         
-        frames[i] = frame
+#         frames[i] = frame
         
-    return frames
+#     return frames
 
-def get_spatial_and_time_filters(w, dims):
+def get_stimulus_design_matrix(X, nlag):
+    
+    n_sample, n_feature = X.shape
+    X_padded = np.vstack([np.zeros([nlag, n_feature]), X])
+    X_design = np.hstack([X_padded[i:n_sample+i] for i in range(nlag)])
+    
+    return X_design
+
+def get_spatial_and_temporal_filters(w, dims):
     
     if len(dims) != 3:
         raise ValueError("Only works for 3D receptive fields.")
