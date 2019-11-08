@@ -26,7 +26,7 @@ class splineLG:
 
         if compute_mle:
             self.w_sta = X.T @ y
-            self.w_mle = onp.linalg.lstsq(X.T @ X, self.w_sta, rcond=None)[0]
+            self.w_mle = np.linalg.solve(X.T @ X, self.w_sta)
         else:
             self.w_sta = None
             self.w_mle = None
@@ -35,7 +35,7 @@ class splineLG:
         self.S = S
         self.XS = X @ S
         self.n_spline_coeff = self.S.shape[1]
-        self.w_spl = S @ onp.linalg.lstsq(S.T @ X.T @ X @ S, S.T @ X.T @ y, rcond=None)[0]
+        self.w_spl = S @ np.linalg.solve(self.XS.T @ self.XS, S.T @ X.T @ y)
         
     def _make_splines_matrix(self, df):
         
