@@ -40,7 +40,8 @@ class splineLNLN:
         self.S = S
         self.XS = X @ S
         self.n_spline_coeff = self.S.shape[1]
-        self.w_spl = S @ onp.linalg.lstsq(S.T @ X.T @ X @ S, S.T @ X.T @ y, rcond=None)[0]
+        self.b_spl = np.linalg.solve(self.XS.T @ self.XS, S.T @ X.T @ y)
+        self.w_spl = S @ self.b_spl
         
     def _make_splines_matrix(self, df):
         

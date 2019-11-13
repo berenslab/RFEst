@@ -1,4 +1,4 @@
-import numpy as np
+import jax.numpy as np
 from sklearn.decomposition import randomized_svd
 
 def get_stimulus_design_matrix(X, nlag):

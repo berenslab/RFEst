@@ -1,5 +1,3 @@
-import numpy as onp
-
 import jax.numpy as np
 import jax.random as random
 from jax import grad
@@ -41,7 +39,8 @@ class splineLG:
         self.S = S
         self.XS = X @ S
         self.n_spline_coeff = self.S.shape[1]
-        self.w_spl = S @ np.linalg.solve(self.XS.T @ self.XS, S.T @ X.T @ y)
+        self.b_spl = np.linalg.solve(self.XS.T @ self.XS, S.T @ X.T @ y)
+        self.w_spl = S @ self.b_spl
         
     def _make_splines_matrix(self, df):
         
@@ -140,8 +139,8 @@ class splineLG:
         
         if initial_params is None:
         
-            key = random.PRNGKey(random_seed)
-            B = 0.01 * random.normal(key, shape=(self.n_spline_coeff, )).flatten()
+            B = self.b_spl
         
-        self.w_opt = self.S @ self.optimize_params(B, num_iters, step_size, tolerance, verbal)    
+        self.b_opt = self.optimize_params(B, num_iters, step_size, tolerance, verbal)
+        self.w_opt = self.S @ self.b_opt 
         
