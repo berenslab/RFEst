@@ -9,7 +9,7 @@ class ASD(EmpiricalBayes):
 
     Automatic Smoothness Determination (ASD).
 
-    See: Sahani, M., & Linden, J. F. (2003). 
+    Reference: Sahani, M., & Linden, J. F. (2003). 
 
     """
 
@@ -18,14 +18,33 @@ class ASD(EmpiricalBayes):
 
     def _make_1D_covariance(self, delta, ncoeff):
 
-        incoeffices = np.arange(ncoeff)
-        square_distance = (incoeffices - incoeffices.reshape(-1,1)) ** 2
+        """
+    
+        1D Squared exponential (SE) covariance.
+
+        See eq(10) in Sahani & Linden (2003).
+
+        """
+
+        grid = np.arange(ncoeff)
+        square_distance = (grid - grid.reshape(-1,1)) ** 2 # pairwise squared distance
         C = np.exp(-.5 * square_distance / delta ** 2)
         C_inv = np.linalg.inv(C + np.eye(ncoeff) * 1e-07)
 
         return C, C_inv
     
     def update_C_prior(self, params):
+
+        """
+        
+        Using kronecker product to construct high-dimensional prior covariance.
+
+        Given RF dims = [t, y, x], the prior covariance:
+
+            C = kron(Ct, kron(Cy, Cx))
+            Cinv = kron(Ctinv, kron(Cyinv, Cxinv))
+            
+        """
 
         rho = params[1]
         delta_time = params[2]

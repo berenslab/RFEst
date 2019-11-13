@@ -43,6 +43,12 @@ class EmpiricalBayes:
     
     def update_C_posterior(self, params, C_prior_inv):
 
+        """
+
+        See eq(9) in Park & Pillow (2011).
+
+        """
+
         sigma = params[0]
 
         C_post_inv = self.XtX / sigma**2 + C_prior_inv
@@ -53,6 +59,12 @@ class EmpiricalBayes:
         return C_post, C_post_inv, m_post
         
     def negative_log_evidence(self, params):
+
+        """
+        
+        See eq(10) in Park & Pillow (2011).
+
+        """
         
         sigma = params[0]
         
@@ -62,20 +74,18 @@ class EmpiricalBayes:
         
         t0 = np.log(np.abs(2 * np.pi * sigma**2)) * self.n_samples
         t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
-        t2 = m_post.T @ C_post @ m_post
-        if len(np.shape(t2)) != 0:
-            t2 = -np.mean(np.diag(t2))
-        else:
-            t2 = -t2
+        t2 = -m_post.T @ C_post @ m_post
         t3 = self.YtY / sigma**2
-        if len(np.shape(t3)) != 0:
-            t3 = np.mean(np.diag(t3))
-        else:
-            t3 = t3
         
         return 0.5 * (t0 + t1 + t2 + t3)
     
     def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
+
+        """
+        
+        Perform gradient descent using JAX optimizers. 
+
+        """
         
         opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
         opt_state = opt_init(initial_params)

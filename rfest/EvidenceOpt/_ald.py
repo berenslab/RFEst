@@ -9,7 +9,9 @@ class ALD(EmpiricalBayes):
 
     Automatic Locality Determination (ALD).
 
-    See: Park, M., & Pillow, J. W. (2011).
+    Reference: Park, M., & Pillow, J. W. (2011).
+
+    See also: https://github.com/leaduncker/SimpleEvidenceOpt
 
     """
     
@@ -17,6 +19,15 @@ class ALD(EmpiricalBayes):
         super().__init__(X, Y, dims, compute_mle)
 
     def _make_1D_covariance(self, params, ncoeff):
+
+
+        """
+        
+        1D Locality prior covariance. 
+
+        See eq(11, 12, 13) in Park & Pillow (2011).
+
+        """
         
         chi = np.arange(ncoeff)
 
@@ -37,6 +48,18 @@ class ALD(EmpiricalBayes):
         return C, C_inv
 
     def update_C_prior(self, params):
+
+        """
+        
+        Using kronecker product to construct high-dimensional prior covariance.
+
+        Given RF dims = [t, y, x], the prior covariance:
+
+            C = kron(Ct, kron(Cy, Cx))
+            Cinv = kron(Ctinv, kron(Cyinv, Cxinv))
+            
+        """
+
 
         rho = params[1]
         params_time = params[2:6]
