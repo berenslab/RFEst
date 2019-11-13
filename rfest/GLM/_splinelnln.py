@@ -1,5 +1,3 @@
-import numpy as onp
-
 import jax.numpy as np
 import jax.random as random
 from jax import grad
