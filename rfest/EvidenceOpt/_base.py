@@ -1,4 +1,3 @@
-import numpy as onp
 import jax.numpy as np
 from jax import grad
 from jax import jit
@@ -23,8 +22,8 @@ class EmpiricalBayes:
 
     def __init__(self, X, y, dims, compute_mle=True):
         
-        self.X = X # stimulus design matrix
-        self.y = y # response 
+        self.X = np.array(X) # stimulus design matrix
+        self.y = np.array(y) # response 
         
         self.dims = dims # assumed order [t, y, x]
         self.n_samples, self.n_features = X.shape
