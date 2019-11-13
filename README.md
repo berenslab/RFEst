@@ -87,7 +87,7 @@ Ran, Y., Huang, Z., Baden, T., Baayen, H., Berens, P., Franke, K., & Euler, T. (
 
 ## Reference
 
-[1] Huang, Z., &  Berens, P. (in preparation). Efficient receptive field inference using cubic regression splines.
+[1] Huang, Z., &  Berens, P. (in preparation). Efficient high dimensional receptive field inference using flexible regression splines.
 
 [2] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
 
