@@ -22,8 +22,12 @@ class EmpiricalBayes:
 
     def __init__(self, X, y, dims, compute_mle=True):
         
-        self.X = np.array(X) # stimulus design matrix
-        self.y = np.array(y) # response 
+        # transform into jax DeviceArray
+        X = np.array(X) # stimulus design matrix
+        y = np.array(y) # response 
+        
+        self.X = X
+        self.y = y
         
         self.dims = dims # assumed order [t, y, x]
         self.n_samples, self.n_features = X.shape
