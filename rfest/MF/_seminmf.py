@@ -5,11 +5,12 @@ __all__ = ['SemiNMF']
 class SemiNMF:
 
     """
+    
     Semi-Nonnegative Matrix Factorization.
 
     Multiplicative update rules from Ding el al.(2010)
+    
     """
-
 
     def __init__(self, V, k, random_seed=2046):
 

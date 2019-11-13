@@ -6,11 +6,13 @@ __all__ = ['SemiNMFSpline']
 class SemiNMFSpline:
 
     """
+    
     Spline-based Semi-Nonnegative Matrix Factorization.
 
     Smoothness only applies to the left factorized matrix.
 
     Inspired by multiplicative update rules from Ding el al.(2010)
+    
     """
 
     def __init__(self, V, dims, df, k, random_seed=2046):

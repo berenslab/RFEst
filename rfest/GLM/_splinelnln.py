@@ -16,7 +16,9 @@ __all__ = ['splineLNLN']
 class splineLNLN:
 
     """
+    
     Spline-based multi-filters Linear-Nonliear-Poisson model with fixed (softplus) nonlinearity. 
+    
     """
     
     def __init__(self, X, y, dt, dims, df_splines, compute_mle=True):

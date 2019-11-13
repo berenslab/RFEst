@@ -2,13 +2,16 @@ import jax.numpy as np
 from sklearn.metrics import mean_squared_error
 
 from ._base import *
-from .._utils import *
 
 __all__ = ['ARD']
 
 class ARD:
     
-    """Iterative fixed-point algorithm """
+    """
+
+    Automatic Relavence Determination updated with iterative fixed-point algorithm. 
+
+    """
     
     def __init__(self, X, y, dims):
         

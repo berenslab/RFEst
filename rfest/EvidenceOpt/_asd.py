@@ -1,11 +1,18 @@
 import jax.numpy as np
 from ._base import *
-from .._utils import *
 
 __all__ = ['ASD']
 
 class ASD(EmpiricalBayes):
     
+    """
+
+    Automatic Smoothness Determination (ASD).
+
+    See: Sahani, M., & Linden, J. F. (2003). 
+
+    """
+
     def __init__(self, X, Y, dims, compute_mle=True):
         super().__init__(X, Y, dims, compute_mle)
 
@@ -26,9 +33,11 @@ class ASD(EmpiricalBayes):
         C_t, C_t_inv = self._make_1D_covariance(delta_time, self.dims[0])
 
         if len(self.dims) == 1:
+
             C, C_inv = C_t, C_t_inv
 
         elif len(self.dims) ==2:
+
             delta_space = params[3]
             C_s, C_s_inv = self._make_1D_covariance(delta_space, self.dims[1])
 

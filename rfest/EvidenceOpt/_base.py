@@ -15,6 +15,12 @@ __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
 
+    """
+    
+    Base class for evidence optimization methods, such as ASD, ALD. 
+
+    """
+
     def __init__(self, X, y, dims, compute_mle=True):
         
         self.X = X # stimulus design matrix
@@ -58,9 +64,9 @@ class EmpiricalBayes:
         t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
         t2 = m_post.T @ C_post @ m_post
         if len(np.shape(t2)) != 0:
-            t2 = - np.mean(np.diag(t2))
+            t2 = -np.mean(np.diag(t2))
         else:
-            t2 = - t2
+            t2 = -t2
         t3 = self.YtY / sigma**2
         if len(np.shape(t3)) != 0:
             t3 = np.mean(np.diag(t3))
@@ -110,12 +116,13 @@ class EmpiricalBayes:
                 else:
                     params_list.pop(0)
                     cost_list.pop(0)
+        
         else:
+
             params = params_list[-1]
             if verbal:
                 print('Stop: reached {} steps, final cost={}.'.format(num_iters, cost_list[-1]))
-            
-             
+                   
         return params
 
     

@@ -12,7 +12,9 @@ __all__ = ['LNLN']
 class LNLN:
     
     """
+    
     Multi-filters Linear-Nonliear-Poisson model with fixed (softplus) nonlinearity. 
+    
     """
     
     def __init__(self, X, y, dt, dims, compute_mle=True):

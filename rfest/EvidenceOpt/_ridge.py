@@ -8,7 +8,11 @@ __all__ = ['Ridge']
 
 class Ridge:
     
-    """Iterative fixed-point algorithm """
+    """
+
+    Ridge regression updated with iterative fixed-point algorithm.
+
+    """
     
     def __init__(self, X, y, dims):
         

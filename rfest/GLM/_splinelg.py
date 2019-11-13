@@ -14,6 +14,12 @@ import patsy
 __all__ = ['splineLG']
 
 class splineLG:
+
+    """
+
+    Linear Model with sufficiently flexible spline basis under Gaussian Noise. 
+
+    """
     
     def __init__(self, X, y, dims, df_splines, compute_mle=True):
         

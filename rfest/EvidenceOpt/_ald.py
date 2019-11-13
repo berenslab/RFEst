@@ -1,9 +1,17 @@
 import jax.numpy as np
-
 from ._base import *
-from .._utils import *
+
+__all__ = ['ALD']
 
 class ALD(EmpiricalBayes):
+
+    """
+
+    Automatic Locality Determination (ALD).
+
+    See: Park, M., & Pillow, J. W. (2011).
+
+    """
     
     def __init__(self, X, Y, dims, compute_mle=True):
         super().__init__(X, Y, dims, compute_mle)
@@ -32,12 +40,15 @@ class ALD(EmpiricalBayes):
 
         rho = params[1]
         params_time = params[2:6]
+
         C_t, C_t_inv = self._make_1D_covariance(params_time, self.dims[0])
 
         if len(self.dims) == 1:
+
             C, C_inv = C_t, C_t_inv
 
         elif len(self.dims) == 2:
+
             params_space = params[6:10]
             C_s, C_s_inv = self._make_1D_covariance(params_space, self.dims[1])
 
@@ -83,4 +94,26 @@ class ALD(EmpiricalBayes):
                 i, params[0], params[1], params[2], params[4], params[6], params[8], cost))   
         elif len(params) == 14:
             print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}\t{7:1.3f}\t{8:1.3f}\t{9:1.3f}'.format(
-                i, params[0], params[1], params[2], params[4], params[6], params[8], params[10], params[12], cost))   
+                i, params[0], params[1], params[2], params[4], params[6], params[8], params[10], params[12], cost))  
+
+
+def realfftbasis(nx):
+    
+    nn = nx
+    
+    ncos = np.ceil((nn + 1) / 2)
+    nsin = np.floor((nn-1) / 2)
+    
+    wvec = np.hstack([np.arange(ncos), np.arange(-nsin, 0)])
+    
+    wcos = wvec[wvec >= 0]
+    wsin = wvec[wvec < 0]
+    
+    x = np.arange(nx)
+    
+    t0 = np.cos(np.outer(wcos * 2 * np.pi / nn, x))
+    t1 = np.sin(np.outer(wsin * 2 * np.pi / nn, x))
+    
+    B = np.vstack([t0, t1]) / np.sqrt(nn * 0.5)
+    
+    return B, wvec 

@@ -7,9 +7,10 @@ __all__ = ['NMFSpline']
 class NMFSpline:
 
     """
+    
     Spline-based Nonnegative Matrix Factorization.
     
-    Zdunek, R. et al. (2014). B-Spline Smoothing of Feature Vectors in Nonnegative Matrix Factorization.
+    See: Zdunek, R. et al. (2014).
     
     """
 
