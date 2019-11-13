@@ -19,7 +19,35 @@ class splineLG:
 
     """
     
-    def __init__(self, X, y, dims, df_splines, compute_mle=True):
+    def __init__(self, X, y, dims, df, smooth='cr', compute_mle=True):
+
+        """
+        
+        Initializing the `splineLG` class, some sufficient statistics are calculated optionally.
+
+        Parameters
+        ==========
+        X : array_like, shape (n_samples, n_features)
+            Stimulus design matrix.
+
+        y : array_like, shape (n_samples, )
+            Recorded response
+
+        dims : list or array_like, shape (ndims, )
+            Dimensions or shape of the RF to estimate. Assumed order [t, sy, sx]
+
+        df : int
+            Degree of freedom for spline /smooth basis. 
+
+        smooth : str
+            Spline or smooth to be used. Current supported methods include:
+            * `cr`: Cubic Regression spline
+            * `tp`: (Simplified) Thin Plate regression spline 
+
+        compute_mle : bool
+            Compute sta and maximum likelihood optionally.
+
+        """
         
         self.X = X # stimulus design matrix
         self.y = y # response 
@@ -29,43 +57,57 @@ class splineLG:
         self.n_samples, self.n_features = X.shape
 
         if compute_mle:
+            self.XtX = X.T @ X
             self.w_sta = X.T @ y
-            self.w_mle = np.linalg.solve(X.T @ X, self.w_sta)
-        else:
-            self.w_sta = None
-            self.w_mle = None
+            self.w_mle = np.linalg.solve(self.XtX, self.w_sta)
         
-        S = self._make_splines_matrix(df_splines)
+        S = self._build_spline_matrix(df, smooth)
         self.S = S
-        self.XS = X @ S
-        self.n_spline_coeff = self.S.shape[1]
+        self.XS = X @ S        
+        
+        # compute spline-based maximum likelihood 
         self.b_spl = np.linalg.solve(self.XS.T @ self.XS, S.T @ X.T @ y)
         self.w_spl = S @ self.b_spl
+
+        # store meta data
+        self.df = df 
+        self.smooth = smooth   
+
+    def _build_spline_matrix(self, df, smooth):
         
-    def _make_splines_matrix(self, df):
-        
+        # initialize list of degree of freedom for each dimension
         if np.ndim(df) != 0 and len(df) != self.ndim:
             raise ValueError("`df` must be an integer or an array the same length as `dims`")
         elif np.ndim(df) == 0:
             df = np.ones(self.ndim) * df
+
+        # choose smooth basis
+        if smooth == 'cr':
+            basis = patsy.cr
+        elif smooth == 'tp':
+            basis = tp
+        else:
+            raise ValueError("Input method `{}` is not supported.".format(smooth))
         
+        # build spline matrix
         if self.ndim == 1:
         
-            S = patsy.cr(np.arange(self.dims[0]), df[0])
+            S = basis(np.arange(self.dims[0]), df[0])
             
         elif self.ndim == 2:
         
             g0, g1 = np.meshgrid(np.arange(self.dims[0]), np.arange(self.dims[1]), indexing='ij')
-            S = patsy.te(patsy.cr(g0.ravel(), df[0]), patsy.cr(g1.ravel(), df[1]))
+            S = te(basis(g0.ravel(), df[0]), 
+                   basis(g1.ravel(), df[1]))
             
         elif self.ndim == 3:
             
             g0, g1, g2 = np.meshgrid(np.arange(self.dims[0]), 
                                      np.arange(self.dims[1]), 
                                      np.arange(self.dims[2]), indexing='ij')
-            S = patsy.te(patsy.cr(g0.ravel(), df[0]), 
-                         patsy.cr(g1.ravel(), df[1]), 
-                         patsy.cr(g2.ravel(), df[2]))
+            S = te(basis(g0.ravel(), df[0]), 
+                   basis(g1.ravel(), df[1]), 
+                   basis(g2.ravel(), df[2]))
             
         return S
     
@@ -144,3 +186,38 @@ class splineLG:
         self.b_opt = self.optimize_params(B, num_iters, step_size, tolerance, verbal)
         self.w_opt = self.S @ self.b_opt 
         
+def tp(x, df):
+
+    """
+    
+    Simplified implementation of the truncated Thin Plate (TP) regression spline.
+
+    """
+    
+    def eta(r):
+        return r**2 * np.log(r + 1e-10)
+
+    E = eta(np.abs(x.ravel() - x.ravel().reshape(-1,1)))
+    U, _, _ = np.linalg.svd(E)
+    S = U[:, :int(df)]
+    
+    return S / np.linalg.norm(S)
+
+
+def te(*args):
+
+    """
+
+    Tensor Product smooth. Numericially the same as `patsy.te`.
+
+    """
+    
+    As = list(args)
+    
+    def columnwise_product(A2, A1):
+        return np.hstack([A2 * A1[:, i][:, np.newaxis] for i in range(A1.shape[1])])    
+
+    if len(As)==1:
+        return As[0]
+    
+    return columnwise_product(te(*As[:-1]), As[-1])

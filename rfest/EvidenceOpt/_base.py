@@ -21,6 +21,27 @@ class EmpiricalBayes:
     """
 
     def __init__(self, X, y, dims, compute_mle=True):
+
+
+        """
+        
+        Initializing the `splineLG` class, sufficient statistics are also calculated.
+
+        Parameters
+        ==========
+        X : array_like, shape (n_samples, n_features)
+            Stimulus design matrix.
+
+        y : array_like, shape (n_samples, )
+            Recorded response
+
+        dims : list or array_like, shape (ndims, )
+            Dimensions or shape of the RF to estimate. Assumed order [t, sy, sx]
+
+        compute_mle : bool
+            Compute sta and maximum likelihood optionally.
+
+        """
                 
         self.X = X # stimulus design matrix
         self.y = y # response 
