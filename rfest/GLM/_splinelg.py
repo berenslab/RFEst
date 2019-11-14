@@ -218,8 +218,7 @@ def bs(x, df, degree=3):
         knot_quantiles = np.linspace(0, 1, n_inner_knots + 2)[1:-1] * 100
         inner_knots = np.percentile(x, knot_quantiles)
         all_knots = np.hstack(([np.min(x), np.max(x)] * order, inner_knots))
-#         all_knots = np.sort(all_knots)
-        all_knots = np.unique(all_knots)
+        all_knots = np.sort(all_knots)
         
         return all_knots
     
