@@ -40,7 +40,7 @@ class splineLG:
             Degree of freedom for spline /smooth basis. 
             
         degree: int
-            B-spline order, only used when `smooth=bs`
+            B-spline order, only used when `smooth=bs`. Default to 3.
 
         smooth : str
             Spline or smooth to be used. Current supported methods include:
@@ -209,11 +209,11 @@ def tp(x, df):
     
     return S / np.linalg.norm(S)
 
-def bs(x, df, degree):
+def bs(x, df, degree=3):
     
     from scipy.interpolate import BSpline
     
-    def _sort_all_knots(x, df, degree=3):
+    def _sort_all_knots(x, df, degree):
 
         order = degree + 1
 
