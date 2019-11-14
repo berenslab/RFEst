@@ -19,7 +19,7 @@ class splineLG:
 
     """
     
-    def __init__(self, X, y, dims, df, smooth='cr', compute_mle=True):
+    def __init__(self, X, y, dims, df, degree=3, smooth='cr', compute_mle=True):
 
         """
         
@@ -38,9 +38,13 @@ class splineLG:
 
         df : int
             Degree of freedom for spline /smooth basis. 
+            
+        degree: int
+            B-spline order, only used when `smooth=bs`
 
         smooth : str
             Spline or smooth to be used. Current supported methods include:
+            * `bs`: B-spline
             * `cr`: Cubic Regression spline
             * `tp`: (Simplified) Thin Plate regression spline 
 
@@ -82,7 +86,9 @@ class splineLG:
             df = np.ones(self.ndim) * df
 
         # choose smooth basis
-        if smooth == 'cr':
+        if smooth =='bs':
+            basis = bs
+        elif smooth == 'cr':
             basis = patsy.cr
         elif smooth == 'tp':
             basis = tp
@@ -203,6 +209,31 @@ def tp(x, df):
     
     return S / np.linalg.norm(S)
 
+def bs(x, df, degree):
+    
+    from scipy.interpolate import BSpline
+    
+    def _sort_all_knots(x, df, degree=3):
+
+        order = degree + 1
+
+        n_inner_knots = df - order
+
+        knot_quantiles = np.linspace(0, 1, n_inner_knots + 2)[1:-1] * 100
+        inner_knots = np.percentile(x, knot_quantiles)
+
+        all_knots = np.concatenate(([np.min(x), np.max(x)] * order,
+                                    inner_knots))
+        all_knots.sort()
+
+        return all_knots
+
+    knots = _sort_all_knots(x, df, degree)
+    n_bases = len(knots) - (degree + 1) 
+    coeff = np.eye(n_bases)
+    S = np.vstack([BSpline(knots, coeff[i], degree)(x) for i in range(n_bases)]).T
+    
+    return S
 
 def te(*args):
 
