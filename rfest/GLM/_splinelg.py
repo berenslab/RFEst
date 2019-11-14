@@ -19,7 +19,7 @@ class splineLG:
 
     """
     
-    def __init__(self, X, y, dims, df, degree=3, smooth='cr', compute_mle=True):
+    def __init__(self, X, y, dims, df, smooth='cr', compute_mle=True):
 
         """
         
@@ -38,9 +38,6 @@ class splineLG:
 
         df : int
             Degree of freedom for spline /smooth basis. 
-            
-        degree: int
-            B-spline order, only used when `smooth=bs`. Default to 3.
 
         smooth : str
             Spline or smooth to be used. Current supported methods include:
