@@ -45,7 +45,7 @@ pip install -e RFEst
 
 **Spline-based Methods** [1]
 
-`splineLG` and `splineLNLN` use *natural cubic / thin plate regression splines* to approximate spatio-temporal RFs. 
+`splineLG` and `splineLNLN` use *B-spline*, *natural cubic* and *thin plate regression splines* to approximate spatio-temporal RFs. 
 
 Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` :
 
