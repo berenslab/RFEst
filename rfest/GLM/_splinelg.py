@@ -212,28 +212,28 @@ def tp(x, df):
 def bs(x, df, degree=3):
     
     from scipy.interpolate import BSpline
+    import numpy as np
     
     def _sort_all_knots(x, df, degree):
 
         order = degree + 1
-
         n_inner_knots = df - order
-
         knot_quantiles = np.linspace(0, 1, n_inner_knots + 2)[1:-1] * 100
         inner_knots = np.percentile(x, knot_quantiles)
-
-        all_knots = np.concatenate(([np.min(x), np.max(x)] * order,
-                                    inner_knots))
-        all_knots.sort()
-
+        all_knots = np.hstack(([np.min(x), np.max(x)] * order, inner_knots))
+        all_knots = np.sort(all_knots)
+        
         return all_knots
+    
+    x = np.asarray(x)
+    df = np.asarray(df)
 
     knots = _sort_all_knots(x, df, degree)
     n_bases = len(knots) - (degree + 1) 
     coeff = np.eye(n_bases)
-    S = np.vstack([BSpline(knots, coeff[i], degree)(x) for i in range(n_bases)]).T
+    basis = np.vstack([BSpline(knots, coeff[i], degree)(x) for i in range(n_bases)]).T
     
-    return S
+    return basis
 
 def te(*args):
 
