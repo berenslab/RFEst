@@ -122,6 +122,7 @@ def build_spline_matrix(dims, df, smooth):
         raise ValueError("`df` must be an integer or an array the same length as `dims`")
     elif np.ndim(df) == 0:
         df = np.ones(ndim) * df
+        df = df.astype(int)
 
     # choose smooth basis
     if smooth =='bs':
