@@ -7,8 +7,6 @@ from jax.experimental import optimizers
 from jax.config import config
 config.update("jax_enable_x64", True)
 
-import patsy
-
 __all__ = ['splineLG']
 
 class splineLG:
@@ -86,7 +84,7 @@ class splineLG:
         if smooth =='bs':
             basis = bs
         elif smooth == 'cr':
-            basis = patsy.cr
+            basis = cr
         elif smooth == 'tp':
             basis = tp
         else:
@@ -202,11 +200,15 @@ def tp(x, df):
 
     E = eta(np.abs(x.ravel() - x.ravel().reshape(-1,1)))
     U, _, _ = np.linalg.svd(E)
-    S = U[:, :int(df)]
+    basis = U[:, :int(df)]
     
-    return S / np.linalg.norm(S)
+    return basis / np.linalg.norm(basis)
 
 def bs(x, df, degree=3):
+    
+    """
+    B-spline basis. Simplified from `patsy.bs`.
+    """
     
     from scipy.interpolate import BSpline
     import numpy as np
@@ -231,6 +233,51 @@ def bs(x, df, degree=3):
     basis = np.vstack([BSpline(knots, coeff[i], degree)(x) for i in range(n_bases)]).T
     
     return basis
+
+def cr(x, df):
+    
+    """
+    Natural cubic regression splines. Simplified from `patsy.cr`.
+    """
+    
+    import numpy as np
+    
+    def _get_all_sorted_knots(x, df):
+
+        n_inner_knots = df-2
+
+        knot_quantiles = np.linspace(0, 1, n_inner_knots + 2)[1:-1] * 100
+        inner_knots = np.percentile(np.unique(x), knot_quantiles)
+
+        all_knots = np.concatenate(([np.min(x), np.max(x)], inner_knots))
+        all_knots = np.unique(all_knots)
+
+        return all_knots
+
+    knots = _get_all_sorted_knots(x, df)
+    
+    j = np.maximum(np.searchsorted(knots, x) - 1, 0)
+    h = np.mean(knots[1:] - knots[:-1]) # constant
+
+    ajm = (knots[j+1] - x) / h
+    ajp = (x - knots[j]) / h
+    cjm = ((knots[j+1] - x)**3 / h - h * (knots[j+1] - x)) / 6
+    cjp = ((x - knots[j])  **3 / h - h * (x - knots[j]))   / 6
+    
+    B = np.sum([np.diag([1, 2, 1][i] * h * np.ones(df-[3, 2, 3][i]), 
+                        [-1, 0, 1][i]) / [6, 3, 6][i] 
+                    for i in range(3)], 0)
+    D = np.sum([[1, -2, 1][i] * np.pad(np.eye(df-2) / h, 
+                        pad_width=((0, 0), (i, 2-i)), mode='constant') 
+                    for i in range(3)], 0)
+
+
+    f = np.vstack([np.zeros(df), np.linalg.solve(B, D), np.zeros(df)])
+
+    i = np.eye(df)
+    basis = ajm * i[j,:].T + ajp * i[j+1,:].T + cjm * f[j,:].T + cjp * f[j+1,:].T
+    
+    return basis.T
 
 def te(*args):
 
