@@ -7,7 +7,7 @@ from jax.experimental import optimizers
 from jax.config import config
 config.update("jax_enable_x64", True)
 
-import patsy
+from .._splines import build_spline_matrix
 
 __all__ = ['splineLNLN']
 
@@ -34,39 +34,12 @@ class splineLNLN:
         else:
             self.w_mle = None
         
-        S = self._make_splines_matrix(df_splines)
+        S = np.array(build_spline_matrix(dims, df, smooth))
         self.S = S
         self.XS = X @ S
         self.n_spline_coeff = self.S.shape[1]
         self.b_spl = np.linalg.solve(self.XS.T @ self.XS, S.T @ X.T @ y)
         self.w_spl = S @ self.b_spl
-        
-    def _make_splines_matrix(self, df):
-        
-        if np.ndim(df) != 0 and len(df) != self.ndim:
-            raise ValueError("`df` must be an integer or an array the same length as `dims`")
-        elif np.ndim(df) == 0:
-            df = np.ones(self.ndim) * df
-        
-        if self.ndim == 1:
-        
-            S = patsy.cr(np.arange(self.dims[0]), df[0])
-            
-        elif self.ndim == 2:
-        
-            g0, g1 = np.meshgrid(np.arange(self.dims[0]), np.arange(self.dims[1]), indexing='ij')
-            S = patsy.te(patsy.cr(g0.ravel(), df[0]), patsy.cr(g1.ravel(), df[1]))
-            
-        elif self.ndim == 3:
-            
-            g0, g1, g2 = np.meshgrid(np.arange(self.dims[0]), 
-                                     np.arange(self.dims[1]), 
-                                     np.arange(self.dims[2]), indexing='ij')
-            S = patsy.te(patsy.cr(g0.ravel(), df[0]), 
-                         patsy.cr(g1.ravel(), df[1]), 
-                         patsy.cr(g2.ravel(), df[2]))
-            
-        return S
        
     def negloglikelihood(self, B):
         
@@ -89,7 +62,7 @@ class splineLNLN:
             l1 = np.linalg.norm(B, 1)
             l2 = np.linalg.norm(B, 2)
             neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
-        # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc') # wait for JAX implementation
+        # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc') # wait for JAX update
         if self.gamma:
             nuc = np.sum(np.linalg.svd(B.reshape(self.n_spline_coeff, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
             neglogli += self.gamma * nuc
