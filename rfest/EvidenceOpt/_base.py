@@ -16,16 +16,15 @@ class EmpiricalBayes:
 
     """
     
-    Base class for evidence optimization methods, such as ASD, ALD. 
+    Base class for evidence optimization methods.
 
     """
 
     def __init__(self, X, y, dims, compute_mle=True):
-
-
+        
         """
         
-        Initializing the `splineLG` class, sufficient statistics are also calculated.
+        Initializing the `EmpiricalBayes` class, sufficient statistics are calculated.
 
         Parameters
         ==========
