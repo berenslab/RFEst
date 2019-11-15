@@ -125,12 +125,12 @@ def build_spline_matrix(dims, df, smooth):
         df = df.astype(int)
 
     # choose smooth basis
-    if smooth =='bs':
-        basis = bs
+    if smooth =='bs': 
+        basis = bs # B-spline (order=3)
     elif smooth == 'cr':
-        basis = cr
+        basis = cr  # Natural cubic regression spline
     elif smooth == 'tp':
-        basis = tp
+        basis = tp  # Thin plate regression spline
     else:
         raise ValueError("Input method `{}` is not supported.".format(smooth))
 
