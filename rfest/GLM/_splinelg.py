@@ -62,8 +62,8 @@ class splineLG:
             self.w_sta = X.T @ y
             self.w_mle = np.linalg.solve(self.XtX, self.w_sta)
         
-        S = build_spline_matrix(dims, df, smooth)
-        self.S = S
+        S = p.array((build_spline_matrix(dims, df, smooth))
+        self.S = S # turn into JAX DeviceArray
         self.XS = X @ S        
         
         # compute spline-based maximum likelihood 
