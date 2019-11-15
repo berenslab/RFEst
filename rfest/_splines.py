@@ -115,7 +115,7 @@ def te(*args):
 
 def build_spline_matrix(dims, df, smooth):
 
-    ndims = len(dims)
+    ndim = len(dims)
     
     # initialize list of degree of freedom for each dimension
     if np.ndim(df) != 0 and len(df) != ndim:
