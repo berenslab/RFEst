@@ -20,7 +20,6 @@ class ALD(EmpiricalBayes):
 
     def _make_1D_covariance(self, params, ncoeff):
 
-
         """
         
         1D Locality prior covariance. 
@@ -60,7 +59,6 @@ class ALD(EmpiricalBayes):
             
         """
 
-
         rho = params[1]
         params_time = params[2:6]
 
@@ -95,8 +93,9 @@ class ALD(EmpiricalBayes):
         return C, C_inv
 
     def print_progress(self, i, params, cost):
+        
         print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}\t{7:1.3f}\t{8:1.3f}\t{9:1.3f}'.format(
-        i, params[0], params[1], params[2], params[4], params[6], params[8], params[10], params[12], cost))   
+            i, params[0], params[1], params[2], params[4], params[6], params[8], params[10], params[12], cost))   
         
     def print_progress_header(self, params):
         
@@ -122,10 +121,18 @@ class ALD(EmpiricalBayes):
 
 def realfftbasis(nx):
     
+    """
+    Basis of sines+cosines for nn-point discrete fourier transform (DFT).
+    
+    Ported from MatLab code:
+    https://github.com/leaduncker/SimpleEvidenceOpt/blob/master/util/realfftbasis.m
+    
+    """
+    
     nn = nx
     
     ncos = np.ceil((nn + 1) / 2)
-    nsin = np.floor((nn-1) / 2)
+    nsin = np.floor((nn - 1) / 2)
     
     wvec = np.hstack([np.arange(ncos), np.arange(-nsin, 0)])
     
