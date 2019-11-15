@@ -6,7 +6,10 @@ def bs(x, df, degree=3):
     
     """
     
-    B-spline basis. Simplified from `patsy.bs`.
+    B-spline basis. Knots placed equally by percentile.
+    
+    Simplified from `patsy.bs`:
+    https://github.com/pydata/patsy/blob/master/patsy/splines.py
     
     """
     
@@ -38,19 +41,18 @@ def cr(x, df):
     
     """
     
-    Natural cubic regression splines. Simplified from `patsy.cr`.
+    Natural cubic regression splines. Knots placed equally by percentile. 
+    
+    Simplified from `patsy.cr`:
+    https://github.com/pydata/patsy/blob/master/patsy/mgcv_cubic_splines.py
     
     """
-    
-    import numpy as np
-    
+       
     def _get_all_sorted_knots(x, df):
 
         n_inner_knots = df-2
-
         knot_quantiles = np.linspace(0, 1, n_inner_knots + 2)[1:-1] * 100
         inner_knots = np.percentile(np.unique(x), knot_quantiles)
-
         all_knots = np.concatenate(([np.min(x), np.max(x)], inner_knots))
         all_knots = np.unique(all_knots)
 
@@ -64,7 +66,7 @@ def cr(x, df):
     ajm = (knots[j+1] - x) / h
     ajp = (x - knots[j]) / h
     cjm = ((knots[j+1] - x)**3 / h - h * (knots[j+1] - x)) / 6
-    cjp = ((x - knots[j])  **3 / h - h * (x - knots[j]))   / 6
+    cjp = ((x - knots[j])**3 / h - h * (x - knots[j])) / 6
     
     B = np.sum([np.diag([1, 2, 1][i] * h * np.ones(df-[3, 2, 3][i]), 
                         [-1, 0, 1][i]) / [6, 3, 6][i] 
@@ -73,10 +75,9 @@ def cr(x, df):
                         pad_width=((0, 0), (i, 2-i)), mode='constant') 
                     for i in range(3)], 0)
 
-
     f = np.vstack([np.zeros(df), np.linalg.solve(B, D), np.zeros(df)])
-
     i = np.eye(df)
+    
     basis = ajm * i[j,:].T + ajp * i[j+1,:].T + cjm * f[j,:].T + cjp * f[j+1,:].T
     
     return basis.T
@@ -86,6 +87,7 @@ def tp(x, df):
     """
     
     Simplified implementation of the truncated Thin Plate (TP) regression spline.
+    See Wood, S. (2017) p.216-217
 
     """
     
@@ -102,15 +104,18 @@ def te(*args):
 
     """
 
-    Tensor Product smooth. Numericially the same as `patsy.te`.
+    Tensor Product smooth. See Wood, S. (2017) p.227-229
+    
+    Numericially the same as `patsy.te`:
+    https://github.com/pydata/patsy/blob/master/patsy/mgcv_cubic_splines.py
 
     """
-    
-    As = list(args)
     
     def columnwise_product(A2, A1):
         return np.hstack([A2 * A1[:, i][:, np.newaxis] for i in range(A1.shape[1])])    
 
+    As = list(args)
+    
     if len(As)==1:
         return As[0]
     
@@ -121,7 +126,7 @@ def build_spline_matrix(dims, df, smooth):
     
     """
     
-    Building spline matrix for n-dimensional RF (n=[1,2,3]).
+    Building spline matrix for n-dimensional RF (n=[1,2,3]) with tensor product smooth.
     
     A mesh-free (actually simpler) way to do this is to get the spline bases for each dimension, 
     then calculate the kronecker product of them, for example:
@@ -129,7 +134,7 @@ def build_spline_matrix(dims, df, smooth):
     >>> St, Sy, Sx = [basis(np.arange(d), f), for (d, f) in enumerate(dims, df)]
     >>> S = np.kron(St, np.kron(Sy, Sx)) 
     
-    Here we use a mesh-based approach to keep consistent with the Patsy inplementation / Wood, S. (2017).
+    Here we use a mesh-based `te` approach to keep consistent with the Patsy inplementation / Wood, S. (2017).
     
     Parameters
     ==========
