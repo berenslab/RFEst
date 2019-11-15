@@ -74,15 +74,15 @@ class splineLG:
         self.df = df 
         self.smooth = smooth   
     
-    def cost(self, B):
+    def cost(self, b):
         
         XS = self.XS
         y = self.y    
         
-        mse = np.sum((y - XS @ B)**2) / len(y)
+        mse = np.sum((y - XS @ b)**2) / len(y)
 
         if self.lambd:
-            mse += self.lambd * ((1 - self.alpha) * np.linalg.norm(B, 2) + self.alpha * np.linalg.norm(B, 1)) 
+            mse += self.lambd * ((1 - self.alpha) * np.linalg.norm(b, 2) + self.alpha * np.linalg.norm(b, 1)) 
     
         return mse
     
@@ -135,17 +135,15 @@ class splineLG:
             
         return params      
     
-    def fit(self, initial_params=None, num_iters=5, alpha=0.5, lambd=0.5,
-            step_size=1e-2, tolerance=10, verbal=True, random_seed=2046):
+    def fit(self, b0=None, num_iters=5, alpha=0.5, lambd=0.5,
+            step_size=1e-2, tolerance=10, verbal=True):
 
         self.lambd = lambd # elastic net parameter
         self.alpha = alpha # elastic net parameter
         self.num_iters = num_iters   
         
-        if initial_params is None:
+        if b0 is None: # if b0 is not provided, initialize it with spline MLE.
+            b0 = self.b_spl
         
-            B = self.b_spl
-        
-        self.b_opt = self.optimize_params(B, num_iters, step_size, tolerance, verbal)
+        self.b_opt = self.optimize_params(b0, num_iters, step_size, tolerance, verbal)
         self.w_opt = self.S @ self.b_opt 
-        
