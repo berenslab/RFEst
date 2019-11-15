@@ -93,7 +93,7 @@ class ARD:
         else:
             if verbal:
                 print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-                print('Finished: reached maxiter = {}.'.format(num_iters))
+                print('Stop: reached {0} steps.'.format(num_iters))
          
         self.optimized_params = params
         
