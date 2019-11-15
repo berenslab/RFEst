@@ -1,5 +1,5 @@
 import numpy as np
-import patsy
+from .._splines import build_spline_matrix 
 
 __all__ = ['SemiNMFSpline']
 
@@ -15,15 +15,43 @@ class SemiNMFSpline:
     
     """
 
-    def __init__(self, V, dims, df, k, random_seed=2046):
+    def __init__(self, V, dims, k, df, smooth='cr', random_seed=2046):
 
+        """
+        Initialize an instance of SemiNMFSpline.
+        
+        Parameters
+        ==========
+        V : array_like, shape (n_features, n_samples)
+            Spike-triggered ensemble. 
+            
+        dims : list or array_like (ndim, )
+            Dimensions or shape of the RF to estimate. Assumed order [t, sy, sx]
+            
+        k : int
+            Number of subunits
+           
+        df : int or list, shape (ndim, )
+            Degree of freedom for splines.
+            
+        smooth : str
+            Spline or smooth to be used. Current supported methods include:
+            * `bs`: B-spline
+            * `cr`: Cubic Regression spline
+            * `tp`: (Simplified) Thin Plate regression spline           
+            
+        random_seed : int
+            Set pseudo-random seed.
+        
+        """
+        
         # store RF dimensions
         self.dims = dims
         self.ndim = len(dims)
 
         # store input data
         self.V = V # data
-        self.S = self._make_splines_matrix(df) # splines
+        self.S = build_spline_matrix(dims, df, smooth) # splines
 
 
         # data shape
@@ -36,35 +64,6 @@ class SemiNMFSpline:
         np.random.seed(random_seed)
         self.B = np.random.randn(self.b, self.k)
         self.H = np.abs(np.random.randn(self.k, self.n))
-
-
-    def _make_splines_matrix(self, df):
-        
-        if np.ndim(df) != 0 and len(df) != self.ndim:
-            raise ValueError("`df` must be an integer or an array the same length as `dims`")
-        elif np.ndim(df) == 0:
-            df = np.ones(self.ndim) * df
-        
-        if self.ndim == 1:
-        
-            S = patsy.cr(np.arange(self.dims[0]), df[0])
-            
-        elif self.ndim == 2:
-        
-            g0, g1 = np.meshgrid(np.arange(self.dims[0]), np.arange(self.dims[1]), indexing='ij')
-            S = patsy.te(patsy.cr(g0.ravel(), df[0]), patsy.cr(g1.ravel(), df[1]))
-            
-        elif self.ndim == 3:
-            
-            g0, g1, g2 = np.meshgrid(np.arange(self.dims[0]), 
-                                     np.arange(self.dims[1]), 
-                                     np.arange(self.dims[2]), indexing='ij')
-            S = patsy.te(patsy.cr(g0.ravel(), df[0]), 
-                         patsy.cr(g1.ravel(), df[1]), 
-                         patsy.cr(g2.ravel(), df[2]))
-            
-        return S
-
 
     def update_B(self):
 
