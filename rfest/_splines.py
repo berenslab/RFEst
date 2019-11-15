@@ -5,7 +5,9 @@ import scipy.linalg
 def bs(x, df, degree=3):
     
     """
+    
     B-spline basis. Simplified from `patsy.bs`.
+    
     """
     
     from scipy.interpolate import BSpline
@@ -35,7 +37,9 @@ def bs(x, df, degree=3):
 def cr(x, df):
     
     """
+    
     Natural cubic regression splines. Simplified from `patsy.cr`.
+    
     """
     
     import numpy as np
@@ -114,8 +118,43 @@ def te(*args):
 
 
 def build_spline_matrix(dims, df, smooth):
+    
+    """
+    
+    Building spline matrix for n-dimensional RF (n=[1,2,3]).
+    
+    A mesh-free (actually simpler) way to do this is to get the spline bases for each dimension, 
+    then calculate the kronecker product of them, for example:
+    
+    >>> St, Sy, Sx = [basis(np.arange(d), f), for (d, f) in enumerate(dims, df)]
+    >>> S = np.kron(St, np.kron(Sy, Sx)) 
+    
+    Here we use a mesh-based approach to keep consistent with the Patsy inplementation / Wood, S. (2017).
+    
+    Parameters
+    ==========
+    
+    dims : list or array_like, shape (d, )
+        Dimensions or shape of the RF to estimate. Assumed order [t, sy, sx]
+        
+    df : int
+        Degree of freedom for spline / smooth basis. 
+        
+    smooth : str
+        Spline or smooth to be used. Current supported methods include:
+        * `bs`: B-spline
+        * `cr`: Cubic Regression spline
+        * `tp`: (Simplified) Thin Plate regression spline 
+    
+    Return
+    ======
+    
+    S : array_like, shape (n_features, n_spline_coef)
+        Spline matrix. Each column is one basis. 
+        
+    """
 
-    ndim = len(dims)
+    ndim = len(dims) # store RF dimemsion
     
     # initialize list of degree of freedom for each dimension
     if np.ndim(df) != 0 and len(df) != ndim:
@@ -136,12 +175,14 @@ def build_spline_matrix(dims, df, smooth):
 
     # build spline matrix
     if ndim == 1:
-
-        S = basis(np.arange(dims[0]), df[0])
+        
+        g0 = np.arange(dims[0])
+        S = basis(g0.ravel(), df[0])
 
     elif ndim == 2:
 
-        g0, g1 = np.meshgrid(np.arange(dims[0]), np.arange(dims[1]), indexing='ij')
+        g0, g1 = np.meshgrid(np.arange(dims[0]), 
+                             np.arange(dims[1]), indexing='ij')
         S = te(basis(g0.ravel(), df[0]), 
                basis(g1.ravel(), df[1]))
 
