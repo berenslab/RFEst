@@ -41,7 +41,7 @@ pip install -r RFEst/requirements_win.txt # use pip3 if alias to pip wasn't adde
 pip install -e RFEst
 ```
     
-## Supported Methods and Usage
+## Supported Methods
 
 **Spline-based Methods** [1]
 
@@ -76,7 +76,6 @@ asd.fit(initial_params=[1., 1., 2., 2., 2.], num_iters=300)
     matplotlib
     jax
     jaxlib
-    patsy
     
 ## Data
 
