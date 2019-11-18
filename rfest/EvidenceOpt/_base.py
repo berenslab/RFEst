@@ -56,6 +56,25 @@ class EmpiricalBayes:
             self.w_sta = self.XtY
             self.w_mle = np.linalg.solve(self.XtX, self.XtY)
                          #maximum likelihood estimation
+
+    def _make_1D_covariance(self, params, ncoeff):
+
+        """
+        
+        Placeholder for class method `_make_1d_covariance`.
+        If you design a new prior, fill it in this method. 
+
+        Parameters
+        ==========
+        params : list or array_like, shape (n_hyperparams_1d,)
+            Hyperparameters in one dimension.
+
+        ncoeff : int
+            Number of coefficient in one dimension.
+
+        """
+
+        pass
     
     def update_C_prior(self, params):
 
@@ -147,6 +166,12 @@ class EmpiricalBayes:
         t3 = self.YtY / sigma**2
         
         return 0.5 * (t0 + t1 + t2 + t3)
+
+    def print_progress_header(self, params):
+        pass
+
+    def print_progress(self, i, params, cost):
+        pass 
     
     def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
 
@@ -203,9 +228,31 @@ class EmpiricalBayes:
                 print('Stop: reached {0} steps, final cost={1:.5f}.'.format(num_iters, cost_list[-1]))
                    
         return params
-
     
     def fit(self, initial_params, num_iters=20, step_size=1e-2, tolerance=10, verbal=True):
+
+
+        """
+        Parameters
+        ==========
+
+        initial_params : list or array_like, shape (n_hypyerparams_1d * ndim, )
+            Initial (hyper)parameters
+
+        num_iters : int
+            Number of iterations. 
+
+        step_size : float
+            
+        tolerance : int
+            Set early stop tolerance. Optimization stops when cost monotonically 
+            increases or stop increases for tolerance=n steps.
+
+        verbal: int
+            When `verbal=0`, progress is not printed. When `verbal=n`,
+            progress will be printed in every n steps.
+
+        """
 
         self.num_iters = num_iters       
         self.optimized_params = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal)
