@@ -58,7 +58,57 @@ class EmpiricalBayes:
                          #maximum likelihood estimation
     
     def update_C_prior(self, params):
-        pass
+
+        """
+        
+        Using kronecker product to construct high-dimensional prior covariance.
+
+        Given RF dims = [t, y, x], the prior covariance:
+
+            C = kron(Ct, kron(Cy, Cx))
+            Cinv = kron(Ctinv, kron(Cyinv, Cxinv))
+            
+        """
+
+        nh = self.n_hyperparams_1d
+
+        rho = params[1]
+        params_time = params[ 2+0*nh : 2+1*nh ]
+
+        # Covariance Matrix in Time
+        C_t, C_t_inv = self._make_1D_covariance(params_time, self.dims[0])
+
+        if len(self.dims) == 1:
+
+            C, C_inv = C_t, C_t_inv
+
+        elif len(self.dims) ==2:
+
+            # Covariance Matrix in Space 
+            params_space = params[ 2+1*nh : 2+2*nh ]
+            C_s, C_s_inv = self._make_1D_covariance(params_space, self.dims[1])
+
+            # Build 2D Covariance Matrix 
+            C = rho * np.kron(C_t, C_s)
+            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
+
+        elif len(self.dims) ==3:
+
+            # Covariance Matrix in Space 
+            params_spacey = params[ 2+1*nh : 2+2*nh ]
+            params_spacex = params[ 2+2*nh : 2+3*nh ]
+        
+            C_sy, C_sy_inv = self._make_1D_covariance(params_spacey, self.dims[1])
+            C_sx, C_sx_inv = self._make_1D_covariance(params_spacex, self.dims[2])
+            
+            C_s = np.kron(C_sy, C_sx)
+            C_s_inv = np.kron(C_sy_inv, C_sx_inv)
+
+            # Build 3D Covariance Matrix
+            C = rho * np.kron(C_t, C_s)
+            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
+
+        return C, C_inv
     
     def update_C_posterior(self, params, C_prior_inv):
 

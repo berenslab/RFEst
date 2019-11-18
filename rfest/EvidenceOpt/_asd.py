@@ -15,8 +15,9 @@ class ASD(EmpiricalBayes):
 
     def __init__(self, X, Y, dims, compute_mle=True):
         super().__init__(X, Y, dims, compute_mle)
+        self.n_hyperparams_1d = 1
 
-    def _make_1D_covariance(self, delta, ncoeff):
+    def _make_1D_covariance(self, params, ncoeff):
 
         """
     
@@ -26,6 +27,8 @@ class ASD(EmpiricalBayes):
 
         """
 
+        delta = params[0]
+
         grid = np.arange(ncoeff)
         square_distance = (grid - grid.reshape(-1,1)) ** 2 # pairwise squared distance
         C = np.exp(-.5 * square_distance / delta ** 2)
@@ -33,51 +36,6 @@ class ASD(EmpiricalBayes):
 
         return C, C_inv
     
-    def update_C_prior(self, params):
-
-        """
-        
-        Using kronecker product to construct high-dimensional prior covariance.
-
-        Given RF dims = [t, y, x], the prior covariance:
-
-            C = kron(Ct, kron(Cy, Cx))
-            Cinv = kron(Ctinv, kron(Cyinv, Cxinv))
-            
-        """
-
-        rho = params[1]
-        delta_time = params[2]
-
-        C_t, C_t_inv = self._make_1D_covariance(delta_time, self.dims[0])
-
-        if len(self.dims) == 1:
-
-            C, C_inv = C_t, C_t_inv
-
-        elif len(self.dims) ==2:
-
-            delta_space = params[3]
-            C_s, C_s_inv = self._make_1D_covariance(delta_space, self.dims[1])
-
-            C = rho * np.kron(C_t, C_s)
-            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
-
-        elif len(self.dims) ==3:
-
-            delta_spacey = params[3]
-            delta_spacex = params[4]
-        
-            C_sy, C_sy_inv = self._make_1D_covariance(delta_spacey, self.dims[1])
-            C_sx, C_sx_inv = self._make_1D_covariance(delta_spacex, self.dims[2])
-            
-            C_s = np.kron(C_sy, C_sx)
-            C_s_inv = np.kron(C_sy_inv, C_sx_inv)
-
-            C = rho * np.kron(C_t, C_s)
-            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
-
-        return C, C_inv
 
     def print_progress_header(self, params):
         
