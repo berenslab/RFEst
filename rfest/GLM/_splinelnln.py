@@ -19,7 +19,7 @@ class splineLNLN:
     
     """
     
-    def __init__(self, X, y, dt, dims, df_splines, compute_mle=True):
+    def __init__(self, X, y, dt, dims, df, smooth='cr', compute_mle=True):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
