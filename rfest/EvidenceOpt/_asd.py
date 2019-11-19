@@ -1,5 +1,5 @@
 import jax.numpy as np
-from ._base import *
+from ._base import EmpiricalBayes
 
 __all__ = ['ASD']
 
@@ -13,8 +13,9 @@ class ASD(EmpiricalBayes):
 
     """
 
-    def __init__(self, X, Y, dims, compute_mle=True):
-        super().__init__(X, Y, dims, compute_mle)
+    def __init__(self, X, y, dims, compute_mle=True):
+        
+        super().__init__(X, y, dims, compute_mle)
         self.n_hyperparams_1d = 1
 
     def _make_1D_covariance(self, params, ncoeff):

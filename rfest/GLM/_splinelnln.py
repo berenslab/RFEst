@@ -21,8 +21,8 @@ class splineLNLN:
     
     def __init__(self, X, y, dt, dims, df, smooth='cr', compute_mle=True):
         
-        self.X = X # stimulus design matrix
-        self.y = y # response 
+        self.X = np.array(X) # stimulus design matrix
+        self.y = np.array(y) # response 
         self.dt = dt # time bin size 
         
         self.dims = dims # assumed order [t, y, x]

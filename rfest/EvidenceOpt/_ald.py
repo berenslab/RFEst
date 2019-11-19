@@ -1,5 +1,5 @@
 import jax.numpy as np
-from ._base import *
+from ._base import EmpiricalBayes
 
 __all__ = ['ALD']
 

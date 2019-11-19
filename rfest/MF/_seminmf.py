@@ -1,4 +1,5 @@
 import numpy as np
+from ._initialize_factors import initilize_factors
 
 __all__ = ['SemiNMF']
 
@@ -12,7 +13,7 @@ class SemiNMF:
     
     """
 
-    def __init__(self, V, k, random_seed=2046):
+    def __init__(self, V, k, init_method='kmeans', random_seed=2046):
 
         # store input data
         self.V = V
@@ -22,10 +23,7 @@ class SemiNMF:
         self.k = k # number of subunits
 
         # initialize W and H
-
-        np.random.seed(random_seed)
-        self.W = np.random.randn(self.m, self.k)
-        self.H = np.abs(np.random.randn(self.k, self.n))
+        self.W, self.H = initilize_factors(V, k, method=init_method, random_seed=random_seed)
 
     def update_W(self):
 
@@ -66,6 +64,7 @@ class SemiNMF:
 
         if verbal:
             self.cost = []
+            self.iter = []
             print('{}\t{}'.format('Iter', 'Cost'))
 
         # start updating
@@ -77,6 +76,7 @@ class SemiNMF:
             if verbal:
                 if itr % verbal == 0:
                     self.cost.append(self.compute_cost())
+                    self.iter.append(itr)
                     print('{}\t{:.3f}'.format(itr, self.cost[-1]))  
 
 

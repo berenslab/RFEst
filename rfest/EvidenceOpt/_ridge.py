@@ -2,7 +2,6 @@ import jax.numpy as np
 from sklearn.metrics import r2_score, mean_squared_error
 
 from ._base import *
-from .._utils import *
 
 __all__ = ['Ridge']
 
@@ -16,8 +15,8 @@ class Ridge:
     
     def __init__(self, X, y, dims):
         
-        self.X = X # stimulus design matrix
-        self.Y = y # response 
+        self.X = np.array(X) # stimulus design matrix
+        self.Y = np.array(y) # response 
         
         self.dims = dims # assumed order [t, y, x]
         self.n_samples, self.n_features = X.shape

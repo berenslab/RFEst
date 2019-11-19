@@ -8,8 +8,6 @@ config.update("jax_enable_x64", True)
 
 from sklearn.metrics import mean_squared_error
 
-from .._utils import *
-
 __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
@@ -41,9 +39,10 @@ class EmpiricalBayes:
             Compute sta and maximum likelihood optionally.
 
         """
-                
-        self.X = X # stimulus design matrix
-        self.y = y # response 
+        
+        # Wrapped with JAX DeviceArray
+        self.X = np.array(X) # stimulus design matrix
+        self.y = np.array(y) # response 
         
         self.dims = dims # assumed order [t, y, x]
         self.n_samples, self.n_features = X.shape

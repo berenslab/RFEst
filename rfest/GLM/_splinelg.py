@@ -50,8 +50,8 @@ class splineLG:
 
         """
         
-        self.X = X # stimulus design matrix
-        self.y = y # response 
+        self.X = np.array(X) # stimulus design matrix
+        self.y = np.array(y) # response 
         
         self.dims = dims # assumed order [t, y, x]
         self.ndim = len(dims)
