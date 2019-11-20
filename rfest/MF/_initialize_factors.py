@@ -113,6 +113,13 @@ def initilize_factors(V, k, method='nndsvd', **kwargs):
     m, n = V.shape
     
     if method == 'random':
+
+        try:
+            random_seed = kwargs['random_seed']
+        except:
+            random_seed = 2046
+
+        np.random.seed(random_seed)
         
         W = np.maximum(np.random.randn(m, k), 0)
         H = np.maximum(np.random.randn(k, n), 0)
