@@ -15,29 +15,10 @@ class ASD(EmpiricalBayes):
 
     def __init__(self, X, y, dims, compute_mle=True):
         
-        super().__init__(X, y, dims, compute_mle)
-        self.n_hyperparams_1d = 1
-
-    def _make_1D_covariance(self, params, ncoeff):
-
-        """
+        super().__init__(X, y, dims, compute_mle, 
+                         time='asd', space='asd',
+                         n_hp_time=1, n_hp_space=1)
     
-        1D Squared exponential (SE) covariance.
-
-        See eq(10) in Sahani & Linden (2003).
-
-        """
-
-        delta = params[0]
-
-        grid = np.arange(ncoeff)
-        square_distance = (grid - grid.reshape(-1,1)) ** 2 # pairwise squared distance
-        C = np.exp(-.5 * square_distance / delta ** 2)
-        C_inv = np.linalg.inv(C + np.eye(ncoeff) * 1e-07)
-
-        return C, C_inv
-    
-
     def print_progress_header(self, params):
         
         if len(params) == 3:

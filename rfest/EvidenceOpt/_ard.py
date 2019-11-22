@@ -1,11 +1,35 @@
 import jax.numpy as np
 from sklearn.metrics import mean_squared_error
+from ._base import EmpiricalBayes
 
 # from ._base import *
 
-__all__ = ['ARD']
+__all__ = ['ARD', 'ARDFixedPoint']
 
-class ARD:
+class ARD(EmpiricalBayes):
+
+    """
+
+    Automatic Relevance Determination (ARD).
+
+    Reference: Sahani, M., & Linden, J. F. (2003). 
+
+    """
+    
+    def __init__(self, X, Y, dims, compute_mle=True):
+        
+        ndim = len(dims)
+        
+        if ndim == 1:
+            super().__init__(X, Y, dims, compute_mle,
+                            time='ard', n_hp_time=dims[0])
+        else:
+            super().__init__(X, Y, dims, compute_mle,
+                            time='ard', space='ard',
+                            n_hp_time=dims[0], n_hp_space=dims[1])
+
+
+class ARDFixedPoint:
     
     """
 

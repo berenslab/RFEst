@@ -8,6 +8,8 @@ config.update("jax_enable_x64", True)
 
 from sklearn.metrics import mean_squared_error
 
+from .._priors import *
+
 __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
@@ -18,7 +20,7 @@ class EmpiricalBayes:
 
     """
 
-    def __init__(self, X, y, dims, compute_mle=True):
+    def __init__(self, X, y, dims, compute_mle=True, **kwargs):
         
         """
         
@@ -55,13 +57,20 @@ class EmpiricalBayes:
             self.w_sta = self.XtY
             self.w_mle = np.linalg.solve(self.XtX, self.XtY)
                          #maximum likelihood estimation
-
-    def _make_1D_covariance(self, params, ncoeff):
+                
+        # methods
+        self.time = kwargs['time'] if 'time' in kwargs.keys() else None
+        self.space = kwargs['space'] if 'space' in kwargs.keys() else None
+        self.n_hp_time = kwargs['n_hp_time'] if 'n_hp_time' in kwargs.keys() else None
+        self.n_hp_space = kwargs['n_hp_space'] if 'n_hp_space' in kwargs.keys() else None
+    
+    def cov1d_time(self, params, ncoeff):
 
         """
         
-        Placeholder for class method `_make_1d_covariance`.
-        If you design a new prior, fill it in this method. 
+        Placeholder for class method `cov1d` in time.
+        If you design a new prior, just overwrite this method. 
+        Same for `cov1d` in space.
 
         Parameters
         ==========
@@ -73,7 +82,33 @@ class EmpiricalBayes:
 
         """
 
-        pass
+        if self.time == 'asd':
+            return smoothness_kernel(params, ncoeff)
+        
+        elif self.time == 'ald':
+            return locality_kernel(params, ncoeff)
+        
+        elif self.time == 'ard':
+            return sparsity_kernel(params, ncoeff)
+        
+        elif self.time == 'ridge':
+            return ridge_kernel(params, ncoeff)
+        
+        else:
+            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_time()` method.'.format(self.time)
+        
+    def cov1d_space(self, params, ncoeff):
+        
+        if self.space == 'asd':
+            return smoothness_kernel(params, ncoeff)
+        elif self.space == 'ald':
+            return locality_kernel(params, ncoeff)
+        elif self.space == 'ard':
+            return sparsity_kernel(params, ncoeff)
+        elif self.space == 'ridge':
+            return ridge_kernel(params, ncoeff)
+        else:
+            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_space()` method.'.format(self.space)
     
     def update_C_prior(self, params):
 
@@ -88,13 +123,14 @@ class EmpiricalBayes:
             
         """
 
-        nh = self.n_hyperparams_1d
+        n_hp_time = self.n_hp_time
+        n_hp_space = self.n_hp_space
 
         rho = params[1]
-        params_time = params[ 2+0*nh : 2+1*nh ]
+        params_time = params[ 2 : 2+n_hp_time ]
 
         # Covariance Matrix in Time
-        C_t, C_t_inv = self._make_1D_covariance(params_time, self.dims[0])
+        C_t, C_t_inv = self.cov1d_time(params_time, self.dims[0])
 
         if len(self.dims) == 1:
 
@@ -103,8 +139,8 @@ class EmpiricalBayes:
         elif len(self.dims) ==2:
 
             # Covariance Matrix in Space 
-            params_space = params[ 2+1*nh : 2+2*nh ]
-            C_s, C_s_inv = self._make_1D_covariance(params_space, self.dims[1])
+            params_space = params[ 2+n_hp_time : 2+n_hp_time+n_hp_space ]
+            C_s, C_s_inv = self.cov1d_space(params_space, self.dims[1])
 
             # Build 2D Covariance Matrix 
             C = rho * np.kron(C_t, C_s)
@@ -113,11 +149,11 @@ class EmpiricalBayes:
         elif len(self.dims) ==3:
 
             # Covariance Matrix in Space 
-            params_spacey = params[ 2+1*nh : 2+2*nh ]
-            params_spacex = params[ 2+2*nh : 2+3*nh ]
+            params_spacey = params[ 2+n_hp_time : 2+n_hp_time+n_hp_space ]
+            params_spacex = params[ 2+n_hp_time+n_hp_space : ]
         
-            C_sy, C_sy_inv = self._make_1D_covariance(params_spacey, self.dims[1])
-            C_sx, C_sx_inv = self._make_1D_covariance(params_spacex, self.dims[2])
+            C_sy, C_sy_inv = self.cov1d_space(params_spacey, self.dims[1])
+            C_sx, C_sx_inv = self.cov1d_space(params_spacex, self.dims[2])
             
             C_s = np.kron(C_sy, C_sx)
             C_s_inv = np.kron(C_sy_inv, C_sx_inv)
@@ -167,10 +203,11 @@ class EmpiricalBayes:
         return 0.5 * (t0 + t1 + t2 + t3)
 
     def print_progress_header(self, params):
-        pass
+        print('Iter\tcost')
 
     def print_progress(self, i, params, cost):
-        pass 
+        print('{0:4d}\t{1:1.3f}'.format(
+                i, cost))   
     
     def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
 
@@ -202,7 +239,8 @@ class EmpiricalBayes:
             cost_list.append(self.negative_log_evidence(params_list[-1]))
 
             if verbal:
-                self.print_progress(i, params_list[-1], cost_list[-1])
+                if i % verbal == 0:
+                    self.print_progress(i, params_list[-1], cost_list[-1])
     
             if len(params_list) > tolerance:
                 
@@ -252,9 +290,10 @@ class EmpiricalBayes:
             progress will be printed in every n steps.
 
         """
-
+    
+        self.initial_params = np.array(initial_params)
         self.num_iters = num_iters       
-        self.optimized_params = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal)
+        self.optimized_params = self.optimize_params(self.initial_params, num_iters, step_size, tolerance, verbal)
 
         (optimized_C_prior, 
          optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)

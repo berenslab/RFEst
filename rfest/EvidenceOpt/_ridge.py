@@ -1,11 +1,25 @@
 import jax.numpy as np
 from sklearn.metrics import r2_score, mean_squared_error
-
-from ._base import *
+from ._base import EmpiricalBayes
 
 __all__ = ['Ridge']
 
-class Ridge:
+
+class Ridge(EmpiricalBayes):
+
+    """
+
+    Ridge Regression
+
+    """
+    
+    def __init__(self, X, Y, dims, compute_mle=True):
+
+        super().__init__(X, Y, dims, compute_mle,
+                        time='ridge', space='ridge',
+                        n_hp_time=1, n_hp_space=1)
+
+class RidgeFixedPoint:
     
     """
 
