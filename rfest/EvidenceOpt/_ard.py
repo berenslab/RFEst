@@ -1,6 +1,7 @@
 import jax.numpy as np
 from sklearn.metrics import mean_squared_error
 from ._base import EmpiricalBayes
+from .._priors import sparsity_kernel
 
 # from ._base import *
 
@@ -9,24 +10,32 @@ __all__ = ['ARD', 'ARDFixedPoint']
 class ARD(EmpiricalBayes):
 
     """
-
     Automatic Relevance Determination (ARD).
-
     Reference: Sahani, M., & Linden, J. F. (2003). 
-
     """
     
     def __init__(self, X, Y, dims, compute_mle=True):
         
-        ndim = len(dims)
+        super().__init__(X, Y, dims, compute_mle)
+
+    def update_C_prior(self, params):
+
+        """
         
-        if ndim == 1:
-            super().__init__(X, Y, dims, compute_mle,
-                            time='ard', n_hp_time=dims[0])
-        else:
-            super().__init__(X, Y, dims, compute_mle,
-                            time='ard', space='ard',
-                            n_hp_time=dims[0], n_hp_space=dims[1])
+        Overwrite the
+        
+        ARD cannot utilise the kronecker product extension from 1D to nD,
+        due to the assumption it made that every pixel in the RF should be
+        panelized by it's own hyperparameter.
+            
+        """
+        rho = params[1]
+        theta = params[2:]
+        C, C_inv = sparsity_kernel(theta, np.product(self.dims))
+        C *= rho
+        C_inv /= rho
+        
+        return C, C_inv
 
 
 class ARDFixedPoint:
