@@ -1,7 +1,13 @@
 import jax.numpy as np
 
 def ridge_kernel(params, ncoeff):
+
+    """
     
+    Prior for ridge regression.
+    
+    """
+
     theta = params[0]
     C = np.eye(ncoeff) * theta
     C_inv = np.linalg.inv(C + np.eye(ncoeff) * 1e-07)
@@ -11,6 +17,15 @@ def ridge_kernel(params, ncoeff):
 
 def sparsity_kernel(params, ncoeff):
     
+    """
+    
+    Sparse prior for ARD.
+
+    See: Section 4 of Sahani & Linden (2003).
+    
+    """
+
+
     theta = np.abs(params)
     C = np.eye(ncoeff) * theta
     C_inv = np.linalg.inv(C + np.eye(ncoeff) * 1e-07)
@@ -50,11 +65,11 @@ def locality_kernel(params, ncoeff):
     tauf = np.array(params[2])
     nuf = np.array(params[3])
 
-    (Uf, freq) = realfftbasis(ncoeff)
+    (B, freq) = realfftbasis(ncoeff)
 
     CxSqrt = np.diag(np.exp(-0.25 * 1/taux**2 * (chi - nux)**2))
 
-    Cf = Uf.T @ np.diag(np.exp(-0.5 * (np.abs(tauf * freq) - nuf)**2)) @ Uf
+    Cf = B.T @ np.diag(np.exp(-0.5 * (np.abs(tauf * freq) - nuf)**2)) @ B
 
     C = CxSqrt @ Cf @ CxSqrt
     C_inv = np.linalg.inv(C + np.eye(ncoeff) * 1e-07)
