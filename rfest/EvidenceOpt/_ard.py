@@ -22,11 +22,10 @@ class ARD(EmpiricalBayes):
 
         """
         
-        Overwrite the
+        Overwrite the kronecker product construction from 1D to nD,. 
         
-        ARD cannot utilise the kronecker product extension from 1D to nD,
-        due to the assumption it made that every pixel in the RF should be
-        panelized by it's own hyperparameter.
+        ARD cannot utilise this due to the assumption it made that every 
+        pixel in the RF should be panelized by it's own hyperparameter.
             
         """
         rho = params[1]
