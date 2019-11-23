@@ -95,7 +95,7 @@ class EmpiricalBayes:
             return ridge_kernel(params, ncoeff)
         
         else:
-            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_time()` method.'.format(self.time)
+            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_time()` method.'.format(self.time))
         
     def cov1d_space(self, params, ncoeff):
         
@@ -108,7 +108,7 @@ class EmpiricalBayes:
         elif self.space == 'ridge':
             return ridge_kernel(params, ncoeff)
         else:
-            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_space()` method.'.format(self.space)
+            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_space()` method.'.format(self.space))
     
     def update_C_prior(self, params):
 
