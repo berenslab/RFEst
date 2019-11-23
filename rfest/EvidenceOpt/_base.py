@@ -209,7 +209,7 @@ class EmpiricalBayes:
         print('{0:4d}\t{1:1.3f}'.format(
                 i, cost))   
     
-    def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
+    def optimize_params(self, p0, num_iters, step_size, tolerance, verbal):
 
         """
         
@@ -218,7 +218,7 @@ class EmpiricalBayes:
         """
         
         opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
-        opt_state = opt_init(initial_params)
+        opt_state = opt_init(p0)
         
         @jit
         def step(i, opt_state):
@@ -230,7 +230,7 @@ class EmpiricalBayes:
         params_list = []
 
         if verbal:
-            self.print_progress_header(initial_params)
+            self.print_progress_header(p0)
 
         for i in range(num_iters):
             
@@ -266,20 +266,23 @@ class EmpiricalBayes:
                    
         return params
     
-    def fit(self, initial_params, num_iters=20, step_size=1e-2, tolerance=10, verbal=True):
+    def fit(self, p0, num_iters=20, step_size=1e-2, tolerance=10, verbal=True):
 
 
         """
         Parameters
         ==========
 
-        initial_params : list or array_like, shape (n_hypyerparams_1d * ndim, )
-            Initial (hyper)parameters
+        p0 : list or array_like, shape (n_hp_time, ) for 1D
+                                       (n_hp_time + n_hp_space) for 2D
+                                       (n_hp_time + n_hp_space*2) for 3D
+            Initial Gaussian prior hyperparameters
 
         num_iters : int
-            Number of iterations. 
+            Max number of optimization iterations.
 
         step_size : float
+            Initial step size for Jax optimizer.
             
         tolerance : int
             Set early stop tolerance. Optimization stops when cost monotonically 
@@ -291,9 +294,9 @@ class EmpiricalBayes:
 
         """
     
-        self.initial_params = np.array(initial_params)
+        self.p0 = np.array(p0)
         self.num_iters = num_iters       
-        self.optimized_params = self.optimize_params(self.initial_params, num_iters, step_size, tolerance, verbal)
+        self.optimized_params = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)
 
         (optimized_C_prior, 
          optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)

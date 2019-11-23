@@ -92,9 +92,9 @@ class ARDFixedPoint:
         
         return C_post, C_post_inv, m_post
     
-    def fit(self, initial_params, num_iters=100, threshold=1e-6, MAXALPHA=1e6, verbal=True):
+    def fit(self, p0, num_iters=100, threshold=1e-6, MAXALPHA=1e6, verbal=True):
         
-        params = initial_params
+        params = p0
         
         if verbal:
             print('Iter\tσ\tθ0\tθ1')
