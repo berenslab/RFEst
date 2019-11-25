@@ -17,8 +17,10 @@ spl.fit(num_iters=500, alpha=1, lambd=0.025, verbal=100)
 
 **Evidence Optimization**
 
-* Automatic Smoothness Determination (ASD) [2]
-* Automatic Locality Determination (ALD) [3]
+* Ridge Regression 
+* Automatic Relevance Determination (ARD) [2]
+* Automatic Smoothness Determination (ASD) [3]
+* Automatic Locality Determination (ALD) [4]
 
 ```python
 from rfest import ASD
@@ -79,11 +81,12 @@ The accompanying data for example notebooks are from:
 
 Ran, Y., Huang, Z., Baden, T., Baayen, H., Berens, P., Franke, K., & Euler, T. (2019). Type-specific dendritic integration in mouse retinal ganglion cells. bioRxiv, 753335.
     
-
 ## Reference
 
 [1] Huang, Z., &  Berens, P. (in preparation). Efficient high dimensional receptive field inference using flexible regression splines.
 
-[2] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
+[2] MacKay, D. J. (1994). Bayesian nonlinear modeling for the prediction competition. ASHRAE transactions, 100(2), 1053-1062.
 
-[3] Park, M., & Pillow, J. W. (2011). Receptive field inference with localized priors. PLoS computational biology, 7(10), e1002219.
+[3] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
+
+[4] Park, M., & Pillow, J. W. (2011). Receptive field inference with localized priors. PLoS computational biology, 7(10), e1002219.
