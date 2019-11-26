@@ -25,8 +25,9 @@ spl.fit(num_iters=500, alpha=1, lambd=0.025, verbal=100)
 ```python
 from rfest import ASD
 
-asd = ASD(X, y, dims=(5, 20, 15))
-asd.fit(initial_params=[1., 1., 2., 2., 2.], num_iters=300)
+asd = ASD(X, y, dims=(5, 20, 15)) # nt, ny, dx
+p0 = [1., 1., 2., 2., 2.] # sig, rho, 𝛿t, 𝛿y, 𝛿x
+asd.fit(p0=p0, num_iters=300)
 ```
 
 ## Installation
