@@ -22,23 +22,23 @@ class ALD(EmpiricalBayes):
  
     def print_progress_header(self, params):
         
-        print('* Due to space limit, parameters for ν are not printed.')
+        print('* Due to space limit, parameters for frequency domain are not printed.')
         if len(params) == 6:
-            print('Iter\tσ\tρ\tτs_t\tτf_t\tcost')
+            print('Iter\tσ\tρ\tτ_t\tν_t\tcost')
         elif len(params) == 10:
-            print('Iter\tσ\tρ\tτs_t\tτf_t\tτs_y\tτf_y\tcost')
+            print('Iter\tσ\tρ\tτ_t\tν_t\tτ_y\tν_y\tcost')
         elif len(params) == 14:
-            print('Iter\tσ\tρ\tτs_t\tτf_t\tτs_y\tτf_y\tτs_x\tτf_x\tcost')
+            print('Iter\tσ\tρ\tτ_t\tν_t\tτ_y\tν_y\tτ_x\tν_x\tcost')
 
     def print_progress(self, i, params, cost):
      
         # due to space limit, parameters for \nu are not printed.
         if len(params) == 6:
             print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}'.format(
-                i, params[0], params[1], params[2], params[4], cost))   
+                i, params[0], params[1], params[2], params[3], cost))   
         elif len(params) == 10:
             print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}\t{7:1.3f}'.format(
-                i, params[0], params[1], params[2], params[4], params[6], params[8], cost))   
+                i, params[0], params[1], params[2], params[3], params[6], params[7], cost))   
         elif len(params) == 14:
             print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}\t{7:1.3f}\t{8:1.3f}\t{9:1.3f}'.format(
-                i, params[0], params[1], params[2], params[4], params[6], params[8], params[10], params[12], cost))  
+                i, params[0], params[1], params[2], params[3], params[6], params[7], params[10], params[11], cost))  
