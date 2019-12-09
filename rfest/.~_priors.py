@@ -8,12 +8,13 @@ def ridge_kernel(params, ncoeff):
     
     """
 
-    theta = np.abs(params[0])
+    theta = params[0]
     C = np.eye(ncoeff) * theta
     C_inv = np.linalg.inv(C + np.eye(ncoeff) * 1e-07)
     
     return C, C_inv
         
+
 def sparsity_kernel(params, ncoeff):
     
     """

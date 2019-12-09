@@ -101,12 +101,16 @@ class EmpiricalBayes:
         
         if self.space == 'asd':
             return smoothness_kernel(params, ncoeff)
+        
         elif self.space == 'ald':
             return locality_kernel(params, ncoeff)
+        
         elif self.space == 'ard':
             return sparsity_kernel(params, ncoeff)
+        
         elif self.space == 'ridge':
             return ridge_kernel(params, ncoeff)
+        
         else:
             raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_space()` method.'.format(self.space))
     

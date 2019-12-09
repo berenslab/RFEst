@@ -17,7 +17,7 @@ class LNLN:
     
     """
     
-    def __init__(self, X, y, dt, dims, compute_mle=True):
+    def __init__(self, X, y, dt, dims, compute_mle=True, **kwargs):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
@@ -31,12 +31,9 @@ class LNLN:
         else:
             self.w_mle = None
         
-        self.Cinv = None
+        self.Cinv = kwargs['Cinv'] if 'Cinv' in kwargs.keys() else None
     
-    def add_C_posterior(self, Cinv):
-        self.Cinv = Cinv
-        
-    def negloglikelihood(self, K):
+    def cost(self, K):
         
         X = self.X
         y = self.y
@@ -92,7 +89,7 @@ class LNLN:
             
             opt_state = step(i, opt_state)
             params_list.append(get_params(opt_state))
-            cost_list.append(self.neglogposterior(params_list[-1]))
+            cost_list.append(self.cost(params_list[-1]))
             
             if verbal:
                 if i % int(verbal) == 0:
