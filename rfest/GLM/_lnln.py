@@ -76,7 +76,7 @@ class LNLN:
         @jit
         def step(i, opt_state):
             p = get_params(opt_state)
-            g = grad(self.negloglikelihood)(p)
+            g = grad(self.cost)(p)
             return opt_update(i, g, opt_state)
 
         cost_list = []
