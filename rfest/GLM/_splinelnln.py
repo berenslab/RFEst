@@ -34,12 +34,9 @@ class splineLNLN(splineBase):
             return np.log(1 + np.exp(x)) + 1e-17
 
         
-        if self.n_subunits == 1:
-            filter_output = nonlin(XS @ b).flatten()
-            r = dt * filter_output
-        else:
-            filter_output = np.sum(nonlin(XS @ b.reshape(self.n_b, self.n_subunits)), 1)
-            r = dt * nonlin(filter_output).flatten() # conditional intensity (per bin)
+
+        filter_output = np.sum(nonlin(XS @ b.reshape(self.n_b, self.n_subunits)), 1)
+        r = dt * nonlin(filter_output).flatten() # conditional intensity (per bin)
         
         term0 = - np.log(r) @ y # spike term from poisson log-likelihood
         term1 = np.sum(r) # non-spike term
