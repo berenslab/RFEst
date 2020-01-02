@@ -6,8 +6,7 @@ from jax.experimental import optimizers
 from jax.config import config
 config.update("jax_enable_x64", True)
 
-from sklearn.metrics import mean_squared_error
-
+from ._base import splineBase
 from .._splines import build_spline_matrix
 
 __all__ = ['splineLNP']
