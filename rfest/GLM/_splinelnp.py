@@ -1,3 +1,18 @@
+import jax.numpy as np
+from jax import grad
+from jax import jit
+from jax.experimental import optimizers
+
+from jax.config import config
+config.update("jax_enable_x64", True)
+
+from sklearn.metrics import mean_squared_error
+
+from .._splines import build_spline_matrix
+
+__all__ = ['splineLNP']
+
+
 class splineLNP(splineBase):
 
     def __init__(self, X, y, dims, df, smooth='cr', compute_mle=True, **kwargs):
@@ -17,7 +32,6 @@ class splineLNP(splineBase):
         def nonlin(x):
             return np.log(1 + np.exp(x)) + 1e-17
 
-
         filter_output = nonlin(XS @ b).flatten()
         r = dt * filter_output
 
@@ -32,19 +46,3 @@ class splineLNP(splineBase):
             neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
 
         return neglogli
-
-    def fit(self, p0=None, num_iters=5, alpha=0.5, lambd=0.05, gamma=0.0,
-            step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
-
-        self.lambd = lambd # elastic net parameter - global weight
-        self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
-        self.gamma = gamma # nuclear norm parameter
-        
-        self.n_subunits = num_subunits
-        self.num_iters = num_iters   
-        
-        if p0 is None:
-            p0 = self.b_spl
-        
-        self.b_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)   
-        self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_subunits)
