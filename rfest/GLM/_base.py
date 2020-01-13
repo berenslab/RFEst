@@ -20,7 +20,7 @@ class splineBase:
     
     """
 
-    def __init__(self, X, y, dims, df, smooth='cr', compute_mle=True, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=True, **kwargs):
 
         """
         
@@ -62,13 +62,19 @@ class splineBase:
             self.w_mle = np.linalg.solve(self.XtX, self.w_sta)
         
         S = np.array(build_spline_matrix(dims, df, smooth))
+        
+        if add_intercept:
+
+            self.X = np.hstack([np.ones(self.n_samples)[:, np.newaxis], self.X])
+            S = np.vstack([np.ones(S.shape[1]), S])
+
         self.S = S # spline matrix
-        self.XS = X @ S 
-        self.n_b = self.S.shape[1] # number of spline coefficients
+        self.XS = self.X @ self.S 
+        self.n_b = self.S.shape[1] # num:ber of spline coefficients
         
         # compute spline-based maximum likelihood 
-        self.b_spl = np.linalg.solve(self.XS.T @ self.XS, S.T @ X.T @ y)
-        self.w_spl = S @ self.b_spl
+        self.b_spl = np.linalg.solve(self.XS.T @ self.XS, self.S.T @ self.X.T @ self.y)
+        self.w_spl = self.S @ self.b_spl
 
         # store meta data
         self.df = df 
