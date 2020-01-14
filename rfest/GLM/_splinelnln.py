@@ -14,9 +14,9 @@ __all__ = ['splineLNLN']
 
 class splineLNLN(splineBase):
 
-    def __init__(self, X, y, dims, df, smooth='cr', compute_mle=True, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=True, **kwargs):
         
-        super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
+        super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
 
     def cost(self, b):
 

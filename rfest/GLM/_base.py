@@ -47,34 +47,36 @@ class splineBase:
         compute_mle : bool
             Compute sta and maximum likelihood optionally.
 
-        """
-  
-        self.X = np.array(X) # stimulus design matrix
-        self.y = np.array(y) # response 
+        """ 
         
         self.dims = dims # assumed order [t, y, x]
         self.ndim = len(dims)
         self.n_samples, self.n_features = X.shape
 
+        S = np.array(build_spline_matrix(dims, df, smooth))
+        
+        if add_intercept:
+            X = np.hstack([np.ones(self.n_samples)[:, np.newaxis], X])
+            S = np.vstack([np.ones(S.shape[1]), S])
+
+        XS = X @ S
+
         if compute_mle:
             self.XtX = X.T @ X
             self.w_sta = X.T @ y
             self.w_mle = np.linalg.solve(self.XtX, self.w_sta)
-        
-        S = np.array(build_spline_matrix(dims, df, smooth))
-        
-        if add_intercept:
 
-            self.X = np.hstack([np.ones(self.n_samples)[:, np.newaxis], self.X])
-            S = np.vstack([np.ones(S.shape[1]), S])
+
+        self.X = np.array(X) # stimulus design matrix
+        self.y = np.array(y) # response
 
         self.S = S # spline matrix
-        self.XS = self.X @ self.S 
-        self.n_b = self.S.shape[1] # num:ber of spline coefficients
+        self.XS = XS 
+        self.n_b = S.shape[1] # num:ber of spline coefficients
         
         # compute spline-based maximum likelihood 
-        self.b_spl = np.linalg.solve(self.XS.T @ self.XS, self.S.T @ self.X.T @ self.y)
-        self.w_spl = self.S @ self.b_spl
+        self.b_spl = np.linalg.solve(XS.T @ XS, S.T @ X.T @ y)
+        self.w_spl = S @ self.b_spl
 
         # store meta data
         self.df = df 
