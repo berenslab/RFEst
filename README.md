@@ -84,7 +84,7 @@ Ran, Y., Huang, Z., Baden, T., Baayen, H., Berens, P., Franke, K., & Euler, T. (
     
 ## Reference
 
-[1] Huang, Z., &  Berens, P. (2020). [Efficient high dimensional receptive field inference using a flexible spline basis](./misc/Huang_et_al_Cosyne_2020.pdf). Cosyne Abstracts 2020, Denver, CO.
+[1] Huang, Z., &  Berens, P. (2020). Efficient high dimensional receptive field inference using a flexible spline basis. Cosyne Abstracts 2020, Denver, CO. [[abstract]](./misc/Huang_et_al_Cosyne_2020.pdf)
 
 [2] MacKay, D. J. (1994). Bayesian nonlinear modeling for the prediction competition. ASHRAE transactions, 100(2), 1053-1062.
 
