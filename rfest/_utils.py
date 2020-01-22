@@ -22,6 +22,9 @@ def build_design_matrix(X, nlag, shift=0):
 
         Time lag, or number of frames in the temporal filters. 
 
+    shift : int
+        In case of building spike-history filter, the spike train should be shifted
+        (e.g. shift=1) so that it will not predict itself.
     
     Return
     ======
