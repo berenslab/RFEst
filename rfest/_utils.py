@@ -1,11 +1,11 @@
 import numpy as np
 from sklearn.decomposition import randomized_svd
 
-def get_stimulus_design_matrix(X, nlag):
+def build_design_matrix(X, nlag, shift=0):
 
     """
 
-    Build stimulus design matrix. 
+    Build design matrix. 
 
     Parameters
     ==========
@@ -41,7 +41,7 @@ def get_stimulus_design_matrix(X, nlag):
     n_sample = X.shape[0]
     n_feature = X.shape[1:]
     X = X.reshape(n_sample, np.prod(n_feature))
-    X_padded = np.vstack([np.zeros([nlag-1, np.prod(n_feature)]), X])
+    X_padded = np.vstack([np.zeros([nlag+shift-1, np.prod(n_feature)]), X])
     X_design = np.hstack([X_padded[i:n_sample+i] for i in range(nlag)])
     
     return X_design

@@ -188,21 +188,4 @@ class splineBase:
             p0 = self.b_spl
         
         self.b_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
-        self.w_opt = self.S @ self.b_opt
-
-    def _rcv(self, w, wSTA_test, X_test, y_test):
-
-        """Relative Mean Squared Error"""
-
-        a = mean_squared_error(y_test, X_test @ w)
-        b = mean_squared_error(y_test, X_test @ wSTA_test)
-
-        return a - b
-
-    def measure_prediction_performance(self, X_test, y_test):
-
-        wSTA_test = np.linalg.solve(X_test.T @ X_test, X_test.T @ y_test)
-
-        w = self.w_opt.ravel()
-
-        return self._rcv(w, wSTA_test, X_test, y_test)
+        self.w_opt = self.S @ self.b_opt 
