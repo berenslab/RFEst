@@ -56,16 +56,9 @@ class LNLN:
             neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
         # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc') # wait for JAX implementation
         if self.gamma:
-            nuc = np.sum(np.linalg.svd(K.reshape(self.n_spline_coeff, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
+            nuc = np.sum(np.linalg.svd(K.reshape(self.n_features, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
             neglogli += self.gamma * nuc
         
-        if self.Cinv is not None:
-            
-            Cinv = self.Cinv
-            K = K.reshape(self.n_features, self.n_subunits)
-            p = .5 * K.T @ Cinv @ K
-            neglogli += p
-
         return neglogli
     
     def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
@@ -131,4 +124,4 @@ class LNLN:
             key = random.PRNGKey(random_seed)
             initial_params = 0.01 * random.normal(key, shape=(self.n_features, self.n_subunits)).flatten()
         
-        self.w_opt = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal)
+        self.w_opt = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal).reshape(self.n_features, self.n_subunits)
