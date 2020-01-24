@@ -34,18 +34,34 @@ class splineLNLN(splineBase):
         dt = self.dt
                 
         def filter_nonlin(x):
-            if self.filter_nonlinearity == 'softplus':
+            nl = self.filter_nonlinearity
+            if  nl == 'softplus':
                 return np.log(1 + np.exp(x)) + 1e-17
-            elif self.filter_nonlinearity == 'exponential':
+            elif nl == 'exponential':
                 return np.exp(x)
-            elif self.filter_nonlinearity == 'square':
+            elif nl == 'square':
                 return np.power(x, 2)
+            elif nl == 'relu':
+                return np.maximum(0, x)
+            elif nl == 'none':
+                return x
+            else:
+                raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
             
         def output_nonlin(x):
-            if self.output_nonlinearity == 'softplus':
+            nl = self.output_nonlinearity
+            if  nl == 'softplus':
                 return np.log(1 + np.exp(x)) + 1e-17
-            elif self.output_nonlinearity == 'exponential':
+            elif nl == 'exponential':
                 return np.exp(x)
+            elif nl == 'square':
+                return np.power(x, 2)
+            elif nl == 'relu':
+                return np.maximum(0, x)
+            elif nl == 'none':
+                return x
+            else:
+                raise ValueError(f'Input output nonlinearity `{nl}` is not supported.')
 
         filter_output = np.sum(filter_nonlin(XS @ b.reshape(self.n_b, self.n_subunits)), 1)
         r = dt * output_nonlin(filter_output).flatten() # conditional intensity (per bin)
