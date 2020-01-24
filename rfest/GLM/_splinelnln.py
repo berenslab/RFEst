@@ -37,6 +37,8 @@ class splineLNLN(splineBase):
             nl = self.filter_nonlinearity
             if  nl == 'softplus':
                 return np.log(1 + np.exp(x)) + 1e-17
+            elif nl == 'softplus_rev':
+                return np.log(1 + np.exp(x))[::-1] + 1e-17
             elif nl == 'exponential':
                 return np.exp(x)
             elif nl == 'square':
