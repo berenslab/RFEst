@@ -18,8 +18,8 @@ class splineLNLN(splineBase):
                  add_intercept=False, compute_mle=True, **kwargs):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
-        self.output_nonlinearity == output_nonlinearity
-        self.filter_nonlinearity == filter_nonlinearity
+        self.output_nonlinearity = output_nonlinearity
+        self.filter_nonlinearity = filter_nonlinearity
 
     def cost(self, b):
 
