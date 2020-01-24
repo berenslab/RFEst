@@ -30,6 +30,10 @@ p0 = [1., 1., 2., 2., 2.] # sig, rho, 𝛿t, 𝛿y, 𝛿x
 asd.fit(p0=p0, num_iters=300)
 ```
 
+**NMF**
+
+See [here](https://github.com/berenslab/RFEst/blob/master/rfest/MF/README.md). 
+
 ## Installation
 
 RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation and JIT compilation to GPU/CPU, so you need to install JAX first. 
