@@ -14,9 +14,12 @@ __all__ = ['splineLNLN']
 
 class splineLNLN(splineBase):
 
-    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=True, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', output_nonlinearity='softplus', filter_nonlinearity='softplus',
+                 add_intercept=False, compute_mle=True, **kwargs):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
+        self.output_nonlinearity == output_nonlinearity
+        self.filter_nonlinearity == filter_nonlinearity
 
     def cost(self, b):
 
@@ -29,14 +32,23 @@ class splineLNLN(splineBase):
         XS = self.XS
         y = self.y
         dt = self.dt
-        
-        def nonlin(x):
-            return np.log(1 + np.exp(x)) + 1e-17
+                
+        def filter_nonlin(x):
+            if self.filter_nonlinearity == 'softplus':
+                return np.log(1 + np.exp(x)) + 1e-17
+            elif self.filter_nonlinearity == 'exponential':
+                return np.exp(x)
+            elif self.filter_nonlinearity == 'square':
+                return np.power(x, 2)
+            
+        def output_nonlin(x):
+            if self.output_nonlinearity == 'softplus':
+                return np.log(1 + np.exp(x)) + 1e-17
+            elif self.output_nonlinearity == 'exponential':
+                return np.exp(x)
 
-        
-
-        filter_output = np.sum(nonlin(XS @ b.reshape(self.n_b, self.n_subunits)), 1)
-        r = dt * nonlin(filter_output).flatten() # conditional intensity (per bin)
+        filter_output = np.sum(filter_nonlin(XS @ b.reshape(self.n_b, self.n_subunits)), 1)
+        r = dt * output_nonlin(filter_output).flatten() # conditional intensity (per bin)
         
         term0 = - np.log(r) @ y # spike term from poisson log-likelihood
         term1 = np.sum(r) # non-spike term
