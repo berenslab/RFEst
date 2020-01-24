@@ -1,5 +1,7 @@
 # Nonnegative Matrix Factorization (NMF) with spline
 
+It has been shown that (semi-)NMF can be useful for retrieving subunits from retinal ganglion cell receptive fields ([Liu, et al. 2017]), either through part-based / sparse factorization or clustering. 
+
 ## Implemented methods
 
 * NMF ([Lee & Seung, 2001](https://papers.nips.cc/paper/1861-algorithms-for-non-negative-matrix-factorization.pdf))
