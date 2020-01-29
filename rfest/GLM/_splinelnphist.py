@@ -26,7 +26,7 @@ class splineLNPHist(splineBase):
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
         
         # spline is more flexible than raised cosine. but is it the best choice?
-        Sh = np.array(build_spline_matrix(dims[0], df, smooth)) 
+        Sh = np.array(build_spline_matrix([dims[0], ], df, smooth)) 
 #         _, Sh = build_raised_cosine_matrix(nh=df, endpoints=np.array([0.1, 10]), b=1.5, dt=0.1)
         
         yh = build_design_matrix(y[:, np.newaxis], Sh.shape[0], shift=1)
