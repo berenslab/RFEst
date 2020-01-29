@@ -1,5 +1,7 @@
-from ._lnln import *
+from ._lnln import LNLN
 
-from ._splinelg import *
-from ._splinelnp import *
-from ._splinelnln import *
+from ._splinelg import splineLG
+from ._splinelnp import splineLNP
+from ._splinelnln import splineLNLN
+
+from ._splinelnphist import splineLNPHist
