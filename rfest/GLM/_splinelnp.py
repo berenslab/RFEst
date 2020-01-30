@@ -14,9 +14,11 @@ __all__ = ['splineLNP']
 
 class splineLNP(splineBase):
 
-    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=True, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', nonlinearity='softplus',
+            add_intercept=False, compute_mle=True, **kwargs):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
+        self.nonlinearity = nonlinearity
 
     def cost(self, b):
 
@@ -28,8 +30,21 @@ class splineLNP(splineBase):
         y = self.y
         dt = self.dt
         
+
         def nonlin(x):
-            return np.log(1 + np.exp(x)) + 1e-17
+            nl = self.nonlinearity
+            if  nl == 'softplus':
+                return np.log(1 + np.exp(x)) + 1e-17
+            elif nl == 'exponential':
+                return np.exp(x)
+            elif nl == 'square':
+                return np.power(x, 2)
+            elif nl == 'relu':
+                return np.maximum(0, x)
+            elif nl == 'none':
+                return x
+            else:
+                raise ValueError(f'Nonlinearity `{nl}` is not supported.')
 
         filter_output = nonlin(XS @ b).flatten()
         r = dt * filter_output

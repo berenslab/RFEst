@@ -21,7 +21,8 @@ class splineLNPHist(splineBase):
     
     """
 
-    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=True, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', nonlinearity='softplus',
+                 add_intercept=False, compute_mle=True, **kwargs):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
         
@@ -39,6 +40,8 @@ class splineLNPHist(splineBase):
         self.n_bh = self.Sh.shape[1] # number of basis coefficients for spike history filter
         self.n_b = self.n_bw + self.n_bh # total number of basis coefficients
         
+        self.nonlinearity = nonlinearity
+        
     def cost(self, b):
 
         """
@@ -49,9 +52,21 @@ class splineLNPHist(splineBase):
         yhSh = self.yhSh
         y = self.y
         dt = self.dt
-        
+    
         def nonlin(x):
-            return np.log(1 + np.exp(x)) + 1e-17
+            nl = self.nonlinearity
+            if  nl == 'softplus':
+                return np.log(1 + np.exp(x)) + 1e-17
+            elif nl == 'exponential':
+                return np.exp(x)
+            elif nl == 'square':
+                return np.power(x, 2)
+            elif nl == 'relu':
+                return np.maximum(0, x)
+            elif nl == 'none':
+                return x
+            else:
+                raise ValueError(f'Input output nonlinearity `{nl}` is not supported.')
 
         filter_output = nonlin(XS @ b[:self.S.shape[1]] + yhSh @ b[self.S.shape[1]:]).flatten()
         r = dt * filter_output
