@@ -164,4 +164,5 @@ class NMF:
                         print('Stop: cost has been changing so small in the last ten chechpoint. Final cost = {:.3f}'.format(self.cost[-1]))
                         break
         else:
-            print('Stop: reached maximum iterations. Final cost = {:.3f}'.format(self.cost[-1]))
+            if verbal:
+                print('Stop: reached maximum iterations. Final cost = {:.3f}'.format(self.cost[-1]))

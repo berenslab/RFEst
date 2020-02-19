@@ -75,7 +75,7 @@ class splineBase:
         self.n_b = S.shape[1] # num:ber of spline coefficients
         
         # compute spline-based maximum likelihood 
-        self.b_spl = np.linalg.solve(XS.T @ XS, S.T @ X.T @ y)
+        self.b_spl = np.linalg.solve(XS.T @ XS, XS.T @ y)
         self.w_spl = S @ self.b_spl
 
         # store meta data
