@@ -4,7 +4,7 @@
 
 **Spline-based Methods** [1]
 
-`splineLG` and `splineLNLN` use *B-spline*, *natural cubic* and *thin plate regression splines* to approximate spatio-temporal RFs. 
+`splineLG`, `splineLNP` and `splineLNLN` use *natural cubic regression splines* to approximate spatio-temporal RFs. 
 
 Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` :
 
@@ -94,7 +94,7 @@ Ran, Y., Huang, Z., Baden, T., Baayen, H., Berens, P., Franke, K., & Euler, T. (
     
 ## Reference
 
-[1] Huang, Z., &  Berens, P. (2020). Efficient high dimensional receptive field inference using a flexible spline basis. Cosyne Abstracts 2020, Denver, CO. [[abstract]](./misc/Huang_et_al_Cosyne_2020.pdf)
+[1] Huang, Z., &  Berens, P. (2020). Efficient high dimensional receptive field inference using a flexible spline basis. Cosyne Abstracts 2020, Denver, CO. [[abstract]](./misc/Huang_et_al_Cosyne_abstract.pdf) [[poster]](./misc/Huang_et_al_Cosyne_poster.pdf)
 
 [2] MacKay, D. J. (1994). Bayesian nonlinear modeling for the prediction competition. ASHRAE transactions, 100(2), 1053-1062.
 
