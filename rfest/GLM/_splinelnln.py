@@ -25,19 +25,11 @@ class splineLNLN(splineBase):
 
     def nonlin(self, x, nl):
         if  nl == 'softplus':
-            return np.log(1 + np.exp(x)) + 1e-17
-        elif nl == 'softplus_rev':
-            return np.log(1 + np.exp(x))[::-1] + 1e-17
+            return np.log(1 + np.exp(x)) + 1e-7
         elif nl == 'exponential':
             return np.exp(x)
-        elif nl == 'square':
-            return np.power(x, 2)
         elif nl == 'relu':
-            return np.maximum(0, x)
-        elif nl == 'eq':
-            return np.exp(-x**2)
-        elif nl == 'saturate':
-            return x / (x + 1)  
+            return np.maximum(1e-7, x)
         elif nl == 'none':
             return x
         else:

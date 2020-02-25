@@ -66,7 +66,6 @@ class splineBase:
             self.w_sta = X.T @ y
             self.w_mle = np.linalg.solve(self.XtX, self.w_sta)
 
-
         self.X = np.array(X) # stimulus design matrix
         self.y = np.array(y) # response
 
@@ -146,8 +145,7 @@ class splineBase:
 
     def fit(self, p0=None, num_iters=5, alpha=0.5, lambd=0.5,
             step_size=1e-2, tolerance=10, verbal=1):
-
-
+            
         """
 
         Parameters
