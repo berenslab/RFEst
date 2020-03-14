@@ -35,7 +35,6 @@ class splineLNLN(splineBase):
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-
     def cost(self, b):
 
         """
