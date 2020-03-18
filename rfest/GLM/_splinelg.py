@@ -15,7 +15,7 @@ __all__ = ['splineLG']
 
 class splineLG(splineBase):
 
-    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=True):
+    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=False):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle) 
 

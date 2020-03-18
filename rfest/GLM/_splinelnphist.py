@@ -22,7 +22,7 @@ class splineLNPHist(splineBase):
     """
 
     def __init__(self, X, y, dims, df, smooth='cr', nonlinearity='softplus',
-                 add_intercept=False, compute_mle=True, **kwargs):
+                 add_intercept=False, compute_mle=False, **kwargs):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
         

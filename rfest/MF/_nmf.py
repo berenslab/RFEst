@@ -1,4 +1,6 @@
 import numpy as np
+
+from ._initialize import initialize_factors
 from .._splines import build_spline_matrix
 
 __all__ = ['NMF']
@@ -25,8 +27,11 @@ class NMF:
         self.dims_R = kwargs['dims_R'] if self.build_R else None
         self.df_R = kwargs['df_R'] if self.build_R else None
 
-        self.L = build_spline_matrix(self.dims_L, self.df_L, 'bs') if kwargs['build_L'] else None
-        self.R = build_spline_matrix(self.dims_R, self.df_R, 'bs') if kwargs['build_R'] else None
+        self.smooth_L = kwargs['smooth_L'] if 'smooth_L' in kwargs.keys() else 'cr'
+        self.smooth_R = kwargs['smooth_R'] if 'smooth_R' in kwargs.keys() else 'bs'
+
+        self.L = build_spline_matrix(self.dims_L, self.df_L, self.smooth_L) if self.build_L else None
+        self.R = build_spline_matrix(self.dims_R, self.df_R, self.smooth_R) if self.build_R else None
 
 
         # store input data

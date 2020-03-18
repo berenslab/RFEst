@@ -1,4 +1,5 @@
 import numpy as np
+from ._initialize import initialize_factors
 from .._splines import build_spline_matrix
 
 __all__ = ['semiNMF']
@@ -13,7 +14,7 @@ class semiNMF:
     
     """
 
-    def __init__(self, V, k=2, random_seed=2046, **kwargs):
+    def __init__(self, V, k=2, init_method='kmeans', random_seed=2046, **kwargs):
         
         # build basis or not 
         self.build_L = kwargs['build_L'] if 'build_L' in kwargs.keys() else False
@@ -28,8 +29,8 @@ class semiNMF:
         self.smooth_L = kwargs['smooth_L'] if 'smooth_L' in kwargs.keys() else 'cr'
         self.smooth_R = kwargs['smooth_R'] if 'smooth_R' in kwargs.keys() else 'bs'
 
-        self.L = build_spline_matrix(self.dims_L, self.df_L, self.smooth_L) if kwargs['build_L'] else None
-        self.R = build_spline_matrix(self.dims_R, self.df_R, self.smooth_R) if kwargs['build_R'] else None
+        self.L = build_spline_matrix(self.dims_L, self.df_L, self.smooth_L) if self.build_L else None
+        self.R = build_spline_matrix(self.dims_R, self.df_R, self.smooth_R) if self.build_R else None
         
         # store input data
         self.V = V # data
@@ -43,21 +44,31 @@ class semiNMF:
         # initialize W and H
 
         np.random.seed(random_seed)
+    
+        print(f'Initializing with `{init_method}`...')
         
+        self.W, self.H = initialize_factors(V, k, method=init_method, random_seed=random_seed)
+
         if self.L is not None:
-            self.B = np.random.randn(self.b, self.k)
-            self.W = self.L @ self.B
+            if init_method == 'random':
+                self.B = np.random.randn(self.b, self.k)
+                self.W = self.L @ self.B
+            else:
+                self.B = np.linalg.lstsq(self.L, self.W, rcond=None)[0] 
         else:
-            self.B = None
-            self.W = np.random.randn(self.m, self.k)
+            self.B = None 
             
         if self.R is not None:    
-            self.D = np.abs(np.random.randn(self.d, self.k))
-            self.H = self.R @ self.D
+            if init_method == 'random':
+                self.D = np.abs(np.random.randn(self.d, self,k))
+                self.H = self.R @ self.D
+            else:
+                self.D = np.maximum(0, np.linalg.lstsq(self.R, self.H, rcond=None)[0])
         else:
             self.D = None
-            self.H = np.abs(np.random.randn(self.n, self.k))
 
+        print('Finished initialization.')
+    
     def update_W(self):
         
         # data

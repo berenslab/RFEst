@@ -20,7 +20,7 @@ class splineBase:
     
     """
 
-    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=True, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=False, **kwargs):
 
         """
         
@@ -60,10 +60,10 @@ class splineBase:
             S = np.vstack([np.ones(S.shape[1]), S])
 
         XS = X @ S
-
+        self.w_sta = X.T @ y
+        
         if compute_mle:
             self.XtX = X.T @ X
-            self.w_sta = X.T @ y
             self.w_mle = np.linalg.solve(self.XtX, self.w_sta)
 
 
