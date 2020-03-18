@@ -30,17 +30,14 @@ class splineLNP(splineBase):
         y = self.y
         dt = self.dt
         
-
         def nonlin(x):
             nl = self.nonlinearity
             if  nl == 'softplus':
-                return np.log(1 + np.exp(x)) + 1e-17
+                return np.log(1 + np.exp(x)) + 1e-7
             elif nl == 'exponential':
                 return np.exp(x)
-            elif nl == 'square':
-                return np.power(x, 2)
             elif nl == 'relu':
-                return np.maximum(0, x)
+                return np.maximum(1e-7, x)
             elif nl == 'none':
                 return x
             else:

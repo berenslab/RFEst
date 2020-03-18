@@ -146,7 +146,6 @@ class NMF:
 
     def fit(self, num_iters=300, verbal=0):
 
-
         if verbal:
             self.cost = []
             self.iter = []
