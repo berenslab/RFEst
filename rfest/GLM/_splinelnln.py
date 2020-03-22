@@ -89,13 +89,15 @@ class splineLNLN(splineBase):
                 kms = KMeans(self.X[self.y!=0].T, k=self.n_subunits, build_S=True, dims=self.dims, df=self.df)
                 kms.fit(num_iters=num_iters_init, verbal=verbal, tolerance=10)
                 p0 = kms.B.copy()
-            
+                self.w_kms = kms.W.copy()
+
             elif p0 == 'seminmf':
 
                 print('Initializing subunits with semi-NMF...')
                 nmf = semiNMF(self.X[self.y!=0].T, k=self.n_subunits, build_L=True, dims_L=self.dims, df_L=self.df)
                 nmf.fit(num_iters=num_iters_init, verbal=verbal, tolerance=10)
                 p0 = nmf.B.copy()
+                self.w_nmf = nmf.W.copy()
 
             else:
                 raise ValueError(f'Initialization `{p0}` is not supported.')
