@@ -85,7 +85,7 @@ pip install -e RFEst
     matplotlib
     jax
     jaxlib
-    
+
 ## Data
 
 The accompanying data for example notebooks are from:
