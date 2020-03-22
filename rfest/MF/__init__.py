@@ -1,2 +1,3 @@
-from ._nmf import *
-from ._seminmf import *
+from ._nmf import NMF
+from ._seminmf import semiNMF
+from ._kmeans import KMeans
