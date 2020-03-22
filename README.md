@@ -30,12 +30,12 @@ p0 = [1., 1., 2., 2., 2.] # sig, rho, 𝛿t, 𝛿y, 𝛿x
 asd.fit(p0=p0, num_iters=300)
 ```
 
-**Nonnegative Matrix Factorization**
+**Matrix Factorization**
 
-NMF methods have been implemented as a submodule (`MF`). 
+A few matrix factorization methods have been implemented as a submodule (`MF`). 
 
 ```python
-from rfest.MF import NMF, semiNMF
+from rfest.MF import KMeans, semiNMF
 ```
 
 For more information, see [here](https://github.com/berenslab/RFEst/blob/master/rfest/MF/README.md). 
