@@ -10,7 +10,7 @@ config.update("jax_enable_x64", True)
 from ._base import splineBase
 from .._splines import build_spline_matrix
 
-from sklearn.cluster import KMeans
+from ..MF import KMeans, semiNMF
 
 __all__ = ['splineLNLN']
 
@@ -66,7 +66,7 @@ class splineLNLN(splineBase):
         
         return neglogli
 
-    def fit(self, p0='random',num_subunits=1, num_iters=5, alpha=0.5, lambd=0.05, gamma=0.0,
+    def fit(self, p0='random',num_subunits=1, num_iters=5, num_iters_init=100, alpha=0.5, lambd=0.05, gamma=0.0,
             step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
 
         self.lambd = lambd # elastic net parameter - global weight
@@ -79,31 +79,28 @@ class splineLNLN(splineBase):
         if type(p0) == str:
 
             if p0 == 'random':
-                print('Randomly initializaing subunits...')
+                print('Randomly initializing subunits...')
                 key = random.PRNGKey(random_seed)
                 p0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_subunits)).flatten()
         
             elif p0 == 'kmeans':
+
                 print('Initializing subunits with K-means clustering...')
-                km = KMeans(n_clusters=self.n_subunits)
-                km.fit(self.X[self.y!=0])
-                p0 = []
-                for ii in range(self.n_subunits):
-                
-                    y = self.y[self.y!=0][km.labels_==ii]
-                    XS = self.XS[self.y!=0][km.labels_ ==ii]
-                
-                    b0 = np.linalg.solve(XS.T @ XS, XS.T @ y)
-                    p0.append(b0)
+                kms = KMeans(self.X[self.y!=0].T, k=self.n_subunits, build_S=True, dims=self.dims, df=self.df)
+                kms.fit(num_iters=num_iters_init, verbal=verbal, tolerance=10)
+                p0 = kms.B.copy()
             
-                self.b_kms = np.vstack(p0).T
-                self.w_kms = self.S @ self.b_kms
-                p0 = self.b_kms.flatten()
-            
+            elif p0 == 'seminmf':
+
+                print('Initializing subunits with semi-NMF...')
+                nmf = semiNMF(self.X[self.y!=0].T, k=self.n_subunits, build_L=True, dims_L=self.dims, df_L=self.df)
+                nmf.fit(num_iters=num_iters_init, verbal=verbal, tolerance=10)
+                p0 = nmf.B.copy()
+
             else:
                 raise ValueError(f'Initialization `{p0}` is not supported.')
             
-            print('Finished Initialization.')
+            print('Finished Initialization. \n')
 
         else:
             p0 = p0

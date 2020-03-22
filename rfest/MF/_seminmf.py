@@ -14,7 +14,7 @@ class semiNMF:
     
     """
 
-    def __init__(self, V, k=2, init_method='kmeans', random_seed=2046, **kwargs):
+    def __init__(self, V, k=2, init_method='random', random_seed=2046, **kwargs):
         
         # build basis or not 
         self.build_L = kwargs['build_L'] if 'build_L' in kwargs.keys() else False
@@ -45,7 +45,7 @@ class semiNMF:
 
         np.random.seed(random_seed)
     
-        print(f'Initializing with `{init_method}`...')
+        print(f'Initializing semiNMF with `{init_method}`...')
         
         self.W, self.H = initialize_factors(V, k, method=init_method, random_seed=random_seed)
 
@@ -67,7 +67,7 @@ class semiNMF:
         else:
             self.D = None
 
-        print('Finished initialization.')
+        print('Finished semiNMF initialization.')
     
     def update_W(self):
         
@@ -153,7 +153,7 @@ class semiNMF:
         
         return np.mean((V - WHt)**2)
 
-    def fit(self, num_iters=300, verbal=0):
+    def fit(self, num_iters=300, verbal=0, tolerance=10):
 
         if verbal:
             self.cost = []
@@ -174,7 +174,7 @@ class semiNMF:
                     print('{}\t{:.3f}'.format(itr, self.cost[-1])) 
 
                     if len(self.cost) >= 10 and (np.abs(np.diff(self.cost[-10:])) < 1e-7).all():
-                        print('Stop: cost has been changing so small in the last ten chechpoint. Final cost = {:.3f}'.format(self.cost[-1]))
+                        print('Stop: cost has been changing so small in the last {0:03d} chechpoints. Final cost = {1:.3f}'.format(tolerance, self.cost[-1]))
                         break
         else:
             if verbal:

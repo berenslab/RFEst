@@ -144,7 +144,7 @@ class NMF:
 
         return np.mean((V - WHt)**2)
 
-    def fit(self, num_iters=300, verbal=0):
+    def fit(self, num_iters=300, verbal=0, tolerance=10):
 
         if verbal:
             self.cost = []
@@ -164,8 +164,8 @@ class NMF:
                     self.iter.append(itr)
                     print('{}\t{:.3f}'.format(itr, self.cost[-1]))
 
-                    if len(self.cost) >= 10 and (np.abs(np.diff(self.cost[-10:])) < 1e-7).all():
-                        print('Stop: cost has been changing so small in the last ten chechpoint. Final cost = {:.3f}'.format(self.cost[-1]))
+                    if len(self.cost) >= tolerance and (np.abs(np.diff(self.cost[-tolerance:])) < 1e-7).all():
+                        print('Stop: cost has been changing so small in the last {0:03d} chechpoints Final cost = {1:.3f}'.format(tolerance, self.cost[-1]))
                         break
         else:
             if verbal:
