@@ -1,4 +1,4 @@
-# Matrix Factorization (NMF) with spline
+# Matrix Factorization with spline
 
 It has been shown that subunits from retinal ganglion cell receptive fields and other visual neurons in the cortex can be retrieved using clustering methods (e.g. semiNMF ([Liu, et al. 2017](https://www.nature.com/articles/s41467-017-00156-9)) and soft clustering ([Shah et al. 2020](https://elifesciences.org/articles/45743))). 
 
