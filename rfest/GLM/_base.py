@@ -153,7 +153,7 @@ class splineBase:
         return params
 
 
-    def fit(self, p0=None, num_iters=5, alpha=0.5, lambd=0.5,
+    def fit(self, p0=None, num_iters=5, alpha=1, lambd=0.5,
             step_size=1e-2, tolerance=10, verbal=1):
             
         """

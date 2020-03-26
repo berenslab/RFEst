@@ -66,7 +66,7 @@ class splineLNLN(splineBase):
         
         return neglogli
 
-    def fit(self, p0='random',num_subunits=1, num_iters=5, num_iters_init=100, alpha=0.5, lambd=0.05, gamma=0.0,
+    def fit(self, p0='random',num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, lambd=0.05, gamma=0.0,
             step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
 
         self.lambd = lambd # elastic net parameter - global weight
@@ -87,17 +87,23 @@ class splineLNLN(splineBase):
 
                 print('Initializing subunits with K-means clustering...')
                 kms = KMeans(self.X[self.y!=0].T, k=self.n_subunits, build_S=True, dims=self.dims, df=self.df)
-                kms.fit(num_iters=num_iters_init, verbal=verbal, tolerance=10)
-                p0 = kms.B.copy()
-                self.w_kms = kms.W.copy()
+                kms.fit(num_iters=num_iters_init, verbal=verbal, tolerance=tolerance)
+                
+                self.b_kms = kms.B
+                self.w_kms = kms.W
+                
+                p0 = self.b_kms
 
             elif p0 == 'seminmf':
 
                 print('Initializing subunits with semi-NMF...')
                 nmf = semiNMF(self.X[self.y!=0].T, k=self.n_subunits, build_L=True, dims_L=self.dims, df_L=self.df)
-                nmf.fit(num_iters=num_iters_init, verbal=verbal, tolerance=10)
-                p0 = nmf.B.copy()
-                self.w_nmf = nmf.W.copy()
+                nmf.fit(num_iters=num_iters_init, verbal=verbal, tolerance=tolerance)
+                
+                self.b_nmf = nmf.B
+                self.w_nmf = nmf.W
+
+                p0 = self.b_nmf
 
             else:
                 raise ValueError(f'Initialization `{p0}` is not supported.')
