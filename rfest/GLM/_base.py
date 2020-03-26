@@ -48,23 +48,31 @@ class splineBase:
             Compute sta and maximum likelihood optionally.
 
         """ 
-        
+
+        # store meta data
+
         self.dims = dims # assumed order [t, y, x]
         self.ndim = len(dims)
         self.n_samples, self.n_features = X.shape
+        
+        # compute sufficient statistics
 
-        S = np.array(build_spline_matrix(dims, df, smooth))
+        S = np.array(build_spline_matrix(dims, df, smooth)) # spline matrix
         
         if add_intercept:
             X = np.hstack([np.ones(self.n_samples)[:, np.newaxis], X])
             S = np.vstack([np.ones(S.shape[1]), S])
 
         XS = X @ S
-        self.w_sta = X.T @ y
+        self.XtY = X.T @ y
+        if np.array_equal(y, y.astype(bool)): # if y is spike
+            self.w_sta = self.XtY / sum(y)
+        else:                                 # if y is not spike
+            self.w_sta = self.XtY / len(y)
         
         if compute_mle:
             self.XtX = X.T @ X
-            self.w_mle = np.linalg.solve(self.XtX, self.w_sta)
+            self.w_mle = np.linalg.solve(self.XtX, self.XtY)
 
         self.X = np.array(X) # stimulus design matrix
         self.y = np.array(y) # response
@@ -77,15 +85,17 @@ class splineBase:
         self.b_spl = np.linalg.solve(XS.T @ XS, XS.T @ y)
         self.w_spl = S @ self.b_spl
 
-        # store meta data
+        # store more meta data
+        
         self.df = df 
         self.smooth = smooth   
 
-        # time bin size (for spike data)
-        self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1
+        self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for spike data)
+
 
     def cost(self, b):
         pass
+
 
     def optimize_params(self, p0, num_iters, step_size, tolerance, verbal):
 
@@ -188,6 +198,7 @@ class splineBase:
         self.b_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
         self.w_opt = self.S @ self.b_opt
 
+
     def _rcv(self, w, wSTA_test, X_test, y_test):
 
         """Relative Mean Squared Error"""
@@ -196,6 +207,7 @@ class splineBase:
         b = mean_squared_error(y_test, X_test @ wSTA_test)
 
         return a - b
+        
 
     def measure_prediction_performance(self, X_test, y_test):
 

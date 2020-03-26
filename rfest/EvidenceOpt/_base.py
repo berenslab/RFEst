@@ -53,11 +53,14 @@ class EmpiricalBayes:
         self.XtY = X.T @ y
         self.YtY = y.T @ y
 
-        if compute_mle:
-            self.w_sta = self.XtY
+        if np.array_equal(y, y.astype(bool)): # if y is spike
+            self.w_sta = self.XtY / sum(y)
+        else:                                 # if y is not spike
+            self.w_sta = self.XtY / len(y)
+ 
+        if compute_mle: #maximum likelihood estimation
             self.w_mle = np.linalg.solve(self.XtX, self.XtY)
-                         #maximum likelihood estimation
-                
+                         
         # methods
         self.time = kwargs['time'] if 'time' in kwargs.keys() else None
         self.space = kwargs['space'] if 'space' in kwargs.keys() else None
