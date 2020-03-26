@@ -20,7 +20,7 @@ class EmpiricalBayes:
 
     """
 
-    def __init__(self, X, y, dims, compute_mle=True, **kwargs):
+    def __init__(self, X, y, dims, compute_mle=False, **kwargs):
         
         """
         
