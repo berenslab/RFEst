@@ -98,7 +98,7 @@ def gabor(dims, sigma, theta=onp.pi/4, phi=onp.pi/2, sf=1/6):
         mu = [0.5 * (x - 1), 0.5 * (y - 1)]
         
         gaussian_window = gaussian(dims, sigma).T
-        sinusoidal_wave = onp.sin(2 * onp.pi * sf * yy  - phi)
+        sinusoidal_wave = onp.sin(2 * np.pi * sf * yy  - phi)
         gabor_filter = (gaussian_window * sinusoidal_wave).T
         
     gabor_filter = gabor_filter / onp.sqrt(onp.sum(gabor_filter**2))

@@ -15,7 +15,10 @@ class semiNMF:
     """
 
     def __init__(self, V, k=2, init_method='random', random_seed=2046, **kwargs):
-        
+        # meta
+        self.rcond = kwargs['rcond'] if 'rcond' in kwargs.keys() else None
+        self.random_seed = random_seed
+
         # build basis or not 
         self.build_L = kwargs['build_L'] if 'build_L' in kwargs.keys() else False
         self.build_R = kwargs['build_R'] if 'build_R' in kwargs.keys() else False
@@ -54,16 +57,16 @@ class semiNMF:
                 self.B = np.random.randn(self.b, self.k)
                 self.W = self.L @ self.B
             else:
-                self.B = np.linalg.lstsq(self.L, self.W, rcond=None)[0] 
+                self.B = np.linalg.lstsq(self.L, self.W, rcond=self.rcond)[0] 
         else:
             self.B = None 
             
         if self.R is not None:    
             if init_method == 'random':
-                self.D = np.abs(np.random.randn(self.d, self,k))
+                self.D = np.abs(np.random.randn(self.d, self.k))
                 self.H = self.R @ self.D
             else:
-                self.D = np.maximum(0, np.linalg.lstsq(self.R, self.H, rcond=None)[0])
+                self.D = np.maximum(0, np.linalg.lstsq(self.R, self.H, rcond=self.rcond)[0])
         else:
             self.D = None
 
@@ -93,9 +96,8 @@ class semiNMF:
         
         if L is not None:
     
-            B = np.linalg.lstsq(L, VHHtHinv, rcond=None)[0]
+            B = np.linalg.lstsq(L, VHHtHinv, rcond=self.rcond)[0]
             W = L @ B
-        
         else:
             
             W = VHHtHinv
@@ -166,7 +168,6 @@ class semiNMF:
             self.W, self.B = self.update_W()
             self.H, self.D = self.update_H()
 
-
             if verbal:
                 if itr % verbal == 0:
                     self.cost.append(self.compute_cost())
@@ -179,3 +180,4 @@ class semiNMF:
         else:
             if verbal:
                 print('Stop: reached maximum iterations. Final cost = {:.3f}'.format(self.cost[-1]))
+

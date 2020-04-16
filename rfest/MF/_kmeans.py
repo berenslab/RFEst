@@ -15,6 +15,10 @@ class KMeans:
 
     def __init__(self, V, k=2, random_seed=2046, **kwargs):
 
+        # meta
+        self.rcond = kwargs['rcond'] if 'rcond' in kwargs.keys() else None
+        self.random_seed = random_seed
+
         # build spline matrix, or not
 
         self.build_S = kwargs['build_S'] if 'build_S' in kwargs.keys() else False
@@ -52,14 +56,14 @@ class KMeans:
             n = np.sum(idx)
             if n > 0:
                 W[:,i] = np.mean(V[:, idx], axis=1)
-                
+        
         if S is not None:
                         
             W0 = W.copy()
             
-            B = np.linalg.lstsq(S, W0, rcond=None)[0]
+            B = np.linalg.lstsq(S, W0, rcond=self.rcond)[0]
             W = S @ B
-            
+
         else:
             B = None
                 

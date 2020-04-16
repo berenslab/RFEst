@@ -115,6 +115,7 @@ class splineBase:
             return opt_update(i, g, opt_state)
 
         cost_list = []
+        cost_history = []
         params_list = []    
 
         if verbal:
@@ -125,7 +126,8 @@ class splineBase:
             opt_state = step(i, opt_state)
             params_list.append(get_params(opt_state))
             cost_list.append(self.cost(params_list[-1]))
-            
+            cost_history.append(self.cost(params_list[-1]))
+
             if verbal:
                 if i % int(verbal) == 0:
                     print('{0}\t{1:.3f}\t'.format(i,  cost_list[-1]))
@@ -149,7 +151,8 @@ class splineBase:
             params = params_list[-1]
             if verbal:
                 print('Stop: reached {0} steps, final cost={1:.5f}.'.format(num_iters, cost_list[-1]))
-            
+        self.cost_history = cost_history
+
         return params
 
 
