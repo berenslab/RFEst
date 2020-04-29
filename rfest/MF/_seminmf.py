@@ -1,7 +1,7 @@
 import numpy as np
 from ._initialize import initialize_factors
 from .._splines import build_spline_matrix
-
+from .._utils import softthreshold
 __all__ = ['semiNMF']
 
 class semiNMF:
@@ -102,6 +102,9 @@ class semiNMF:
             
             W = VHHtHinv
         
+        if self.build_L:
+            W = norm_col(W) 
+        
         return W, B
     
     def update_H(self):
@@ -144,6 +147,9 @@ class semiNMF:
             
             H *= np.sqrt(upper / lower)
         
+        if self.build_R:
+            H = norm_col(H)
+
         return H, D
 
     def compute_cost(self):
@@ -155,7 +161,10 @@ class semiNMF:
         
         return np.mean((V - WHt)**2)
 
-    def fit(self, num_iters=300, verbal=0, tolerance=10):
+    def fit(self, num_iters=300, lambd=0.05, verbal=0, tolerance=10):
+
+        # regularization
+        self.lambd= lambd
 
         if verbal:
             self.cost = []
@@ -181,3 +190,5 @@ class semiNMF:
             if verbal:
                 print('Stop: reached maximum iterations. Final cost = {:.3f}'.format(self.cost[-1]))
 
+def norm_col(X):
+    return X / np.linalg.norm(X, axis=0)

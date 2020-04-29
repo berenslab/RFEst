@@ -1,5 +1,6 @@
 import numpy as np
 from .._splines import build_spline_matrix
+from .._utils import softthreshold
 
 __all__ = ['KMeans']
 
@@ -90,7 +91,10 @@ class KMeans:
         
         return np.mean((V - WHt)**2)
 
-    def fit(self, num_iters=300, verbal=0, tolerance=10):
+    def fit(self, num_iters=300, lambd=0.05, verbal=0, tolerance=10):
+
+        # regularzation
+        self.lambd = lambd
 
         if verbal:
             self.cost = []

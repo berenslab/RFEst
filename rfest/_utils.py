@@ -88,6 +88,9 @@ def get_spatial_and_temporal_filters(w, dims):
 
     return [sRF, tRF]
 
+def softthreshold(K, lambd):
+    # L1 regularization as soft thresholding.
+    return np.maximum(K - lambd, 0) - np.maximum(- K - lambd, 0)
 
 if __name__ == "__main__": 
 

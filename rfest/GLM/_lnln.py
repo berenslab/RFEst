@@ -17,7 +17,8 @@ class LNLN:
     
     """
     
-    def __init__(self, X, y, dt, dims, compute_mle=True, **kwargs):
+    def __init__(self, X, y, dt, dims, compute_mle=False,
+            output_nonlinearity='softplus', filter_nonlinearity='softplus',**kwargs):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
@@ -30,9 +31,22 @@ class LNLN:
             self.w_mle = np.linalg.solve(X.T @ X, X.T @ y)
         else:
             self.w_mle = None
-        
-        self.Cinv = kwargs['Cinv'] if 'Cinv' in kwargs.keys() else None
-    
+
+        self.output_nonlinearity = output_nonlinearity
+        self.filter_nonlinearity = filter_nonlinearity
+
+    def nonlin(self, x, nl):
+        if  nl == 'softplus':
+            return np.log(1 + np.exp(x)) + 1e-7
+        elif nl == 'exponential':
+            return np.exp(x)
+        elif nl == 'relu':
+            return np.maximum(1e-7, x)
+        elif nl == 'none':
+            return x
+        else:
+            raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
+
     def cost(self, K):
         
         X = self.X
@@ -42,9 +56,9 @@ class LNLN:
         def nonlin(x):
             return np.log(1 + np.exp(x)) + 1e-17
 
-        filter_output = np.sum(nonlin(X @ K.reshape(self.n_features, self.n_subunits)), 1)
+        filter_output = np.sum(self.nonlin(X @ K.reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
         
-        r = dt * nonlin(filter_output).flatten() # conditional intensity (per bin)
+        r = dt * self.nonlin(filter_output, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
         term0 = - np.log(r) @ y # spike term from poisson log-likelihood
         term1 = np.sum(r) # non-spike term
 
@@ -110,7 +124,7 @@ class LNLN:
             
         return params      
     
-    def fit(self, initial_params=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05, gamma=0.0,
+    def fit(self, p0=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05, gamma=0.0,
             step_size=1e-2, tolerance=10, verbal=True, random_seed=2046):
 
         self.lambd = lambd # elastic net parameter - global weight
@@ -119,9 +133,9 @@ class LNLN:
         
         self.n_subunits = num_subunits
         self.num_iters = num_iters   
-        if initial_params is None:
+        if p0 is None:
         
             key = random.PRNGKey(random_seed)
-            initial_params = 0.01 * random.normal(key, shape=(self.n_features, self.n_subunits)).flatten()
+            p0 = 0.01 * random.normal(key, shape=(self.n_features, self.n_subunits)).flatten()
         
-        self.w_opt = self.optimize_params(initial_params, num_iters, step_size, tolerance, verbal).reshape(self.n_features, self.n_subunits)
+        self.w_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal).reshape(self.n_features, self.n_subunits)
