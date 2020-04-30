@@ -90,8 +90,8 @@ pip install -e RFEst
 
 The accompanying data for example notebooks are from:
 
-Ran, Y., Huang, Z., Baden, T., Baayen, H., Berens, P., Franke, K., & Euler, T. (2019). Type-specific dendritic integration in mouse retinal ganglion cells. bioRxiv, 753335.
-    
+Ran, Y., Huang, Z., Baden, T. et al. [Type-specific dendritic integration in mouse retinal ganglion cells](https://www.nature.com/articles/s41467-020-15867-9). Nat Commun 11, 2101 (2020). https://doi.org/10.1038/s41467-020-15867-9
+ 
 ## Reference
 
 [1] Huang, Z., &  Berens, P. (2020). Efficient high dimensional receptive field inference using a flexible spline basis. Cosyne Abstracts 2020, Denver, CO. [[abstract]](./misc/Huang_et_al_Cosyne_abstract.pdf) [[poster]](./misc/Huang_et_al_Cosyne_poster.pdf)
