@@ -48,7 +48,7 @@ class semiNMF:
 
         np.random.seed(random_seed)
     
-        print(f'Initializing semiNMF with `{init_method}`...')
+        # print(f'Initializing semiNMF with `{init_method}`...')
         
         self.W, self.H = initialize_factors(V, k, method=init_method, random_seed=random_seed)
 
@@ -70,7 +70,7 @@ class semiNMF:
         else:
             self.D = None
 
-        print('Finished semiNMF initialization.')
+        # print('Finished semiNMF initialization.')
     
     def update_W(self):
         

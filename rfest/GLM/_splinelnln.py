@@ -79,13 +79,14 @@ class splineLNLN(splineBase):
         if type(p0) == str:
 
             if p0 == 'random':
-                print('Randomly initializing subunits...')
+                if verbal:
+                    print('Randomly initializing subunits...')
                 key = random.PRNGKey(random_seed)
                 p0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_subunits)).flatten()
         
             elif p0 == 'kmeans':
-
-                print('Initializing subunits with K-means clustering...')
+                if verbal:
+                    print('Initializing subunits with K-means clustering...')
                 kms = KMeans(self.X[self.y!=0].T, k=self.n_subunits, build_S=True, dims=self.dims, df=self.df)
                 kms.fit(num_iters=num_iters_init, verbal=verbal, tolerance=tolerance)
                 
@@ -95,8 +96,8 @@ class splineLNLN(splineBase):
                 p0 = self.b_kms
 
             elif p0 == 'seminmf':
-
-                print('Initializing subunits with semi-NMF...')
+                if verbal:
+                    print('Initializing subunits with semi-NMF...')
                 nmf = semiNMF(self.X[self.y!=0].T, k=self.n_subunits, build_L=True, dims_L=self.dims, df_L=self.df)
                 nmf.fit(num_iters=num_iters_init, verbal=verbal, tolerance=tolerance)
                 
@@ -108,7 +109,8 @@ class splineLNLN(splineBase):
             else:
                 raise ValueError(f'Initialization `{p0}` is not supported.')
             
-            print('Finished Initialization. \n')
+            if verbal:
+                print('Finished Initialization. \n')
 
         else:
             p0 = p0
