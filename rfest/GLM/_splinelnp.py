@@ -11,7 +11,6 @@ from .._splines import build_spline_matrix
 
 __all__ = ['splineLNP']
 
-
 class splineLNP(splineBase):
 
     def __init__(self, X, y, dims, df, smooth='cr', nonlinearity='softplus',
@@ -29,7 +28,8 @@ class splineLNP(splineBase):
         XS = self.XS
         y = self.y
         dt = self.dt
-        
+        R = self.R
+
         def nonlin(x):
             nl = self.nonlinearity
             if  nl == 'softplus':
@@ -43,11 +43,15 @@ class splineLNP(splineBase):
             else:
                 raise ValueError(f'Nonlinearity `{nl}` is not supported.')
 
-        filter_output = nonlin(XS @ b).flatten()
-        r = dt * filter_output
+        # filter_output = nonlin(XS @ b).flatten()
+        # r = dt * filter_output * R
 
-        term0 = - np.log(r) @ y # spike term from poisson log-likelihood
-        term1 = np.sum(r) # non-spike term
+        # term0 = - np.log(r) @ y # spike term from poisson log-likelihood
+        # term1 = np.sum(r) # non-spike term
+
+        r = R * nonlin(XS @ b).flatten()
+        term0 = - np.log(r) @ y
+        term1 = np.sum(r) * dt
 
         neglogli = term0 + term1
         

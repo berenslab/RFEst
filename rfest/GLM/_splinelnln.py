@@ -46,15 +46,20 @@ class splineLNLN(splineBase):
         XS = self.XS
         y = self.y
         dt = self.dt
-                
-        filter_output = np.sum(self.nonlin(XS @ b.reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
-        r = dt * self.nonlin(filter_output, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
-        
-        term0 = - np.log(r) @ y # spike term from poisson log-likelihood
-        term1 = np.sum(r) # non-spike term
+        R = self.R
+
+#        filter_output = np.sum(self.nonlin(XS @ b.reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
+#        r = dt * R * self.nonlin(filter_output, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
+       
+#        term0 = - np.log(r) @ y # spike term from poisson log-likelihood
+#        term1 = np.sum(r) # non-spike term
+
+        r = R * np.sum(self.nonlin(XS @ b.reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
+        term0 = - np.log(r) @ y
+        term1 = np.sum(r) * dt
 
         neglogli = term0 + term1
-        
+
         if self.lambd:
             l1 = np.sum(np.abs(b))
             l2 = np.sqrt(np.sum(b**2)) 

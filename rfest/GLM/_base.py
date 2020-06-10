@@ -91,7 +91,7 @@ class splineBase:
         self.smooth = smooth   
 
         self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for spike data)
-
+        self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # maximum firing rate
 
     def cost(self, b):
         pass
@@ -219,3 +219,4 @@ class splineBase:
         w = self.w_opt.ravel()
 
         return self._rcv(w, wSTA_test, X_test, y_test)
+

@@ -17,20 +17,26 @@ class LNLN:
     
     """
     
-    def __init__(self, X, y, dt, dims, compute_mle=False,
+    def __init__(self, X, y, dims, dt, R=1, compute_mle=False,
             output_nonlinearity='softplus', filter_nonlinearity='softplus',**kwargs):
         
         self.X = X # stimulus design matrix
         self.y = y # response 
-        self.dt = dt # time bin size 
+        self.dt = dt # time bin size
+        self.R = R # maximum firing rate
         
         self.dims = dims # assumed order [t, y, x]
         self.n_samples, self.n_features = X.shape
 
+        self.XtY = X.T @ y
+        if np.array_equal(y, y.astype(bool)): # if y is spike
+            self.w_sta = self.XtY / sum(y)
+        else:                                 # if y is not spike
+            self.w_sta = self.XtY / len(y)
+
         if compute_mle:
-            self.w_mle = np.linalg.solve(X.T @ X, X.T @ y)
-        else:
-            self.w_mle = None
+            self.XtX = X.T @ X
+            self.w_mle = np.linalg.solve(self.XtX, self.XtY)
 
         self.output_nonlinearity = output_nonlinearity
         self.filter_nonlinearity = filter_nonlinearity
