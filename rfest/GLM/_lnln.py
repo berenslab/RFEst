@@ -58,15 +58,12 @@ class LNLN:
         X = self.X
         y = self.y
         dt = self.dt
-        
-        def nonlin(x):
-            return np.log(1 + np.exp(x)) + 1e-17
+        R = self.R
 
         filter_output = np.sum(self.nonlin(X @ K.reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
-        
-        r = dt * self.nonlin(filter_output, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
+        r = R * self.nonlin(filter_output, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
         term0 = - np.log(r) @ y # spike term from poisson log-likelihood
-        term1 = np.sum(r) # non-spike term
+        term1 = np.sum(r) * dt # non-spike term
 
         neglogli = term0 + term1
         

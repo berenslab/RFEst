@@ -43,13 +43,9 @@ class splineLNP(splineBase):
             else:
                 raise ValueError(f'Nonlinearity `{nl}` is not supported.')
 
-        # filter_output = nonlin(XS @ b).flatten()
-        # r = dt * filter_output * R
 
-        # term0 = - np.log(r) @ y # spike term from poisson log-likelihood
-        # term1 = np.sum(r) # non-spike term
-
-        r = R * nonlin(XS @ b).flatten()
+        filter_output = nonlin(XS @ b).flatten()
+        r = R * filter_output
         term0 = - np.log(r) @ y
         term1 = np.sum(r) * dt
 
