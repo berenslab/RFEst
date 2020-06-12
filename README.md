@@ -90,7 +90,7 @@ pip install -e RFEst
 
 The accompanying data for example notebooks are from:
 
-Ran, Y., Huang, Z., Baden, T. et al. Type-specific dendritic integration in mouse retinal ganglion cells. Nat Commun 11, 2101 (2020). https://doi.org/10.1038/s41467-020-15867-9
+Ran, Y., Huang, Z., et al. (2020). Type-specific dendritic integration in mouse retinal ganglion cells. Nat Commun 11, 2101. https://doi.org/10.1038/s41467-020-15867-9
  
 ## Reference
 
