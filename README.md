@@ -25,7 +25,7 @@ spl.fit(num_iters=500, alpha=1, lambd=0.025, verbal=100)
 ```python
 from rfest import ASD
 
-asd = ASD(X, y, dims=(5, 20, 15)) # nt, ny, dx
+asd = ASD(X, y, dims=(5, 20, 15)) # nt, ny, nx
 p0 = [1., 1., 2., 2., 2.] # sig, rho, 𝛿t, 𝛿y, 𝛿x
 asd.fit(p0=p0, num_iters=300)
 ```
@@ -90,7 +90,7 @@ pip install -e RFEst
 
 The accompanying data for example notebooks are from:
 
-Ran, Y., Huang, Z., Baden, T. et al. [Type-specific dendritic integration in mouse retinal ganglion cells](https://www.nature.com/articles/s41467-020-15867-9). Nat Commun 11, 2101 (2020). https://doi.org/10.1038/s41467-020-15867-9
+Ran, Y., Huang, Z., Baden, T. et al. Type-specific dendritic integration in mouse retinal ganglion cells. Nat Commun 11, 2101 (2020). https://doi.org/10.1038/s41467-020-15867-9
  
 ## Reference
 
