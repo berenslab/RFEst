@@ -322,8 +322,8 @@ def fourier_transform(dims, p0, ext=1.25):
         if len(dims_sRF) == 1:
 
             ncoeff_ext_s = np.floor(dims_sRF[0]*ext).astype(int)
-            C_s, C_s_inv = asdf_cov(params_space, dims_sRF[0])
-            wvec_s = fourierfreq(ncoeff_ext_s, params_space[1])
+            C_s, C_s_inv = asdf_cov(params_space[0], dims_sRF[0])
+            wvec_s = fourierfreq(ncoeff_ext_s, params_space[0])
             U_s, freq_s = realfftbasis(dims_sRF[0], 
                                        ncoeff_circular=ncoeff_ext_s,
                                        wvec=wvec_s)
@@ -333,10 +333,10 @@ def fourier_transform(dims, p0, ext=1.25):
             ii = (Cdiag / np.max(Cdiag)) > 1/1e8
 
             [ww0, ww1] = np.meshgrid(freq_t, freq_s)
-            ww0 = np.transpose(ww1,[1,0,2])
-            ww1 = np.transpose(ww2,[1,0,2])
+            ww0 = np.transpose(ww0,[1,0])
+            ww1 = np.transpose(ww1,[1,0])
 
-            freq_comb = np.vstack([ww0.flatten()[ii], ww2.flatten()[ii], [ii]]).T 
+            freq_comb = np.vstack([ww0.flatten()[ii], ww1.flatten()[ii], [ii]]).T 
 
             Uf = np.kron(U_t, U_s)
             

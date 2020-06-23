@@ -157,7 +157,7 @@ class sARD:
 
         return params
 
-    def fit(self, p0=None, num_iters=20, step_size=1e-2, tolerance=10, verbal=True):
+    def fit(self, p0=None, num_iters=20, step_size=1e-2, tolerance=10, verbal=True, random_seed=1990):
 
 
         """
