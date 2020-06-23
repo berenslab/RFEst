@@ -141,7 +141,7 @@ class EmpiricalBayes:
 
         if len(self.dims) == 1:
 
-            C, C_inv = C_t, C_t_inv
+            C, C_inv = rho * C_t, (1/rho) * C_t_inv
 
         elif len(self.dims) ==2:
 
