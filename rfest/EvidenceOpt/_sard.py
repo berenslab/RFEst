@@ -1,4 +1,5 @@
 import jax.numpy as np
+import jax.random as random
 from jax import grad
 from jax import jit
 from jax.experimental import optimizers
@@ -10,6 +11,8 @@ from sklearn.metrics import mean_squared_error
 from ._base import EmpiricalBayes
 from .._priors import sparsity_kernel
 from .._splines import build_spline_matrix
+
+__all__ = ['sARD']
 
 class sARD:
 
@@ -178,7 +181,8 @@ class sARD:
         """
 
         if p0 is None:
-            p0 = np.ones(len(self.b_spl)+2)
+            key = random.PRNGKey(random_seed)
+            p0 = random.normal(key, shape=(self.n_b+2, )).flatten()
         
         self.p0 = np.array(p0)
         self.num_iters = num_iters
