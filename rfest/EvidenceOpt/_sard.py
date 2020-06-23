@@ -178,8 +178,8 @@ class sARD:
         """
 
         if p0 is None:
-            p0 = 0.01 * np.hstack([1, 1, self.b_spl])
-
+            p0 = np.ones(len(self.b_spl)+2)
+        
         self.p0 = np.array(p0)
         self.num_iters = num_iters
         self.optimized_params = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)
