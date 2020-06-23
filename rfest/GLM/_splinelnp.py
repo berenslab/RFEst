@@ -30,30 +30,16 @@ class splineLNP(splineBase):
         dt = self.dt
         R = self.R
 
-        def nonlin(x):
-            nl = self.nonlinearity
-            if  nl == 'softplus':
-                return np.log(1 + np.exp(x)) + 1e-7
-            elif nl == 'exponential':
-                return np.exp(x)
-            elif nl == 'relu':
-                return np.maximum(1e-7, x)
-            elif nl == 'none':
-                return x
-            else:
-                raise ValueError(f'Nonlinearity `{nl}` is not supported.')
-
-
-        filter_output = nonlin(XS @ b).flatten()
+        filter_output = self.nonlin(XS @ b, self.nonlinearity).flatten()
         r = R * filter_output
         term0 = - np.log(r) @ y
-        term1 = np.sum(r) * dt
+        term1 = np.nansum(r) * dt
 
         neglogli = term0 + term1
         
         if self.lambd:
-            l1 = np.sum(np.abs(b))
-            l2 = np.sqrt(np.sum(b**2)) 
+            l1 = np.nansum(np.abs(b))
+            l2 = np.sqrt(np.nansum(b**2)) 
             neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
 
         return neglogli

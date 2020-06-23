@@ -15,10 +15,12 @@ __all__ = ['splineLG']
 
 class splineLG(splineBase):
 
-    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=False):
+    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=False,
+            nonlinearity='none'):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle) 
-
+        self.nonlinearity = nonlinearity
+    
     def cost(self, b):
 
         """
@@ -30,7 +32,7 @@ class splineLG(splineBase):
         XS = self.XS
         y = self.y    
         
-        mse = np.sum((y - XS @ b)**2) / len(y)
+        mse = np.nanmean((y - self.nonlin(XS @ b, self.nonlinearity))**2)
 
         if self.lambd:
             

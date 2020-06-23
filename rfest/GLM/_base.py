@@ -93,6 +93,18 @@ class splineBase:
         self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for spike data)
         self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # maximum firing rate
 
+    def nonlin(self, x, nl):
+        if  nl == 'softplus':
+            return np.log(1 + np.exp(x)) + 1e-7
+        elif nl == 'exponential':
+            return np.exp(x)
+        elif nl == 'relu':
+            return np.maximum(1e-7, x)
+        elif nl == 'none':
+            return x
+        else:
+            raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
+
     def cost(self, b):
         pass
 

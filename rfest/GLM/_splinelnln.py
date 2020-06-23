@@ -23,18 +23,6 @@ class splineLNLN(splineBase):
         self.output_nonlinearity = output_nonlinearity
         self.filter_nonlinearity = filter_nonlinearity
 
-    def nonlin(self, x, nl):
-        if  nl == 'softplus':
-            return np.log(1 + np.exp(x)) + 1e-7
-        elif nl == 'exponential':
-            return np.exp(x)
-        elif nl == 'relu':
-            return np.maximum(1e-7, x)
-        elif nl == 'none':
-            return x
-        else:
-            raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
-
     def cost(self, b):
 
         """
@@ -48,20 +36,20 @@ class splineLNLN(splineBase):
         dt = self.dt
         R = self.R
 
-        filter_output = np.sum(self.nonlin(XS @ b.reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
+        filter_output = np.nansum(self.nonlin(XS @ b.reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
         r = R * self.nonlin(filter_output, nl=self.output_nonlinearity) # conditional intensity (per bin)
         term0 = - np.log(r) @ y
-        term1 = np.sum(r) * dt
+        term1 = np.nansum(r) * dt
 
         neglogli = term0 + term1
 
         if self.lambd:
-            l1 = np.sum(np.abs(b))
-            l2 = np.sqrt(np.sum(b**2)) 
+            l1 = np.nansum(np.abs(b))
+            l2 = np.sqrt(np.nansum(b**2)) 
             neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
         # nuc = np.linalg.norm(b.reshape(self.n_b, self.n_subunits), 'nuc') # wait for JAX update
         if self.gamma:
-            nuc = np.sum(np.linalg.svd(b.reshape(self.n_b, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
+            nuc = np.nansum(np.linalg.svd(b.reshape(self.n_b, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
             neglogli += self.gamma * nuc
         
         return neglogli
