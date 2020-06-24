@@ -95,11 +95,13 @@ class sARD:
         return 0.5 * (t0 + t1 + t2 + t3)
 
     def print_progress_header(self, params):
-        print('Iter\tcost')
-
+        
+        print('Iter\tσ\tρ\tθ0\tθ1\tθ2\tcost') 
+    
     def print_progress(self, i, params, cost):
-        print('{0:4d}\t{1:1.3f}'.format(
-                i, cost))
+     
+        print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}'.format(
+                i, params[0], params[1], params[2], params[3], params[4], cost))  
 
     def optimize_params(self, p0, num_iters, step_size, tolerance, verbal):
 
@@ -181,9 +183,11 @@ class sARD:
         """
 
         if p0 is None:
-            key = random.PRNGKey(random_seed)
-            p0 = random.normal(key, shape=(self.n_b+2, )).flatten()
-        
+            # key = random.PRNGKey(random_seed)
+            # p0 = random.normal(key, shape=(self.n_b+2, )).flatten()
+            # p0 = np.hstack([1,1, normalize(self.b_spl)])
+            p0 = np.hstack([1, 1, self.b_spl])
+
         self.p0 = np.array(p0)
         self.num_iters = num_iters
         self.optimized_params = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)
@@ -200,3 +204,6 @@ class sARD:
         self.optimized_C_post = optimized_C_post
         self.b_opt = optimized_m_post
         self.w_opt = self.S @ self.b_opt
+
+def normalize(x):
+    return (x - x.min()) / (x.max() - x.min())

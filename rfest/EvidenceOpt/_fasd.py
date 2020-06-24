@@ -68,6 +68,8 @@ class fASD:
 
         # Covariance Matrix in Time
         C_t, C_t_inv = asdf_cov(params_time, self.dims[0], self.freq_each_dim[0])
+        # C_t, C_t_inv = asdf_cov(params_time, self.dims[0])
+
 
         if len(self.dims) == 1:
 
@@ -137,11 +139,25 @@ class fASD:
         return 0.5 * (t0 + t1 + t2 + t3)
 
     def print_progress_header(self, params):
-        print('Iter\tcost')
+
+        if len(params) == 3:
+            print('Iter\tσ\tρ\tδt\tcost')
+        elif len(params) == 4:
+            print('Iter\tσ\tρ\tδt\tδs\tcost')
+        elif len(params) == 5:
+            print('Iter\tσ\tρ\tδt\tδy\tδx\tcost')
 
     def print_progress(self, i, params, cost):
-        print('{0:4d}\t{1:1.3f}'.format(
-                i, cost))   
+
+        if len(params) == 3:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}'.format(
+                i, params[0], params[1], params[2], cost))
+        elif len(params) == 4:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}'.format(
+                i, params[0], params[1], params[2], params[3], cost))
+        elif len(params) == 5:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}'.format(
+                i, params[0], params[1], params[2], params[3], params[4], cost))
     
     def optimize_params(self, p0, num_iters, step_size, tolerance, verbal):
 
@@ -238,19 +254,12 @@ class fASD:
         self.w_opt = (self.B @ optimized_m_post)
 
 
-def asdf_cov(delta, ncoeff, freq=None, ext=1.25):
-    
+def asdf_cov(delta, ncoeff, freq, ext=1.25):
     """
     1D fourier transformed smooth prior. 
     """
     
     ncoeff_ext = np.floor(ncoeff*ext).astype(int)
-    chi = np.arange(ncoeff_ext)
-    
-    if freq is None:
-        freq = fourierfreq(ncoeff_ext, delta, CONDTHRESH=1e8)
-            
-    (Uf, freq) = realfftbasis(ncoeff, ncoeff_ext, wvec=freq)
     
     const = (2 * np.pi / ncoeff_ext) ** 2
     freq *= const
@@ -260,8 +269,8 @@ def asdf_cov(delta, ncoeff, freq=None, ext=1.25):
     return C_prior, C_prior_inv
 
 def fourierfreq(ncoeff, delta, CONDTHRESH=1e8):
-    maxfreq = np.floor(ncoeff / (np.pi * delta) * np.sqrt(0.5 * np.log(CONDTHRESH)))
-    
+    maxfreq = np.floor(ncoeff / (np.pi * delta) * np.sqrt(0.5 * np.log(CONDTHRESH))).astype(int)
+    # wvec = np.hstack([np.arange(maxfreq+1), np.arange(-maxfreq+1, 0)]) 
     if maxfreq < ncoeff / 2:
         wvec = np.hstack([np.arange(maxfreq+1), np.arange(-maxfreq+1, 0)])
     else:        
@@ -302,7 +311,6 @@ def fourier_transform(dims, p0, ext=1.25):
     params_space = p0[3:]
 
     ncoeff_ext_t = np.floor(dims_tRF*ext).astype(int)
-    C_t, C_t_inv = asdf_cov(params_time, dims_tRF)
     
     wvec_t = fourierfreq(ncoeff_ext_t, params_time)
     U_t, freq_t = realfftbasis(dims_tRF, 
@@ -316,27 +324,22 @@ def fourier_transform(dims, p0, ext=1.25):
     if len(dims_sRF) == 0:
         Uf = U_t
         freq_comb = (2 * np.pi / ncoeff_ext_t ** 2) * freq_t**2
-        ii = np.ones(len(freq_comb), dtype=bool)# index_to_keep
         
     else:
         if len(dims_sRF) == 1:
 
             ncoeff_ext_s = np.floor(dims_sRF[0]*ext).astype(int)
-            C_s, C_s_inv = asdf_cov(params_space[0], dims_sRF[0])
             wvec_s = fourierfreq(ncoeff_ext_s, params_space[0])
             U_s, freq_s = realfftbasis(dims_sRF[0], 
                                        ncoeff_circular=ncoeff_ext_s,
                                        wvec=wvec_s)
             freq_s *= (2 * np.pi / ncoeff_ext_s) ** 2  
 
-            Cdiag = np.kron(C_t, C_s)
-            ii = (Cdiag / np.max(Cdiag)) > 1/1e8
-
             [ww0, ww1] = np.meshgrid(freq_t, freq_s)
             ww0 = np.transpose(ww0,[1,0])
             ww1 = np.transpose(ww1,[1,0])
 
-            freq_comb = np.vstack([ww0.flatten()[ii], ww1.flatten()[ii], [ii]]).T 
+            freq_comb = np.vstack([ww0.flatten(), ww1.flatten()]).T 
 
             Uf = np.kron(U_t, U_s)
             
@@ -348,7 +351,6 @@ def fourier_transform(dims, p0, ext=1.25):
             params_spacey = params_space[1]
 
             ncoeff_ext_sx = np.floor(dims_sRF[0]*ext).astype(int)
-            C_sx, C_sx_inv = asdf_cov(params_spacex, dims_sRF[0])
             wvec_sx = fourierfreq(ncoeff_ext_sx, params_spacex)
             U_sx, freq_sx = realfftbasis(dims_sRF[0], 
                                        ncoeff_circular=ncoeff_ext_sx,
@@ -356,23 +358,18 @@ def fourier_transform(dims, p0, ext=1.25):
             freq_sx *= (2 * np.pi / ncoeff_ext_sx) ** 2     
 
             ncoeff_ext_sy = np.floor(dims_sRF[1]*1.25).astype(int)
-            C_sy, C_sy_inv = asdf_cov(params_spacey, dims_sRF[1])
             wvec_sy = fourierfreq(ncoeff_ext_sy, params_spacey)
             U_sy, freq_sy = realfftbasis(dims_sRF[1], 
                                        ncoeff_circular=ncoeff_ext_sy,
                                        wvec=wvec_sy)
             freq_sy *= (2 * np.pi / ncoeff_ext_sy) ** 2  
 
-            Cdiag = np.kron(C_t, np.kron(C_sx, C_sy))
-
-            ii = (Cdiag / np.max(Cdiag)) > 1/1e8
-
             [ww0, ww1, ww2] = np.meshgrid(freq_t, freq_sx, freq_sy)
             ww0 = np.transpose(ww0,[1,0,2])
             ww1 = np.transpose(ww1,[1,0,2])
             ww2 = np.transpose(ww2,[1,0,2])
 
-            freq_comb = np.vstack([ww0.flatten()[ii], ww1.flatten()[ii], ww2.flatten()[ii]]).T        
+            freq_comb = np.vstack([ww0.flatten(), ww1.flatten(), ww2.flatten()]).T        
 
             Uf = np.kron(U_t, np.kron(U_sx, U_sy))
             
