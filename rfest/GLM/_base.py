@@ -94,14 +94,41 @@ class splineBase:
         self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # maximum firing rate
 
     def nonlin(self, x, nl):
+
         if  nl == 'softplus':
             return np.log(1 + np.exp(x)) + 1e-7
+        
         elif nl == 'exponential':
             return np.exp(x)
+        
+        elif nl == 'softmax':
+            z = np.exp(x)
+            return z / z.sum()
+        
+        elif nl == 'sigmoid':
+            return 1 / (1 + np.exp(-x))
+        
+        elif nl == 'tanh':
+            return 2 / (1 + np.exp(-2*x)) - 1
+        
         elif nl == 'relu':
-            return np.maximum(1e-7, x)
+            return np.where(x > 0, x, 1e-15) 
+
+        elif nl == 'leaky_relu':
+            return np.where(x > 0, x, x * 0.01)
+
+        elif nl == 'selu':
+            return 1.0507 * np.where(x > 0, x, 1.6733 * np.exp(x) - 1.6733)
+
+        elif nl == 'swish':
+            return x / ( 1 + np.exp(-x))
+        
+        elif nl == 'elu':
+            return np.where(x > 0, x, np.exp(x)-1)
+        
         elif nl == 'none':
             return x
+        
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
@@ -146,12 +173,12 @@ class splineBase:
             
             if len(params_list) > tolerance:
                 
-                if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0 ):
+                if len(cost_history) > 300 and np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0 ):
                     params = params_list[0]
                     if verbal:
                         print('Stop at {} steps: cost has been monotonically increasing for {} steps.'.format(i, tolerance))
                     break
-                elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
+                elif len(cost_history) > 300 and np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
                     params = params_list[-1]
                     if verbal:
                         print('Stop at {} steps: cost has been changing less than 1e-5 for {} steps.'.format(i, tolerance))
