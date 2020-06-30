@@ -23,7 +23,7 @@ class splineLNLN(splineBase):
         self.output_nonlinearity = output_nonlinearity
         self.filter_nonlinearity = filter_nonlinearity
 
-    def cost(self, b):
+    def cost(self, p):
 
         """
 
@@ -36,25 +36,27 @@ class splineLNLN(splineBase):
         dt = self.dt
         R = self.R
 
-        filter_output = np.nansum(self.nonlin(XS @ b.reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
-        r = R * self.nonlin(filter_output, nl=self.output_nonlinearity) # conditional intensity (per bin)
+        filter_output = np.nansum(self.nonlin(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
+
+        if self.response_history:
+            yS = self.yS
+            r = R * self.nonlin(filter_output + yS @ p['bh'], nl=self.output_nonlinearity)
+        else:
+            r = R * self.nonlin(filter_output, nl=self.output_nonlinearity) # conditional intensity (per bin)
+        
         term0 = - np.log(r) @ y
         term1 = np.nansum(r) * dt
 
         neglogli = term0 + term1
 
         if self.lambd:
-            l1 = np.nansum(np.abs(b))
-            l2 = np.sqrt(np.nansum(b**2)) 
+            l1 = np.linalg.norm(p['b'], 1)
+            l2 = np.linalg.norm(p['b'], 2)
             neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
-        # nuc = np.linalg.norm(b.reshape(self.n_b, self.n_subunits), 'nuc') # wait for JAX update
-        if self.gamma:
-            nuc = np.nansum(np.linalg.svd(b.reshape(self.n_b, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
-            neglogli += self.gamma * nuc
         
         return neglogli
 
-    def fit(self, p0='random',num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, lambd=0.05, gamma=0.0,
+    def fit(self, p0=None, num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, lambd=0.05, gamma=0.0,
             step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
 
         self.lambd = lambd # elastic net parameter - global weight
@@ -63,45 +65,22 @@ class splineLNLN(splineBase):
         
         self.n_subunits = num_subunits
         self.num_iters = num_iters   
-        
-        if type(p0) == str:
-
-            if p0 == 'random':
-                if verbal:
-                    print('Randomly initializing subunits...')
-                key = random.PRNGKey(random_seed)
-                p0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_subunits)).flatten()
-        
-            elif p0 == 'kmeans':
-                if verbal:
-                    print('Initializing subunits with K-means clustering...')
-                kms = KMeans(self.X[self.y!=0].T, k=self.n_subunits, build_S=True, dims=self.dims, df=self.df)
-                kms.fit(num_iters=num_iters_init, verbal=verbal, tolerance=tolerance)
-                
-                self.b_kms = kms.B
-                self.w_kms = kms.W
-                
-                p0 = self.b_kms
-
-            elif p0 == 'seminmf':
-                if verbal:
-                    print('Initializing subunits with semi-NMF...')
-                nmf = semiNMF(self.X[self.y!=0].T, k=self.n_subunits, build_L=True, dims_L=self.dims, df_L=self.df)
-                nmf.fit(num_iters=num_iters_init, verbal=verbal, tolerance=tolerance)
-                
-                self.b_nmf = nmf.B
-                self.w_nmf = nmf.W
-
-                p0 = self.b_nmf
-
-            else:
-                raise ValueError(f'Initialization `{p0}` is not supported.')
             
-            if verbal:
-                print('Finished Initialization. \n')
+        if p0 is None:
 
-        else:
-            p0 = p0
+            key = random.PRNGKey(random_seed)
+            b0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_subunits)).flatten()
+            if self.response_history:
+                p0 = {'b': b0,
+                      'bh': self.bh_spl}
+            else:
+                p0 = {'b': b0,
+                      'bh': None}
 
-        self.b_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)   
-        self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_subunits)
+        self.p0 = p0
+        self.p_opt = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)   
+        self.b_opt = self.p_opt['b'].reshape(self.n_b, self.n_subunits)
+        self.w_opt = self.S @ self.b_opt
+        
+        if self.response_history:
+            self.h_opt = self.Sh @ self.p_opt['bh']

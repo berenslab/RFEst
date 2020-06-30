@@ -140,10 +140,10 @@ def build_spline_matrix(dims, df, smooth):
     ==========
     
     dims : list or array_like, shape (d, )
-        Dimensions or shape of the RF to estimate. Assumed order [t, sy, sx]
+        Dimensions or shape of the RF to estimate. Assumed order [t, sx, sy]
         
-    df : int
-        Degree of freedom for spline / smooth basis. 
+    df : list or array_like, shape (d,) 
+        Degree of freedom for spline / smooth basis. Same length as dims.
         
     smooth : str
         Spline or smooth to be used. Current supported methods include:
@@ -162,13 +162,9 @@ def build_spline_matrix(dims, df, smooth):
     ndim = len(dims) # store RF dimemsion
     
     # initialize list of degree of freedom for each dimension
-    if np.ndim(df) != 0 and len(df) != ndim:
-        raise ValueError("`df` must be an integer or an array the same length as `dims`")
-    elif np.ndim(df) == 0:
-        df = np.ones(ndim) * df
-        df = df.astype(int)
-
-    # choose smooth basis
+    if len(df) != ndim:
+        raise ValueError("`df` must have the same length as `dims`")
+    
     if smooth =='bs': 
         basis = bs # B-spline (order=3)
     elif smooth == 'cr':

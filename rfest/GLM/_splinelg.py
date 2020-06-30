@@ -21,7 +21,7 @@ class splineLG(splineBase):
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle) 
         self.nonlinearity = nonlinearity
     
-    def cost(self, b):
+    def cost(self, p):
 
         """
 
@@ -31,13 +31,17 @@ class splineLG(splineBase):
         
         XS = self.XS
         y = self.y    
-        
-        mse = np.nanmean((y - self.nonlin(XS @ b, self.nonlinearity))**2)
 
+        if self.response_history:
+            yS = self.yS
+            mse = np.nanmean((y - self.nonlin(XS @ p['b'] + yS @ p['bh'], self.nonlinearity))**2)
+        else:
+            mse = np.nanmean((y - self.nonlin(XS @ p['b'], self.nonlinearity))**2)
+        
         if self.lambd:
             
-            l1 = np.linalg.norm(b, 1)
-            l2 = np.linalg.norm(b, 2)
+            l1 = np.linalg.norm(p['b'], 1)
+            l2 = np.linalg.norm(p['b'], 2)
             mse += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1) 
-    
+            
         return mse       

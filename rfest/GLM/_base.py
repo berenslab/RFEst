@@ -8,7 +8,9 @@ config.update("jax_enable_x64", True)
 
 from sklearn.metrics import mean_squared_error
 
+from .._utils import build_design_matrix
 from .._splines import build_spline_matrix
+from scipy.optimize import minimize
 
 __all__ = ['splineBase']
 
@@ -57,8 +59,8 @@ class splineBase:
         
         # compute sufficient statistics
 
-        S = np.array(build_spline_matrix(dims, df, smooth)) # spline matrix
-        
+        S = np.array(build_spline_matrix(dims, df, smooth)) # for w
+
         if add_intercept:
             X = np.hstack([np.ones(self.n_samples)[:, np.newaxis], X])
             S = np.vstack([np.ones(S.shape[1]), S])
@@ -79,6 +81,7 @@ class splineBase:
 
         self.S = S # spline matrix
         self.XS = XS 
+        
         self.n_b = S.shape[1] # num:ber of spline coefficients
         
         # compute spline-based maximum likelihood 
@@ -92,6 +95,60 @@ class splineBase:
 
         self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for spike data)
         self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # maximum firing rate
+
+        self.response_history = False # by default response history filter
+                                      # is not computed, call `add_response_history_fitler` if needed.
+
+    def add_response_history_filter(self, dims, df, smooth='cr'):
+
+        y = self.y
+        Sh = np.array(build_spline_matrix(dims[:1], df[:1], smooth)) # for h
+        yh = np.array(build_design_matrix(self.y[:, np.newaxis], Sh.shape[0], shift=1)) 
+        yS = yh @ Sh
+
+        self.yh = np.array(yh)    
+        self.Sh = Sh # spline basis for spike-history
+        self.yS = yS        
+        self.bh_spl = np.linalg.solve(yS.T @ yS, yS.T @ y)
+        self.h_spl = Sh @ self.bh_spl
+        
+        self.response_history = True
+
+    def fit_nonlin(self, nbin=50, df=7, which_filter='w_spl', filter_id=0):
+
+        if which_filter == 'w_sta':
+            w = self.w_sta
+        elif which_filter == 'w_mle':
+            w = self.w_mle
+        elif which_filter == 'w_spl':
+            w = self.w_spl
+        elif which_filter == 'w_opt':
+            w = self.w_opt
+            if len(w.shape) > 1:
+                w = w[:, filter_id]
+
+        B = np.array(build_spline_matrix(dims=[nbin,], df=[df,], smooth='cr'))
+
+        output_raw = self.X @ norm(self.w_spl)
+        output_spk = self.X[self.y!=0] @ norm(self.w_spl)
+
+        hist_raw, bins = np.histogram(output_raw, bins=nbin, density=True)
+        hist_spk, _ = np.histogram(output_spk, bins=bins, density=True)
+
+        mask = ~ (hist_raw ==0)
+        
+        yy0 = hist_spk[mask] / hist_raw[mask]
+        yy = interp1d(bins[1:][mask], yy0)(bins[1:])
+        
+        b0 = np.ones(B.shape[1])
+        func = lambda b: np.mean((yy - B @ b)**2)
+
+        bnl = minimize(func, b0).x
+
+        self.fitted_nonlin = interp1d(bins[1:], B @ bnl)
+        self.nonparam_nonlin = yy
+        self.bins = bins[1:]
+
 
     def nonlin(self, x, nl):
 
@@ -128,7 +185,10 @@ class splineBase:
         
         elif nl == 'none':
             return x
-        
+       
+        elif nl == 'nonparametric':
+            return np.maximum(self.fitted_nonlin(x), 1e-7)
+
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
@@ -235,10 +295,17 @@ class splineBase:
         self.num_iters = num_iters   
         
         if p0 is None: # if p0 is not provided, initialize it with spline MLE.
-            p0 = self.b_spl
+            if self.response_history:
+                p0 = {'b': self.b_spl, 'bh': self.bh_spl}
+            else:
+                p0 = {'b': self.b_spl, 'bh': None}
         
-        self.b_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
+        self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
+        self.b_opt = self.p_opt['b']
         self.w_opt = self.S @ self.b_opt
+        
+        if self.response_history:
+            self.h_opt = self.Sh @ self.p_opt['bh']
 
 
     def _rcv(self, w, wSTA_test, X_test, y_test):
@@ -259,3 +326,21 @@ class splineBase:
 
         return self._rcv(w, wSTA_test, X_test, y_test)
 
+class interp1d:
+
+    def __init__(self, x, y):
+
+        self.x = x
+        self.y = y
+        self.slopes = np.diff(y) / np.diff(x)
+
+    def __call__(self, x_new):
+
+        i = np.searchsorted(self.x, x_new) - 1
+        i = np.where(i == -1, 0, i)
+        i = np.where(i == len(self.x) - 1, -1, i)
+
+        return self.y[i] + self.slopes[i] * (x_new - self.x[i])
+
+def norm(x):
+    return x / np.linalg.norm(x)

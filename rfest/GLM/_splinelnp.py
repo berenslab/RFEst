@@ -19,7 +19,7 @@ class splineLNP(splineBase):
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
 
-    def cost(self, b):
+    def cost(self, p):
 
         """
         Negetive Log Likelihood.
@@ -30,7 +30,12 @@ class splineLNP(splineBase):
         dt = self.dt
         R = self.R
 
-        filter_output = self.nonlin(XS @ b, self.nonlinearity).flatten()
+        if self.response_history:
+            yS = self.yS
+            filter_output = self.nonlin(XS @ p['b'] + yS @ p['bh'], self.nonlinearity).flatten()
+        else:
+            filter_output = self.nonlin(XS @ p['b'], self.nonlinearity).flatten()
+    
         r = R * filter_output
         term0 = - np.log(r) @ y
         term1 = np.nansum(r) * dt
@@ -38,8 +43,8 @@ class splineLNP(splineBase):
         neglogli = term0 + term1
         
         if self.lambd:
-            l1 = np.nansum(np.abs(b))
-            l2 = np.sqrt(np.nansum(b**2)) 
+            l1 = np.linalg.norm(p['b'], 1)
+            l2 = np.linalg.norm(p['b'], 2)
             neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
 
         return neglogli
