@@ -99,7 +99,8 @@ class splineBase:
 
         self.response_history = False # by default response history filter
                                       # is not computed, call `add_response_history_fitler` if needed.
-    def STC(self, transform='spline', n_repeats=1, percentile=100, random_seed=1990, show_plot=True, verbal=5):
+
+    def STC(self, transform=None, n_repeats=10, percentile=100, random_seed=1990, verbal=5):
         
         def get_stc(X, y, sta):
 
@@ -172,17 +173,17 @@ class splineBase:
 
         self.response_history = True
 
-    def fit_nonlin(self, nbin=50, df=7, which_filter='w_spl'):
+    def fit_nonlinearity(self, nbin=50, df=7, w='w_spl'):
 
         if type(which_filter) is str:
-            if which_filter == 'w_sta':
+            if w == 'w_sta':
                 w = self.w_sta
-            elif which_filter == 'w_mle':
+            elif w == 'w_mle':
                 w = self.w_mle
-            elif which_filter == 'w_spl':
+            elif w == 'w_spl':
                 w = self.w_spl
         else:
-            w = which_filter
+            w = w
 
         B = np.array(build_spline_matrix(dims=[nbin,], df=[df,], smooth='cr'))
 
@@ -192,7 +193,7 @@ class splineBase:
         hist_raw, bins = np.histogram(output_raw, bins=nbin, density=True)
         hist_spk, _ = np.histogram(output_spk, bins=bins, density=True)
 
-        mask = ~ (hist_raw ==0)
+        mask = ~(hist_raw ==0)
         
         yy0 = hist_spk[mask] / hist_raw[mask]
         yy = interp1d(bins[1:][mask], yy0)(bins[1:])
