@@ -1,4 +1,5 @@
 import jax.numpy as np
+import jax.random as random
 from jax import grad
 from jax import jit
 from jax.experimental import optimizers
@@ -98,6 +99,63 @@ class splineBase:
 
         self.response_history = False # by default response history filter
                                       # is not computed, call `add_response_history_fitler` if needed.
+    def STC(self, transform='spline', n_repeats=1, percentile=100, random_seed=1990, show_plot=True, verbal=5):
+        
+        def get_stc(X, y, sta):
+
+            n = len(X)
+            ste = X[y!=0]
+            proj = ste - ste * sta * sta.T
+            stc = proj.T @ proj / (n - 1)
+
+            eigvec, eigval, _ = np.linalg.svd(stc)
+
+            return eigvec, eigval
+
+        key = random.PRNGKey(random_seed)
+        
+        y = self.y
+        
+        if transform is not None:
+            
+            if transform == 'whiten':
+                X = np.linalg.solve(self.X.T @ self.X, self.X.T).T
+                sta = norm(self.w_mle)
+                
+            if transform == 'spline':
+                X = (self.S @ np.linalg.solve(self.XS.T @ self.XS, self.XS.T)).T
+                sta = norm(self.w_spl)
+        
+        else:
+            X = self.X
+            sta = norm(self.w_sta)
+
+        eigvec, eigval = get_stc(X, y, sta)
+
+        if n_repeats:
+            eigval_null = []
+            for counter in range(n_repeats):
+                if counter % int(verbal) == 0:
+                    print(f'{counter+1:}/{n_repeats}')
+                
+                y_randomize = random.permutation(key, y)
+                _, eigval_randomize = get_stc(X, y_randomize, sta)
+                eigval_null.append(eigval_randomize)
+            else:
+                print(f'{counter+1}/{n_repeats}. Done.')
+            eigval_null = np.vstack(eigval_null)
+            max_null, min_null = np.percentile(eigval_null, percentile), np.percentile(eigval_null, 100-percentile)
+            mask_sig_pos = eigval > max_null
+            mask_sig_neg = eigval < min_null
+            mask_sig = np.logical_or(mask_sig_pos, mask_sig_neg)
+
+        self.w_stc_pos = eigvec[:, mask_sig_pos]
+        self.w_stc_neg = eigvec[:, mask_sig_neg]
+        self.w_stc_eigval = eigval
+        self.w_stc_eigval_mask = mask_sig 
+        self.w_stc_max_null = max_null
+        self.w_stc_min_null = min_null
+
 
     def add_response_history_filter(self, dims, df, smooth='cr'):
 
@@ -111,26 +169,25 @@ class splineBase:
         self.yS = yS        
         self.bh_spl = np.linalg.solve(yS.T @ yS, yS.T @ y)
         self.h_spl = Sh @ self.bh_spl
-        
+
         self.response_history = True
 
-    def fit_nonlin(self, nbin=50, df=7, which_filter='w_spl', filter_id=0):
+    def fit_nonlin(self, nbin=50, df=7, which_filter='w_spl'):
 
-        if which_filter == 'w_sta':
-            w = self.w_sta
-        elif which_filter == 'w_mle':
-            w = self.w_mle
-        elif which_filter == 'w_spl':
-            w = self.w_spl
-        elif which_filter == 'w_opt':
-            w = self.w_opt
-            if len(w.shape) > 1:
-                w = w[:, filter_id]
+        if type(which_filter) is str:
+            if which_filter == 'w_sta':
+                w = self.w_sta
+            elif which_filter == 'w_mle':
+                w = self.w_mle
+            elif which_filter == 'w_spl':
+                w = self.w_spl
+        else:
+            w = which_filter
 
         B = np.array(build_spline_matrix(dims=[nbin,], df=[df,], smooth='cr'))
 
-        output_raw = self.X @ norm(self.w_spl)
-        output_spk = self.X[self.y!=0] @ norm(self.w_spl)
+        output_raw = self.X @ norm(w)
+        output_spk = self.X[self.y!=0] @ norm(w)
 
         hist_raw, bins = np.histogram(output_raw, bins=nbin, density=True)
         hist_spk, _ = np.histogram(output_spk, bins=bins, density=True)
@@ -182,7 +239,7 @@ class splineBase:
         
         elif nl == 'elu':
             return np.where(x > 0, x, np.exp(x)-1)
-        
+       
         elif nl == 'none':
             return x
        
@@ -263,8 +320,9 @@ class splineBase:
         Parameters
         ==========
 
-        p0 : array_like, shape (n_b, ) or (n_b, n_subunits)
-            Initial spline coefficients.
+        p0 : dict 
+            * 'b': Initial spline coefficients.
+            * 'bh': Initial response history filter coefficients
 
         num_iters : int
             Max number of optimization iterations.
@@ -307,7 +365,6 @@ class splineBase:
         if self.response_history:
             self.h_opt = self.Sh @ self.p_opt['bh']
 
-
     def _rcv(self, w, wSTA_test, X_test, y_test):
 
         """Relative Mean Squared Error"""
@@ -327,6 +384,17 @@ class splineBase:
         return self._rcv(w, wSTA_test, X_test, y_test)
 
 class interp1d:
+
+    """
+    1D linear intepolation.
+
+    usage:
+        x = np.linspace(-5, 5, 10)
+        y = np.cos(x)
+        f = interp1d(x, y)
+        new_x = np.linspace(-5, 5, 100)
+        new_y = f(new_x)
+    """
 
     def __init__(self, x, y):
 
