@@ -175,7 +175,7 @@ class splineBase:
 
     def fit_nonlinearity(self, nbin=50, df=7, w='w_spl'):
 
-        if type(which_filter) is str:
+        if type(w) is str:
             if w == 'w_sta':
                 w = self.w_sta
             elif w == 'w_mle':
