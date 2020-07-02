@@ -100,7 +100,27 @@ class splineBase:
         self.response_history = False # by default response history filter
                                       # is not computed, call `add_response_history_fitler` if needed.
 
-    def STC(self, transform=None, n_repeats=10, percentile=100, random_seed=1990, verbal=5):
+    def STC(self, transform=None, n_repeats=10, percentile=100., random_seed=1990, verbal=5):
+        
+        """
+        
+        Spike-triggered Covariance Analysis. 
+        
+        Parameters
+        ==========
+        
+        transform: None or Str
+            * None - Original X is used
+            * 'whiten' - pre-whiten X
+            * 'spline' - pre-whiten and smooth X by spline
+            
+        n_repeats: int
+            Number of repeats for STC significance test.
+            
+        percentile: float
+            Valid range of STC significance test.
+        
+        """        
         
         def get_stc(X, y, sta):
 
@@ -150,15 +170,31 @@ class splineBase:
             mask_sig_neg = eigval < min_null
             mask_sig = np.logical_or(mask_sig_pos, mask_sig_neg)
 
-        self.w_stc_pos = eigvec[:, mask_sig_pos]
-        self.w_stc_neg = eigvec[:, mask_sig_neg]
-        self.w_stc_eigval = eigval
-        self.w_stc_eigval_mask = mask_sig 
-        self.w_stc_max_null = max_null
-        self.w_stc_min_null = min_null
+            self.w_stc_pos = eigvec[:, mask_sig_pos]
+            self.w_stc_neg = eigvec[:, mask_sig_neg]
+            self.w_stc_eigval = eigval
+            self.w_stc_eigval_mask = mask_sig 
+            self.w_stc_max_null = max_null
+            self.w_stc_min_null = min_null
+            
+        else:
+            self.w_stc = eigvec
+            self.w_stc_eigval = eigval
 
 
     def add_response_history_filter(self, dims, df, smooth='cr'):
+        
+        """
+        Parameters
+        ==========
+        
+        dims : list or array_like, shape (ndims, )
+            Dimensions or shape of the response-history filter. It should be 1D [nt, ]
+        
+        df : list or array_list
+            number of basis.
+        """
+        
 
         y = self.y
         Sh = np.array(build_spline_matrix(dims[:1], df[:1], smooth)) # for h
@@ -174,6 +210,30 @@ class splineBase:
         self.response_history = True
 
     def fit_nonlinearity(self, nbin=50, df=7, w='w_spl'):
+        
+        """
+        
+        Estimate nonlinearity with nonparametric method, then
+        interpolate with spline.
+        
+        Parameters
+        ==========
+        
+        nbin: int
+            Number of bins for histogram.
+        
+        df : int
+            Number of basis for spline.
+        
+        w : str or array_lik
+            RF used for nonlinearity estimation. 
+            * 'w_sta': spike-triggered average
+            * 'w_mle': maximum-likelihood
+            * 'w_spl': spline-interpolated RF.        
+            * A RF computed in other ways (e.g. STC) can be feed 
+                in as a numpy array. 
+        
+        """
 
         if type(w) is str:
             if w == 'w_sta':
@@ -183,7 +243,7 @@ class splineBase:
             elif w == 'w_spl':
                 w = self.w_spl
         else:
-            w = w
+            w = np.array(w)
 
         B = np.array(build_spline_matrix(dims=[nbin,], df=[df,], smooth='cr'))
 
@@ -209,6 +269,10 @@ class splineBase:
 
 
     def nonlin(self, x, nl):
+        
+        '''
+        Choose a fixed nonlinearity or fit a flexible one ('nonparametric').
+        '''
 
         if  nl == 'softplus':
             return np.log(1 + np.exp(x)) + 1e-7
