@@ -1,6 +1,6 @@
 ![showcase](./misc/showcase.png)
 
-RFEst is a Python3 toolbox for neural receptive field estimation, featuring methods such as spline-based GLMs, Empirical Bayes with various Gaussian priors and others. 
+RFEst is a Python3 toolbox for neural receptive field estimation, featuring methods such as spline-based GLMs, Empirical Bayes with various Gaussian priors, and a few matrix factorization methods. 
 
 ## Supported Methods
 
