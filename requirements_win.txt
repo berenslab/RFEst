@@ -1,6 +1,0 @@
-numpy
-scipy
-sklearn
-matplotlib
-jax==0.1.43
-jaxlib==0.1.23

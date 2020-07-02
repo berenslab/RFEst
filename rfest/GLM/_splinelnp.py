@@ -42,9 +42,9 @@ class splineLNP(splineBase):
 
         neglogli = term0 + term1
         
-        if self.lambd:
+        if self.beta:
             l1 = np.linalg.norm(p['b'], 1)
             l2 = np.linalg.norm(p['b'], 2)
-            neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
+            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
 
         return neglogli

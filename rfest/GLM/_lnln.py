@@ -67,15 +67,11 @@ class LNLN:
 
         neglogli = term0 + term1
         
-        if self.lambd:
+        if self.beta:
             l1 = np.linalg.norm(K, 1)
             l2 = np.linalg.norm(K, 2)
-            neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
-        # nuc = np.linalg.norm(B.reshape(self.n_spline_coeff, self.n_subunits), 'nuc') # wait for JAX implementation
-        if self.gamma:
-            nuc = np.sum(np.linalg.svd(K.reshape(self.n_features, self.n_subunits), full_matrices=False, compute_uv=False), axis=-1)
-            neglogli += self.gamma * nuc
-        
+            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
+
         return neglogli
     
     def optimize_params(self, initial_params, num_iters, step_size, tolerance, verbal):
@@ -127,10 +123,10 @@ class LNLN:
             
         return params      
     
-    def fit(self, p0=None, num_subunits=1, num_iters=5,  alpha=0.5, lambd=0.05, gamma=0.0,
+    def fit(self, p0=None, num_subunits=1, num_iters=5,  alpha=0.5, beta=0.05,
             step_size=1e-2, tolerance=10, verbal=True, random_seed=2046):
 
-        self.lambd = lambd # elastic net parameter - global weight
+        self.beta = beta # elastic net parameter - global weight
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
         self.gamma = gamma # nuclear norm parameter
         

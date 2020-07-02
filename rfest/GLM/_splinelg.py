@@ -38,10 +38,10 @@ class splineLG(splineBase):
         else:
             mse = np.nanmean((y - self.nonlin(XS @ p['b'], self.nonlinearity))**2)
         
-        if self.lambd:
+        if self.beta:
             
             l1 = np.linalg.norm(p['b'], 1)
             l2 = np.linalg.norm(p['b'], 2)
-            mse += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1) 
+            mse += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1) 
             
         return mse       

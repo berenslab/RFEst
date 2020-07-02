@@ -154,32 +154,42 @@ class splineBase:
         eigvec, eigval = get_stc(X, y, sta)
 
         if n_repeats:
+            print('STC significance test: ')
             eigval_null = []
             for counter in range(n_repeats):
-                if counter % int(verbal) == 0:
-                    print(f'{counter+1:}/{n_repeats}')
+                if verbal:
+                    if counter % int(verbal) == 0:
+                        print(f'  {counter+1:}/{n_repeats}')
                 
                 y_randomize = random.permutation(key, y)
                 _, eigval_randomize = get_stc(X, y_randomize, sta)
                 eigval_null.append(eigval_randomize)
             else:
-                print(f'{counter+1}/{n_repeats}. Done.')
+                if verbal:
+                    print(f' Done.')
             eigval_null = np.vstack(eigval_null)
             max_null, min_null = np.percentile(eigval_null, percentile), np.percentile(eigval_null, 100-percentile)
             mask_sig_pos = eigval > max_null
             mask_sig_neg = eigval < min_null
             mask_sig = np.logical_or(mask_sig_pos, mask_sig_neg)
 
+            self.w_stc = eigvec
             self.w_stc_pos = eigvec[:, mask_sig_pos]
             self.w_stc_neg = eigvec[:, mask_sig_neg]
             self.w_stc_eigval = eigval
-            self.w_stc_eigval_mask = mask_sig 
+            self.w_stc_eigval_mask = mask_sig
+            self.w_stc_eigval_pos_mask = mask_sig_pos
+            self.w_stc_eigval_neg_mask = mask_sig_neg
+
+
+
             self.w_stc_max_null = max_null
             self.w_stc_min_null = min_null
             
         else:
             self.w_stc = eigvec
             self.w_stc_eigval = eigval
+            self.w_stc_eigval_mask = np.ones_like(eigval).astype(bool)
 
 
     def add_response_history_filter(self, dims, df, smooth='cr'):
@@ -377,7 +387,7 @@ class splineBase:
         return params
 
 
-    def fit(self, p0=None, num_iters=5, alpha=1, lambd=0.5,
+    def fit(self, p0=None, num_iters=5, alpha=1, beta=0.5,
             step_size=1e-2, tolerance=10, verbal=1):
             
         """
@@ -397,7 +407,7 @@ class splineBase:
             * 0.0 -> only L2
             * 1.0 -> only L1
 
-        lambd : float
+        beta : float
             Elastic net parameter, overall weight of regulization.
 
         step_size : float
@@ -413,7 +423,7 @@ class splineBase:
 
         """
 
-        self.lambd = lambd
+        self.beta = beta
         self.alpha = alpha 
         self.num_iters = num_iters   
         

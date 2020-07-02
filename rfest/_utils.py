@@ -59,14 +59,14 @@ def get_spatial_and_temporal_filters(w, dims):
     Paramters
     =========
 
-    w : array_like, shape (nt, ny, nx) or (nt, ny * nx)
+    w : array_like, shape (nt, nx, ny) or (nt, nx * ny)
 
-        3D Receptive field. 
+        2D or 3D Receptive field. 
 
     dims : list or array_like, shape (ndim, )
 
         Number of coefficients in each dimension. 
-        Assumed order [t, y, x] or [t, x, y]
+        Assumed order [t, x, y]
 
     Return
     ======
@@ -77,15 +77,21 @@ def get_spatial_and_temporal_filters(w, dims):
 
     """
     
-    if len(dims) != 3:
-        raise ValueError("Only works for 3D receptive fields.")
+    if len(dims) == 3:
         
-    dims_tRF = dims[0]
-    dims_sRF = dims[1:]
-    U, S, Vt = randomized_svd(w.reshape(dims_tRF, np.prod(dims_sRF)), 3)
-    sRF = Vt[0].reshape(*dims_sRF)
-    tRF = U[:, 0]
+        dims_tRF = dims[0]
+        dims_sRF = dims[1:]
+        U, S, Vt = randomized_svd(w.reshape(dims_tRF, np.prod(dims_sRF)), 3)
+        sRF = Vt[0].reshape(*dims_sRF)
+        tRF = U[:, 0]
 
+    elif len(dims) == 2:
+        dims_tRF = dims[0]
+        dims_sRF = dims[1]
+        U, S, Vt = randomized_svd(w.reshape(dims_tRF, dims_sRF), 3)
+        sRF = Vt[0]
+        tRF = U[:, 0]        
+    
     return [sRF, tRF]
 
 def softthreshold(K, lambd):

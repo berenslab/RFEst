@@ -49,17 +49,17 @@ class splineLNLN(splineBase):
 
         neglogli = term0 + term1
 
-        if self.lambd:
+        if self.beta:
             l1 = np.linalg.norm(p['b'], 1)
             l2 = np.linalg.norm(p['b'], 2)
-            neglogli += self.lambd * ((1 - self.alpha) * l2 + self.alpha * l1)
+            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
         
         return neglogli
 
-    def fit(self, p0=None, num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, lambd=0.05, gamma=0.0,
+    def fit(self, p0=None, num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, beta=0.05, gamma=0.0,
             step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
 
-        self.lambd = lambd # elastic net parameter - global weight
+        self.beta = beta # elastic net parameter - global weight
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
         self.gamma = gamma # nuclear norm parameter
         
