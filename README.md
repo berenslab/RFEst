@@ -1,8 +1,10 @@
 ![showcase](./misc/showcase.png)
 
+RFEst is a Python3 toolbox for neural receptive field estimation, featuring methods such as spline-based GLMs, Empirical Bayes with various Gaussian priors and others. 
+
 ## Supported Methods
 
-**Spline-based Methods** [1]
+**Spline-based GLMs** [1]
 
 `splineLG`, `splineLNP` and `splineLNLN` use *natural cubic regression splines* to approximate spatio-temporal RFs. 
 
@@ -12,7 +14,7 @@ Given a stimulus design matrix (X) and the corresponding response (y), an optimi
 from rfest import splineLG
 
 spl = splineLG(X, y, dims=(5, 20, 15), df=9, smooth='cr') 
-spl.fit(num_iters=500, alpha=1, lambd=0.025, verbal=100)
+spl.fit(num_iters=500, alpha=1, beta=0.025, verbal=100)
 ```
 
 **Evidence Optimization**
@@ -44,13 +46,10 @@ For more information, see [here](https://github.com/berenslab/RFEst/blob/master/
 
 RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation and JIT compilation to GPU/CPU, so you need to install JAX first. 
 
-### For Linux and MacOS users
-
-To install CPU-only version, simply clone this repo into local directory and then run the following steps:
+To install CPU-only version, simply clone this repo into local directory and then run:
 
 ```bash
 git clone https://github.com/berenslab/RFEst
-pip install -r RFEst/requirements.txt
 pip install -e RFEst
 ```
 
@@ -58,24 +57,18 @@ To enable GPU support on **Linux**, you need to consult the [JAX install guide](
 
 ```bash
 # install jaxlib
-PYTHON_VERSION=cp37  # alternatives: cp27, cp35, cp36, cp37
-CUDA_VERSION=cuda92  # alternatives: cuda90, cuda92, cuda100, cuda101
-PLATFORM=linux_x86_64  # alternatives: linux_x86_64
+PYTHON_VERSION=cp37  # alternatives: cp36, cp37, cp38
+CUDA_VERSION=cuda100  # alternatives: cuda100, cuda101, cuda102, cuda110
+PLATFORM=manylinux2010_x86_64  # alternatives: manylinux2010_x86_64
 BASE_URL='https://storage.googleapis.com/jax-releases'
-pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.30-$PYTHON_VERSION-none-$PLATFORM.whl
+pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.50-$PYTHON_VERSION-none-$PLATFORM.whl
 
 pip install --upgrade jax  # install jax
 ```
 
-### For Windows Users
+### A Note For Windows Users
 
-JAX doen't support Windows yet, so RFEst also won't be able to be installed on Windows. However, if you are running Windows 10, you can install JAX within the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (but only the relatively outdated versions of JAX==0.1.43 and jaxlib==0.1.23, sadly). To install, run:
-
-```bash
-git clone https://github.com/berenslab/RFEst 
-pip install -r RFEst/requirements_win.txt # use pip3 if alias to pip wasn't added to ~/.bashrc or ~/.zshrc
-pip install -e RFEst
-```
+JAX has no native Windows support yet, but can be installed on **CPU via the Windows Subsystem for Linux** (Windows 10 only, and make sure that the pip version is the latest). 
 
 ## Dependencies
 
