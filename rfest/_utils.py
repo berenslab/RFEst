@@ -98,6 +98,9 @@ def softthreshold(K, lambd):
     # L1 regularization as soft thresholding.
     return np.maximum(K - lambd, 0) - np.maximum(- K - lambd, 0)
 
+def norm(x):
+    return x / np.linalg.norm(x)
+
 if __name__ == "__main__": 
 
     import doctest
