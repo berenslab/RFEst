@@ -46,7 +46,7 @@ For more information, see [here](https://github.com/berenslab/RFEst/blob/master/
 
 RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation and JIT compilation to GPU/CPU, so you need to install JAX first. 
 
-To install CPU-only version, simply clone this repo into local directory and then run:
+To install CPU-only version, simply clone this repo into a local directory and install via `pip`:
 
 ```bash
 git clone https://github.com/berenslab/RFEst

@@ -43,13 +43,13 @@ class splineLNLN(splineBase):
         else:
             subunits_weight = np.ones(self.n_subunits) / self.n_subunits # equal weight
 
-        filter_output = np.nansum(self.nonlin(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1)
+        filter_output = np.nansum(self.fnl(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1)
 
         if self.response_history:
             yS = self.yS
-            r = R * self.nonlin(filter_output + yS @ p['bh'], nl=self.output_nonlinearity)
+            r = R * self.fnl(filter_output + yS @ p['bh'], nl=self.output_nonlinearity)
         else:
-            r = R * self.nonlin(filter_output, nl=self.output_nonlinearity) 
+            r = R * self.fnl(filter_output, nl=self.output_nonlinearity) 
         
         term0 = - np.log(r) @ y
         term1 = np.nansum(r) * dt

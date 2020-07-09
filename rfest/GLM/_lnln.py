@@ -41,7 +41,7 @@ class LNLN:
         self.output_nonlinearity = output_nonlinearity
         self.filter_nonlinearity = filter_nonlinearity
 
-    def nonlin(self, x, nl):
+    def fnl(self, x, nl):
         if  nl == 'softplus':
             return np.log(1 + np.exp(x)) + 1e-7
         elif nl == 'exponential':
@@ -53,23 +53,23 @@ class LNLN:
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-    def cost(self, K):
+    def cost(self, W):
         
         X = self.X
         y = self.y
         dt = self.dt
         R = self.R
 
-        filter_output = np.sum(self.nonlin(X @ K.reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
-        r = R * self.nonlin(filter_output, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
+        filter_output = np.sum(self.nonlin(X @ W.reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
+        r = R * self.fnl(filter_output, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
         term0 = - np.log(r) @ y # spike term from poisson log-likelihood
         term1 = np.sum(r) * dt # non-spike term
 
         neglogli = term0 + term1
         
         if self.beta:
-            l1 = np.linalg.norm(K, 1)
-            l2 = np.linalg.norm(K, 2)
+            l1 = np.linalg.norm(W, 1)
+            l2 = np.linalg.norm(W, 2)
             neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
 
         return neglogli

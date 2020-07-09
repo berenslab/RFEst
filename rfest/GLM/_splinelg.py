@@ -34,9 +34,9 @@ class splineLG(splineBase):
 
         if self.response_history:
             yS = self.yS
-            mse = np.nanmean((y - self.nonlin(XS @ p['b'] + yS @ p['bh'], self.nonlinearity))**2)
+            mse = np.nanmean((y - self.fnl(XS @ p['b'] + yS @ p['bh'], self.nonlinearity))**2)
         else:
-            mse = np.nanmean((y - self.nonlin(XS @ p['b'], self.nonlinearity))**2)
+            mse = np.nanmean((y - self.fnl(XS @ p['b'], self.nonlinearity))**2)
         
         if self.beta:
             

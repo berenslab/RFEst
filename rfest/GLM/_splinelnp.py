@@ -32,9 +32,9 @@ class splineLNP(splineBase):
 
         if self.response_history:
             yS = self.yS
-            filter_output = self.nonlin(XS @ p['b'] + yS @ p['bh'], self.nonlinearity).flatten()
+            filter_output = self.fnl(XS @ p['b'] + yS @ p['bh'], self.nonlinearity).flatten()
         else:
-            filter_output = self.nonlin(XS @ p['b'], self.nonlinearity).flatten()
+            filter_output = self.fnl(XS @ p['b'], self.nonlinearity).flatten()
     
         r = R * filter_output
         term0 = - np.log(r) @ y

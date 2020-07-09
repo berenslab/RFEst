@@ -9,7 +9,7 @@ config.update("jax_enable_x64", True)
 
 from sklearn.metrics import mean_squared_error
 
-from .._utils import build_design_matrix
+from .._utils import build_design_matrix, norm
 from .._splines import build_spline_matrix
 from scipy.optimize import minimize
 
@@ -57,7 +57,16 @@ class splineBase:
         self.dims = dims # assumed order [t, y, x]
         self.ndim = len(dims)
         self.n_samples, self.n_features = X.shape
-        
+
+        self.df = df # number basis / degree of freedom
+        self.smooth = smooth # type of basis
+
+        self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for LNP and LNLN)
+        self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # a constant for scaling firing rate. 
+
+        self.response_history = False # by default response history filter
+                                      # is not computed, call `add_response_history_fitler` if needed.
+
         # compute sufficient statistics
 
         S = np.array(build_spline_matrix(dims, df, smooth)) # for w
@@ -88,17 +97,7 @@ class splineBase:
         # compute spline-based maximum likelihood 
         self.b_spl = np.linalg.solve(XS.T @ XS, XS.T @ y)
         self.w_spl = S @ self.b_spl
-
-        # store more meta data
         
-        self.df = df 
-        self.smooth = smooth   
-
-        self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for spike data)
-        self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # maximum firing rate
-
-        self.response_history = False # by default response history filter
-                                      # is not computed, call `add_response_history_fitler` if needed.
 
     def STC(self, transform=None, n_repeats=10, percentile=100., random_seed=1990, verbal=5):
         
@@ -218,6 +217,7 @@ class splineBase:
 
         self.response_history = True
 
+
     def fit_nonlinearity(self, nbin=50, df=7, w='w_spl'):
         
         """
@@ -277,10 +277,10 @@ class splineBase:
         self.bins = bins[1:]
 
 
-    def nonlin(self, x, nl):
+    def fnl(self, x, nl):
         
         '''
-        Choose a fixed nonlinearity or fit a flexible one ('nonparametric').
+        Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
         '''
 
         if  nl == 'softplus':
@@ -439,23 +439,6 @@ class splineBase:
         if self.response_history:
             self.h_opt = self.Sh @ self.p_opt['bh']
 
-    def _rcv(self, w, wSTA_test, X_test, y_test):
-
-        """Relative Mean Squared Error"""
-
-        a = mean_squared_error(y_test, X_test @ w)
-        b = mean_squared_error(y_test, X_test @ wSTA_test)
-
-        return a - b
-        
-
-    def measure_prediction_performance(self, X_test, y_test):
-
-        wSTA_test = np.linalg.solve(X_test.T @ X_test, X_test.T @ y_test)
-
-        w = self.w_opt.ravel()
-
-        return self._rcv(w, wSTA_test, X_test, y_test)
 
 class interp1d:
 
@@ -483,6 +466,3 @@ class interp1d:
         i = np.where(i == len(self.x) - 1, -1, i)
 
         return self.y[i] + self.slopes[i] * (x_new - self.x[i])
-
-def norm(x):
-    return x / np.linalg.norm(x)
