@@ -4,7 +4,7 @@ with open('requirements.txt') as f:
     required = f.read().splitlines()
 
 setup(name='RFEst',
-      version='1.0.0',
+      version='1.1.0',
       description='Python 3 toolbox for receptive field estimation',
       author='Ziwei Huang',
       author_email='huang-ziwei@outlook.com',
