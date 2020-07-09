@@ -176,12 +176,11 @@ class splineBase:
             self.w_stc = eigvec
             self.w_stc_pos = eigvec[:, mask_sig_pos]
             self.w_stc_neg = eigvec[:, mask_sig_neg]
+            
             self.w_stc_eigval = eigval
             self.w_stc_eigval_mask = mask_sig
             self.w_stc_eigval_pos_mask = mask_sig_pos
             self.w_stc_eigval_neg_mask = mask_sig_neg
-
-
 
             self.w_stc_max_null = max_null
             self.w_stc_min_null = min_null

@@ -22,6 +22,7 @@ class splineLNLN(splineBase):
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
         self.output_nonlinearity = output_nonlinearity
         self.filter_nonlinearity = filter_nonlinearity
+        self.fit_subunits_weight = kwargs['fit_subunits_weight'] if 'fit_subunits_weight' in kwargs.keys() else False
 
     def cost(self, p):
 
@@ -36,13 +37,19 @@ class splineLNLN(splineBase):
         dt = self.dt
         R = self.R
 
-        filter_output = np.nansum(self.nonlin(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1)
+        if self.fit_subunits_weight:
+            subunits_weight = np.maximum(p['subunits_weight'], 1e-7)
+            subunits_weight /= np.sum(subunits_weight)
+        else:
+            subunits_weight = np.ones(self.n_subunits) / self.n_subunits # equal weight
+
+        filter_output = np.nansum(self.nonlin(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1)
 
         if self.response_history:
             yS = self.yS
             r = R * self.nonlin(filter_output + yS @ p['bh'], nl=self.output_nonlinearity)
         else:
-            r = R * self.nonlin(filter_output, nl=self.output_nonlinearity) # conditional intensity (per bin)
+            r = R * self.nonlin(filter_output, nl=self.output_nonlinearity) 
         
         term0 = - np.log(r) @ y
         term1 = np.nansum(r) * dt
@@ -59,7 +66,7 @@ class splineLNLN(splineBase):
     def fit(self, p0=None, num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, beta=0.05, gamma=0.0,
             step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
 
-        self.beta = beta # elastic net parameter - global weight
+        self.beta = beta # elastic net parameter - global penalty weight
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
         self.gamma = gamma # nuclear norm parameter
         
@@ -70,12 +77,15 @@ class splineLNLN(splineBase):
 
             key = random.PRNGKey(random_seed)
             b0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_subunits)).flatten()
+            subunits_weight = np.ones(num_subunits)/num_subunits
             if self.response_history:
                 p0 = {'b': b0,
-                      'bh': self.bh_spl}
+                      'bh': self.bh_spl,
+                      'subunits_weight': subunits_weight}
             else:
                 p0 = {'b': b0,
-                      'bh': None}
+                      'bh': None,
+                      'subunits_weight': subunits_weight}
 
         self.p0 = p0
         self.p_opt = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)   

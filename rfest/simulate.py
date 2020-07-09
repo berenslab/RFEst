@@ -54,7 +54,7 @@ def gabor3d(dims, std, omega, theta, func=np.cos, K=np.pi):
     g = np.kron(g_t, g_s)  
     return norm(g).reshape(dims)    
 
-def V1simple_2d(dims, scale=[.025, .03]):
+def V1complex_2d(dims, scale=[.025, .03]):
 
     dt = 1/60 # time bin size
     nt = dims[0]
@@ -82,7 +82,7 @@ def V1simple_2d(dims, scale=[.025, .03]):
     
     return norm(k)
 
-def get_stimulus(n_samples, dims, delta=0.01, random_seed=1990):
+def get_stimulus(n_samples, dims, kind='3dnoise', delta=1000, random_seed=1990):
 
     """
     Parameters
@@ -100,10 +100,11 @@ def get_stimulus(n_samples, dims, delta=0.01, random_seed=1990):
 
     def kernel(ncoeff, delta):
         grid = np.arange(ncoeff)
-        square_distance = (grid - grid.reshape(-1,1)) ** 2 # pairwise squared distance
-        C = np.exp(-.5 * square_distance / delta ** 2)
+        square_distance = np.sqrt((grid - grid.reshape(-1,1))**2) 
+        C = np.exp(-square_distance / (ncoeff/delta))
         return C
-            
+
+
     np.random.seed(random_seed)
 
     if len(dims) == 1:
@@ -111,14 +112,20 @@ def get_stimulus(n_samples, dims, delta=0.01, random_seed=1990):
         Sigma = kernel(dims[0], delta)
         Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
         X = Stim
-        
-    elif len(dims) == 2:
+
+    elif len(dims) == 2 and kind=='2dbar':
+
+        Sigma = kernel(dims[1], delta)
+        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples)
+        X = build_design_matrix(Stim, dims[0])
+
+    elif len(dims) == 2 and kind=='2dnoise':
         
         Sigma = np.kron(kernel(dims[0], delta), kernel(dims[1], delta))
         Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
         X = Stim
 
-    elif len(dims) == 3:
+    elif len(dims) == 3 and kind=='3dnoise':
         
         Sigma = np.kron(kernel(dims[1], delta), kernel(dims[2], delta))
         Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
