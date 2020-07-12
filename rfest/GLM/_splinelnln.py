@@ -24,6 +24,7 @@ class splineLNLN(splineBase):
         self.filter_nonlinearity = filter_nonlinearity
         self.fit_subunits_weight = kwargs['fit_subunits_weight'] if 'fit_subunits_weight' in kwargs.keys() else False
 
+
     def cost(self, p):
 
         """
@@ -70,6 +71,7 @@ class splineLNLN(splineBase):
         
         return neglogli
 
+
     def fit(self, p0=None, num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, beta=0.05,
             step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
 
@@ -87,22 +89,11 @@ class splineLNLN(splineBase):
             
             p0 = {'b': b0, 
                   'subunits_weight': subunits_weight}
-            
-            if self.response_history:
-                p0.update({'bh': self.bh_spl})
-            else:
-                p0.update({'bh': None})
-
-            if self.add_intercept:
-
-                p0.update({'intercept': 0.})
-            else:
-                p0.update({'intercept': None})
-
+            p0.update({'bh': self.bh_spl}) if self.response_history else p0.update({'bh': None})
+            p0.update({'intercept': 0.}) if self.add_intercept else p0.update({'intercept': None})
 
         self.p0 = p0
         self.p_opt = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)   
-        
         self.b_opt = self.p_opt['b'].reshape(self.n_b, self.n_subunits)
         self.w_opt = self.S @ self.b_opt
         self.h_opt = self.Sh @ self.p_opt['bh'] if self.response_history else None

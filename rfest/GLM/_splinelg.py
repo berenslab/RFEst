@@ -20,6 +20,7 @@ class splineLG(splineBase):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle) 
         self.nonlinearity = nonlinearity
+        
     
     def cost(self, p):
 

@@ -71,7 +71,8 @@ class Base:
         self.X = np.array(X) # stimulus design matrix
         self.y = np.array(y) # response
 
-    def STC(self, prewhiten=False, n_repeats=10, percentile=100., random_seed=1990, verbal=5):
+
+    def STC(self, prewhiten=False, n_repeats=10, percentile=100., random_seed=2046, verbal=5):
 
         """
 
@@ -383,17 +384,9 @@ class Base:
         self.num_iters = num_iters
 
         if p0 is None: # if p0 is not provided, initialize it with spline MLE.
-            
             p0 = {'w': self.w_sta}
-            if self.response_history:
-                p0.update({'h': self.h_mle})
-            else:
-                p0.update({'h': None})
-
-            if self.add_intercept:
-                p0.update({'intercept': 0.})
-            else:
-                p0.update({'intercept': None})
+            p0.update({'h': self.h_mle}) if self.response_history else p0.update({'h': None})
+            p0.update({'intercept': 0.}) if self.add_intercept else p0.update({'intercept': None})
 
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
@@ -494,20 +487,9 @@ class splineBase(Base):
         self.num_iters = num_iters
 
         if p0 is None: # if p0 is not provided, initialize it with spline MLE.
-            
             p0 = {'b': self.b_spl}
-
-            if self.response_history:
-                p0.update({'bh': self.bh_spl})
-            else:
-                p0.update({'bh': None})
-
-            if self.add_intercept:
-                p0.update({'intercept': 0.})
-            else:
-                p0.update({'intercept': None})
-
-
+            p0.update({'bh': self.bh_spl}) if self.response_history else p0.update({'bh': None})
+            p0.update({'intercept': 0.}) if self.add_intercept else p0.update({'intercept': None})
 
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)

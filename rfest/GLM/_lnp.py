@@ -24,6 +24,7 @@ class LNP(Base):
 
         super().__init__(X, y, dims, add_intercept, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
+        
 
     def cost(self, p):
 

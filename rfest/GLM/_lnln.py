@@ -57,6 +57,7 @@ class LNLN(Base):
             neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
 
         return neglogli
+        
     
     def fit(self, p0=None, num_subunits=1, num_iters=5,  alpha=0.5, beta=0.05,
             step_size=1e-2, tolerance=10, verbal=True, random_seed=2046):
@@ -73,13 +74,11 @@ class LNLN(Base):
             subunits_weight = np.ones(num_subunits)/num_subunits
 
             w0 = 0.01 * random.normal(key, shape=(self.n_features, self.n_subunits)).flatten()
-            p0 = {'w': w0, 'subunits_weight': subunits_weight}
+            p0 = {'w': w0, 
+                  'subunits_weight': subunits_weight}
+            p0.update({'h': self.h_mle}) if self.response_history else p0.update({'h': None})
+            p0.update({'intercept': 0.}) if self.add_intercept else p0.update({'intercept': None})
 
-            if self.response_history:
-                p0.update({'h': self.h_mle})
-            else:
-                p0.update({'h': None})
-        
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
         self.w_opt = self.p_opt['w']
