@@ -13,7 +13,7 @@ Given a stimulus design matrix (X) and the corresponding response (y), an optimi
 ```python
 from rfest import splineLG
 
-spl = splineLG(X, y, dims=(5, 20, 15), df=9, smooth='cr') 
+spl = splineLG(X, y, dims=[5, 20, 15], df=[4, 9, 7], smooth='cr') 
 spl.fit(num_iters=500, alpha=1, beta=0.025, verbal=100)
 ```
 
@@ -27,7 +27,7 @@ spl.fit(num_iters=500, alpha=1, beta=0.025, verbal=100)
 ```python
 from rfest import ASD
 
-asd = ASD(X, y, dims=(5, 20, 15)) # nt, ny, nx
+asd = ASD(X, y, dims=[5, 20, 15]) # nt, nx, ny
 p0 = [1., 1., 2., 2., 2.] # sig, rho, 𝛿t, 𝛿y, 𝛿x
 asd.fit(p0=p0, num_iters=300)
 ```
