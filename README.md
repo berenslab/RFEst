@@ -6,9 +6,9 @@ RFEst is a Python3 toolbox for neural receptive field estimation, featuring meth
 
 **Spline-based GLMs** [1]
 
-`splineLG`, `splineLNP` and `splineLNLN` use *natural cubic regression splines* to approximate spatio-temporal RFs. 
+`splineLG`, `splineLNP` and `splineLNLN` use *natural cubic regression splines* and others to approximate spatio-temporal RFs. 
 
-Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=(nT, nY, nX)` :
+Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=[nT, nX, nY]` :
 
 ```python
 from rfest import splineLG
@@ -27,7 +27,7 @@ spl.fit(num_iters=500, alpha=1, beta=0.025, verbal=100)
 ```python
 from rfest import ASD
 
-asd = ASD(X, y, dims=[5, 20, 15]) # nt, nx, ny
+asd = ASD(X, y, dims=[5, 20, 15]) # nT, nX, nY
 p0 = [1., 1., 2., 2., 2.] # sig, rho, 𝛿t, 𝛿y, 𝛿x
 asd.fit(p0=p0, num_iters=300)
 ```
