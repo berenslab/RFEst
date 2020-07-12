@@ -84,14 +84,21 @@ class splineLNLN(splineBase):
             key = random.PRNGKey(random_seed)
             b0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_subunits)).flatten()
             subunits_weight = np.ones(num_subunits)/num_subunits
+            
+            p0 = {'b': b0, 
+                  'subunits_weight': subunits_weight}
+            
             if self.response_history:
-                p0 = {'b': b0,
-                      'bh': self.bh_spl,
-                      'subunits_weight': subunits_weight}
+                p0.update({'bh': self.bh_spl})
             else:
-                p0 = {'b': b0,
-                      'bh': None,
-                      'subunits_weight': subunits_weight}
+                p0.update({'bh': None})
+
+            if self.add_intercept:
+
+                p0.update({'intercept': 0.})
+            else:
+                p0.update({'intercept': None})
+
 
         self.p0 = p0
         self.p_opt = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)   
