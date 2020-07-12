@@ -82,6 +82,90 @@ def cr(x, df):
     
     return basis.T
 
+def cc(x, df):
+
+
+    """
+
+    Cyclic cubic regression splines. Knots placed equally by percentile.
+
+    Simplified from `patsy.cc`:
+    https://github.com/pydata/patsy/blob/master/patsy/mgcv_cubic_splines.py
+
+    """
+
+        
+    def _map_cyclic(x, lbound, ubound):
+
+        x = np.copy(x)
+        x[x > ubound] = lbound + (x[x > ubound] - ubound) % (ubound - lbound)
+        x[x < lbound] = ubound - (lbound - x[x < lbound]) % (ubound - lbound)
+
+        return x
+    
+    def _get_all_sorted_knots(x, df):
+
+        n_inner_knots = df-2
+
+        knot_quantiles = np.linspace(0, 1, n_inner_knots + 2)[1:-1] * 100
+        inner_knots = np.percentile(np.unique(x), knot_quantiles)
+
+        all_knots = np.concatenate(([np.min(x), np.max(x)], inner_knots))
+        all_knots = np.unique(all_knots)
+
+        return all_knots
+    
+    def _get_cyclic_f(knots):
+
+        h = knots[1:] - knots[:-1]
+        n = knots.size - 1
+        b = np.zeros((n, n))
+        d = np.zeros((n, n))
+
+        b[0, 0] = (h[n - 1] + h[0]) / 3.
+        b[0, n - 1] = h[n - 1] / 6.
+        b[n - 1, 0] = h[n - 1] / 6.
+
+        d[0, 0] = -1. / h[0] - 1. / h[n - 1]
+        d[0, n - 1] = 1. / h[n - 1]
+        d[n - 1, 0] = 1. / h[n - 1]
+
+        for i in range(1, n):
+            b[i, i] = (h[i - 1] + h[i]) / 3.
+            b[i, i - 1] = h[i - 1] / 6.
+            b[i - 1, i] = h[i - 1] / 6.
+
+            d[i, i] = -1. / h[i - 1] - 1. / h[i]
+            d[i, i - 1] = 1. / h[i - 1]
+            d[i - 1, i] = 1. / h[i - 1]
+
+        return np.linalg.solve(b, d)
+    
+    knots = _get_all_sorted_knots(x, df) # length = df
+    
+    x = _map_cyclic(x, min(knots), max(knots))
+    df -= 1
+    
+    j = np.maximum(np.searchsorted(knots, x) - 1, 0)
+    h = np.mean(knots[1:] - knots[:-1]) # constant
+
+    ajm = (knots[j+1] - x) / h
+    ajp = (x - knots[j]) / h
+    cjm = ((knots[j+1] - x)**3 / h - h * (knots[j+1] - x)) / 6
+    cjp = ((x - knots[j])  **3 / h - h * (x - knots[j]))   / 6
+
+    f = _get_cyclic_f(knots)
+    
+    i = np.eye(df)
+    j1 = j+1
+    j1[j1 == df] = 0
+    
+    basis = ajm * i[j, :].T + ajp * i[j1, :].T + \
+        cjm * f[j, :].T + cjp * f[j1, :].T
+    
+    return basis.T
+
+
 def tp(x, df):
 
     """
@@ -169,6 +253,8 @@ def build_spline_matrix(dims, df, smooth):
         basis = bs # B-spline (order=3)
     elif smooth == 'cr':
         basis = cr  # Natural cubic regression spline
+    elif smooth == 'cc':
+        basis = cc
     elif smooth == 'tp':
         basis = tp  # Thin plate regression spline
     else:

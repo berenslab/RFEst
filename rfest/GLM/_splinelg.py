@@ -32,12 +32,12 @@ class splineLG(splineBase):
         XS = self.XS
         y = self.y    
 
-        if self.response_history:
-            yS = self.yS
-            mse = np.nanmean((y - self.fnl(XS @ p['b'] + yS @ p['bh'], self.nonlinearity))**2)
-        else:
-            mse = np.nanmean((y - self.fnl(XS @ p['b'], self.nonlinearity))**2)
-        
+        intercept = p['intercept'] if self.add_intercept else 0
+        history_output = self.yS @ p['bh'] if self.response_history else 0
+        filter_output = XS @ p['b']
+
+        mse = np.nanmean((y - self.fnl(filter_output + history_output + intercept, self.nonlinearity))**2)
+
         if self.beta:
             
             l1 = np.linalg.norm(p['b'], 1)

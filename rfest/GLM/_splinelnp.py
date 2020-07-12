@@ -18,6 +18,7 @@ class splineLNP(splineBase):
         
         super().__init__(X, y, dims, df, smooth, add_intercept, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
+    
 
     def cost(self, p):
 
@@ -30,13 +31,11 @@ class splineLNP(splineBase):
         dt = self.dt
         R = self.R
 
-        if self.response_history:
-            yS = self.yS
-            filter_output = self.fnl(XS @ p['b'] + yS @ p['bh'], self.nonlinearity).flatten()
-        else:
-            filter_output = self.fnl(XS @ p['b'], self.nonlinearity).flatten()
-    
-        r = R * filter_output
+        intercept = p['intercept'] if self.add_intercept else 0
+        history_output = self.yS @ p['bh'] if self.response_history else 0
+        filter_output = XS @ p['b']
+        
+        r = R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten()
         term0 = - np.log(r) @ y
         term1 = np.nansum(r) * dt
 

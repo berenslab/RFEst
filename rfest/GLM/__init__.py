@@ -1,3 +1,4 @@
+from ._lnp import LNP
 from ._lnln import LNLN
 
 from ._splinelg import splineLG

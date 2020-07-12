@@ -37,19 +37,26 @@ class splineLNLN(splineBase):
         dt = self.dt
         R = self.R
 
+        if self.add_intercept:
+            intercept = p['intercept']
+        else:
+            intercept = 0
+        
         if self.fit_subunits_weight:
             subunits_weight = np.maximum(p['subunits_weight'], 1e-7)
             subunits_weight /= np.sum(subunits_weight)
         else:
             subunits_weight = np.ones(self.n_subunits) / self.n_subunits # equal weight
 
-        filter_output = np.nansum(self.fnl(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1)
-
         if self.response_history:
             yS = self.yS
-            r = R * self.fnl(filter_output + yS @ p['bh'], nl=self.output_nonlinearity)
+            history_output =  yS @ p['bh']
         else:
-            r = R * self.fnl(filter_output, nl=self.output_nonlinearity) 
+            history_output = 0
+        
+
+        filter_output = np.nansum(self.fnl(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1)
+        r = R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity) 
         
         term0 = - np.log(r) @ y
         term1 = np.nansum(r) * dt
@@ -63,12 +70,11 @@ class splineLNLN(splineBase):
         
         return neglogli
 
-    def fit(self, p0=None, num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, beta=0.05, gamma=0.0,
+    def fit(self, p0=None, num_subunits=2, num_iters=5, num_iters_init=100, alpha=1, beta=0.05,
             step_size=1e-2, tolerance=10, verbal=1, random_seed=2046):
 
         self.beta = beta # elastic net parameter - global penalty weight
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
-        self.gamma = gamma # nuclear norm parameter
         
         self.n_subunits = num_subunits
         self.num_iters = num_iters   
@@ -89,8 +95,8 @@ class splineLNLN(splineBase):
 
         self.p0 = p0
         self.p_opt = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)   
+        
         self.b_opt = self.p_opt['b'].reshape(self.n_b, self.n_subunits)
         self.w_opt = self.S @ self.b_opt
-        
-        if self.response_history:
-            self.h_opt = self.Sh @ self.p_opt['bh']
+        self.h_opt = self.Sh @ self.p_opt['bh'] if self.response_history else None
+        self.intercept = self.p_opt['intercept'] if self.add_intercept else 0
