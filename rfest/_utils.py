@@ -100,8 +100,3 @@ def softthreshold(K, lambd):
 
 def norm(x):
     return x / np.linalg.norm(x)
-
-if __name__ == "__main__": 
-
-    import doctest
-    doctest.testmod(verbose=True)

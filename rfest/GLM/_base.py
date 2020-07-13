@@ -52,9 +52,10 @@ class Base:
         self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for LNP and LNLN)
         self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # a constant for scaling firing rate.
 
+        self.compute_mle = compute_mle
         self.add_intercept = add_intercept
-        self.response_history = False # by default response history filter
-                                      # is not computed, call `add_response_history_fitler` if needed.
+        self.response_history = False # by default response history filter is not computed,
+                                      # call `add_response_history_fitler` if needed.
 
         # compute sufficient statistics
 
@@ -111,7 +112,11 @@ class Base:
 
         if prewhiten:
 
-            X = np.linalg.solve(self.X.T @ self.X, self.X.T).T
+            if self.compute_mle is False:
+                self.XtX = self.X.T @ self.X
+                self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+            
+            X = np.linalg.solve(self.XtX, self.X.T).T
             w = norm(self.w_mle)
 
         else:
@@ -128,7 +133,7 @@ class Base:
                         print(f'  {counter+1:}/{n_repeats}')
 
                 y_randomize = random.permutation(key, y)
-                _, eigval_randomize = get_stc(X, y_randomize, sta)
+                _, eigval_randomize = get_stc(X, y_randomize, w)
                 eigval_null.append(eigval_randomize)
             else:
                 if verbal:
@@ -498,3 +503,33 @@ class splineBase(Base):
         self.h_opt = self.Sh @ self.p_opt['bh'] if self.response_history else None
         self.intercept = self.p_opt['intercept'] if self.add_intercept else 0
 
+class interp1d:
+
+    """
+    1D linear intepolation.
+    usage:
+        x = np.linspace(-5, 5, 10)
+        y = np.cos(x)
+        f = interp1d(x, y)
+        new_x = np.linspace(-5, 5, 100)
+        new_y = f(new_x)
+    """
+
+    def __init__(self, x, y):
+
+        self.x = x
+        self.y = y
+        self.slopes = np.diff(y) / np.diff(x)
+
+    def __call__(self, x_new):
+
+        i = np.searchsorted(self.x, x_new) - 1
+        i = np.where(i == -1, 0, i)
+        i = np.where(i == len(self.x) - 1, -1, i)
+
+        return self.y[i] + self.slopes[i] * (x_new - self.x[i])
+
+if __name__ == "__main__": 
+
+    import doctest
+    doctest.testmod(verbose=True)
