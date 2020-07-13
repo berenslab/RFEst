@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg
 
+from ._utils import norm
+
+
 def bs(x, df, degree=3):
     
     """
@@ -35,7 +38,7 @@ def bs(x, df, degree=3):
     coeff = np.eye(n_bases)
     basis = np.vstack([BSpline(knots, coeff[i], degree)(x) for i in range(n_bases)]).T
     
-    return basis
+    return norm(basis)
 
 def cr(x, df):
     
@@ -80,7 +83,7 @@ def cr(x, df):
     
     basis = ajm * i[j,:].T + ajp * i[j+1,:].T + cjm * f[j,:].T + cjp * f[j+1,:].T
     
-    return basis.T
+    return norm(basis.T)
 
 def cc(x, df):
 
@@ -163,7 +166,7 @@ def cc(x, df):
     basis = ajm * i[j, :].T + ajp * i[j1, :].T + \
         cjm * f[j, :].T + cjp * f[j1, :].T
     
-    return basis.T
+    return norm(basis.T)
 
 
 def tp(x, df):
@@ -182,7 +185,7 @@ def tp(x, df):
     U, _, _ = np.linalg.svd(E)
     basis = U[:, :int(df)]
     
-    return basis / np.linalg.norm(basis)
+    return norm(basis)
 
 def te(*args):
 
@@ -282,4 +285,4 @@ def build_spline_matrix(dims, df, smooth):
                basis(g1.ravel(), df[1]), 
                basis(g2.ravel(), df[2]))
 
-    return S
+    return norm(S)
