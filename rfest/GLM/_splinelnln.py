@@ -38,24 +38,14 @@ class splineLNLN(splineBase):
         dt = self.dt
         R = self.R
 
-        if self.add_intercept:
-            intercept = p['intercept']
-        else:
-            intercept = 0
-        
         if self.fit_subunits_weight:
             subunits_weight = np.maximum(p['subunits_weight'], 1e-7)
             subunits_weight /= np.sum(subunits_weight)
         else:
             subunits_weight = np.ones(self.n_subunits) / self.n_subunits # equal weight
 
-        if self.response_history:
-            yS = self.yS
-            history_output =  yS @ p['bh']
-        else:
-            history_output = 0
-        
-
+        intercept = p['intercept'] if self.add_intercept else 0.
+        history_output = self.yS @ p['bh'] if self.response_history else 0.
         filter_output = np.nansum(self.fnl(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1)
         r = R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity) 
         

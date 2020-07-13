@@ -31,8 +31,8 @@ class splineLNP(splineBase):
         dt = self.dt
         R = self.R
 
-        intercept = p['intercept'] if self.add_intercept else 0
-        history_output = self.yS @ p['bh'] if self.response_history else 0
+        intercept = p['intercept'] if self.add_intercept else 0.
+        history_output = self.yS @ p['bh'] if self.response_history else 0.
         filter_output = XS @ p['b']
         
         r = R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten()
@@ -42,7 +42,7 @@ class splineLNP(splineBase):
         neglogli = term0 + term1
         
         if self.beta:
-            l1 = np.linalg.norm(p['b'], 1)
+            l1 = np.linalg.norm(p['b'], 1) 
             l2 = np.linalg.norm(p['b'], 2)
             neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
 
