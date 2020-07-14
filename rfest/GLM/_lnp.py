@@ -35,10 +35,19 @@ class LNP(Base):
 
         filter_output = X @ p['w'] if self.fit_linear_filter else X @ self.w_opt
         intercept = p['intercept'] if self.fit_intercept else 0.
-        history_output = self.yh @ p['h'] if self.fit_history_filter else 0.
+
+        if self.fit_history_filter:
+            history_output = self.yh @ p['h']  
+        else:
+            if hasattr(self, 'h_mle'):
+                history_output = self.yh @ self.h_mle
+            else:
+                history_output = 0.
 
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
+
+        
         
         r = R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten() 
 

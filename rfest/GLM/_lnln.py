@@ -35,6 +35,8 @@ class LNLN(Base):
         dt = self.dt
         R = self.R
 
+        intercept = p['intercept'] if self.fit_intercept else 0.
+
         if self.fit_subunits_weight:
             subunits_weight = np.maximum(p['subunits_weight'], 1e-7)
             subunits_weight /= np.sum(subunits_weight)
@@ -46,9 +48,14 @@ class LNLN(Base):
         else:
             filter_output = np.sum(self.fnl(X @ self.w_opt.reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
         
-        intercept = p['intercept'] if self.fit_intercept else 0.
-        history_output = self.yh @ p['h'] if self.fit_history_filter else 0.
-
+        if self.fit_history_filter:
+            history_output = self.yh @ p['h']  
+        else:
+            if hasattr(self, 'h_mle'):
+                history_output = self.yh @ self.h_mle
+            else:
+                history_output = 0.
+                
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
 
