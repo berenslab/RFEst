@@ -406,10 +406,18 @@ class Base:
         # store optimized parameters
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
-        self.w_opt = self.p_opt['w'] if self.fit_linear_filter else w_opt
-        self.h_opt = self.p_opt['h'] if self.fit_history_filter else None
-        self.bnl_opt = self.p_opt['bnl'] if self.fit_nonlinearity else None
-        self.intercept = self.p_opt['intercept'] if self.fit_intercept else 0
+        
+        if fit_linear_filter:
+            self.w_opt = self.p_opt['w']
+        
+        if fit_history_filter:
+            self.h_opt = self.p_opt['h']
+        
+        if fit_nonlinearity:
+            self.bnl_opt = self.p_opt['bnl']
+        
+        if fit_intercept:
+            self.intercept = self.p_opt['intercept']
 
 
 class splineBase(Base):
@@ -529,14 +537,20 @@ class splineBase(Base):
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
         
-        self.b_opt = self.p_opt['b'] if fit_linear_filter else self.b_opt # optimized RF basis coefficients
-        self.w_opt = self.S @ self.b_opt # optimized RF
+
+        if fit_linear_filter:
+            self.b_opt = self.p_opt['b'] # optimized RF basis coefficients
+            self.w_opt = self.S @ self.b_opt # optimized RF
         
-        self.bh_opt = self.p_opt['bh'] if self.fit_history_filter else None
-        self.h_opt = self.Sh @ self.bh_opt if self.fit_history_filter else None
-        
-        self.bnl_opt = self.p_opt['bnl'] if self.fit_nonlinearity else None
-        self.intercept = self.p_opt['intercept'] if self.fit_intercept else 0.
+        if fit_history_filter:
+            self.bh_opt = self.p_opt['bh']
+            self.h_opt = self.Sh @ self.bh_opt
+
+        if fit_nonlinearity:
+            self.bnl_opt = self.p_opt['bnl']
+       
+        if fit_intercept:
+            self.intercept = self.p_opt['intercept']
 
 
 

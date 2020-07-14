@@ -33,8 +33,21 @@ class splineLG(splineBase):
         XS = self.XS
         y = self.y    
 
-        filter_output = XS @ p['b'] if self.fit_linear_filter else XS @ self.b_opt
-        intercept = p['intercept'] if self.fit_intercept else 0.
+        if self.fit_linear_filter:
+            filter_output = XS @ p['b']
+        else:
+            if hasattr(self, 'b_opt'):
+                filter_output = XS @ self.b_opt
+            else:
+                filter_output = XS @ self.b_spl
+
+        if self.fit_intercept:
+            intercept = p['intercept']
+        else:
+            if hasattr(self, 'intercept'):
+                intercept = self.intercept
+            else:
+                intercept = 0.
 
         if self.fit_history_filter:
             history_output = self.yS @ p['bh']  

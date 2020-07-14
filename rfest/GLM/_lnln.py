@@ -35,8 +35,6 @@ class LNLN(Base):
         dt = self.dt
         R = self.R
 
-        intercept = p['intercept'] if self.fit_intercept else 0.
-
         if self.fit_subunits_weight:
             subunits_weight = np.maximum(p['subunits_weight'], 1e-7)
             subunits_weight /= np.sum(subunits_weight)
@@ -55,7 +53,15 @@ class LNLN(Base):
                 history_output = self.yh @ self.h_mle
             else:
                 history_output = 0.
-                
+        
+        if self.fit_intercept:
+            intercept = p['intercept']
+        else:
+            if hasattr(self, 'intercept'):
+                intercept = self.intercept
+            else:
+                intercept = 0.
+
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
 
@@ -107,7 +113,18 @@ class LNLN(Base):
 
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
-        self.w_opt = self.p_opt['w']  if fit_linear_filter else self.w_opt
-        self.h_opt = self.p_opt['h'] if self.fit_history_filter else None
-        self.intercept = self.p_opt['intercept'] if self.fit_intercept else 0.
-        self.subunits_weight = self.p_opt['subunits_weight'] if fit_subunits_weight else subunits_weight
+        
+        if fit_linear_filter: 
+            self.w_opt = self.p_opt['w']
+        
+        if fit_history_filter:
+            self.h_opt = self.p_opt['h']
+        
+        if fit_intercept:
+            self.intercept = self.p_opt['intercept']
+
+        if fit_subunits_weight:
+            self.subunits_weight = self.p_opt['subunits_weight']
+
+        if fit_nonlinearity:
+            self.bnl_opt = self.p_opt['bnl']

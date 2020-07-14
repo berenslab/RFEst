@@ -36,19 +36,47 @@ class splineLNLN(splineBase):
         dt = self.dt
         R = self.R
 
+        
         if self.fit_subunits_weight:
             subunits_weight = np.maximum(p['subunits_weight'], 1e-7)
             subunits_weight /= np.sum(subunits_weight)
         else:
             subunits_weight = self.p0['subunits_weight'] # equal weight
 
+        
         if self.fit_linear_filter:
             filter_output = np.nansum(self.fnl(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1) 
         else:
             filter_output = np.nansum(self.fnl(XS @ self.b_opt.reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity) * subunits_weight, 1) 
+            
+
         
-        intercept = p['intercept'] if self.fit_intercept else 0.
-        history_output = self.yS @ p['bh'] if self.fit_history_filter else 0.
+        if self.fit_linear_filter:
+            filter_output = XS @ p['b']
+        else:
+            if hasattr(self, 'b_opt'):
+                filter_output = XS @ self.b_opt
+            else:
+                filter_output = XS @ self.b_spl
+
+        
+        if self.fit_intercept:
+            intercept = p['intercept']
+        else:
+            if hasattr(self, 'intercept'):
+                intercept = self.intercept
+            else:
+                intercept = 0.
+
+        
+        if self.fit_history_filter:
+            history_output = self.yS @ p['bh']  
+        else:
+            if hasattr(self, 'bh_spl'):
+                history_output = self.yS @ self.bh_spl
+            else:
+                history_output = 0.
+
         
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
@@ -102,8 +130,20 @@ class splineLNLN(splineBase):
 
         self.p0 = p0
         self.p_opt = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbal)   
-        self.b_opt = self.p_opt['b'].reshape(self.n_b, self.n_subunits) if fit_linear_filter else self.b_opt
-        self.w_opt = self.S @ self.b_opt
-        self.h_opt = self.Sh @ self.p_opt['bh'] if fit_history_filter else None
-        self.intercept = self.p_opt['intercept'] if fit_intercept else 0
-        self.subunits_weight = self.p_opt['subunits_weight'] if fit_subunits_weight else subunits_weight
+        
+        if fit_linear_filter:
+            self.b_opt = self.p_opt['b'].reshape(self.n_b, self.n_subunits)
+            self.w_opt = self.S @ self.b_opt
+        
+        if fit_history_filter:
+            self.h_opt = self.Sh @ self.p_opt['bh']
+        
+        if fit_intercept:
+            self.intercept = self.p_opt['intercept']
+        
+        if fit_subunits_weight:
+            self.subunits_weight = self.p_opt['subunits_weight']
+
+        if fit_nonlinearity:
+            self.bnl_opt = self.p_opt['bnl']
+

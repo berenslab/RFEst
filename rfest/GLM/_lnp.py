@@ -37,8 +37,21 @@ class LNP(Base):
         dt = self.dt
         R = self.R
 
-        filter_output = X @ p['w'] if self.fit_linear_filter else X @ self.w_opt
-        intercept = p['intercept'] if self.fit_intercept else 0.
+        if self.fit_linear_filter:
+            filter_output = X @ p['w']
+        else:
+            if hasattr(self, 'w_opt'):
+                filter_output = X @ self.w_opt
+            else:
+                filter_output = X @ self.w_sta
+
+        if self.fit_intercept:
+            intercept = p['intercept']
+        else:
+            if hasattr(self, 'intercept'):
+                intercept = self.intercept
+            else:
+                intercept = 0.
 
         if self.fit_history_filter:
             history_output = self.yh @ p['h']  
