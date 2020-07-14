@@ -46,8 +46,8 @@ class LNLN(Base):
         else:
             filter_output = np.sum(self.fnl(X @ self.w_opt.reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
         
-        intercept = p['intercept'] if self.add_intercept else 0.
-        history_output = self.yh @ p['h'] if self.response_history else 0.
+        intercept = p['intercept'] if self.fit_intercept else 0.
+        history_output = self.yh @ p['h'] if self.fit_history_filter else 0.
 
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
