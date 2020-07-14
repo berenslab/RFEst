@@ -91,11 +91,11 @@ class LNLN(Base):
         
             key = random.PRNGKey(random_seed)
 
-            w0 = 0.01 * random.normal(key, shape=(self.n_features, self.n_subunits)).flatten()
+            w0 = 0.01 * random.normal(key, shape=(self.n_features, self.n_subunits)).flatten() 
             p0 = {'w': w0}
-            p0.update({'h': self.h_mle}) if self.response_history else p0.update({'h': None})
+            p0.update({'h': self.h_mle}) if self.fit_history_filter else p0.update({'h': None})
             p0.update({'bnl': self.bnl}) if self.fit_nonlinearity else p0.update({'bnl': None})
-            p0.update({'intercept': 0.}) if self.add_intercept else p0.update({'intercept': None})
+            p0.update({'intercept': 0.}) if self.fit_intercept else p0.update({'intercept': None})
             p0.update({'subunits_weight': subunits_weight})
 
         self.p0 = p0

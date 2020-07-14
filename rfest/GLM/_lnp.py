@@ -34,8 +34,8 @@ class LNP(Base):
         R = self.R
 
         filter_output = X @ p['w'] if self.fit_linear_filter else X @ self.w_opt
-        intercept = p['intercept'] if self.add_intercept else 0.
-        history_output = self.yh @ p['h'] if self.response_history else 0.
+        intercept = p['intercept'] if self.fit_intercept else 0.
+        history_output = self.yh @ p['h'] if self.fit_history_filter else 0.
 
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
