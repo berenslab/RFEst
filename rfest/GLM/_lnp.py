@@ -19,10 +19,10 @@ class LNP(Base):
 
     """
 
-    def __init__(self, X, y, dims, dt, R=1, compute_mle=False, add_intercept=False,
+    def __init__(self, X, y, dims, dt, R=1, compute_mle=False,
             nonlinearity='softplus',**kwargs):
 
-        super().__init__(X, y, dims, add_intercept, compute_mle, **kwargs)
+        super().__init__(X, y, dims, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
         
 
@@ -33,9 +33,12 @@ class LNP(Base):
         dt = self.dt
         R = self.R
 
-        intercept = p['intercept'] if self.add_intercept else 0
-        history_output = self.yh @ p['h'] if self.response_history else 0
-        filter_output = X @ p['w']
+        filter_output = X @ p['w'] if self.fit_linear_filter else X @ self.w_opt
+        intercept = p['intercept'] if self.add_intercept else 0.
+        history_output = self.yh @ p['h'] if self.response_history else 0.
+
+        if self.fit_nonlinearity:
+            self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
         
         r = R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten() 
 

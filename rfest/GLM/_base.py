@@ -23,7 +23,7 @@ class Base:
 
     """
 
-    def __init__(self, X, y, dims, add_intercept=False, compute_mle=False, **kwargs):
+    def __init__(self, X, y, dims, compute_mle=False, **kwargs):
 
         """
 
@@ -53,9 +53,6 @@ class Base:
         self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # a constant for scaling firing rate.
 
         self.compute_mle = compute_mle
-        self.add_intercept = add_intercept
-        self.response_history = False # by default response history filter is not computed,
-                                      # call `add_response_history_fitler` if needed.
 
         # compute sufficient statistics
 
@@ -162,7 +159,7 @@ class Base:
             self.w_stc_eigval_mask = np.ones_like(eigval).astype(bool)
 
 
-    def add_response_history_filter(self, dims):
+    def initialize_response_history_filter(self, dims):
 
         """
         Parameters
@@ -178,11 +175,9 @@ class Base:
         yh = np.array(build_design_matrix(y[:, np.newaxis], dims, shift=1))
         self.yh = np.array(yh)
         self.h_mle = np.linalg.solve(yh.T @ yh, yh.T @ y)
-
-        self.response_history = True
         
     
-    def fit_nonlinearity(self, nbin=50, df=7, w='w_sta'):
+    def initialize_nonlinearity(self, nbin=50, df=7, w='w_sta'):
 
         """
 
@@ -218,7 +213,7 @@ class Base:
         else:
             w = np.array(w)
 
-        B = np.array(build_spline_matrix(dims=[nbin,], df=[df,], smooth='cr'))
+        Snl = np.array(build_spline_matrix(dims=[nbin,], df=[df,], smooth='cr'))
 
         output_raw = self.X @ norm(w)
         output_spk = self.X[self.y!=0] @ norm(w)
@@ -231,13 +226,15 @@ class Base:
         yy0 = hist_spk[mask] / hist_raw[mask]
         yy = interp1d(bins[1:][mask], yy0)(bins[1:])
 
-        b0 = np.ones(B.shape[1])
-        func = lambda b: np.mean((yy - B @ b)**2)
+        b0 = np.ones(Snl.shape[1])
+        func = lambda b: np.mean((yy - Snl @ b)**2)
 
         bnl = minimize(func, b0).x
 
-        self.fitted_nonlin = interp1d(bins[1:], B @ bnl)
-        self.nonparam_nonlin = yy
+        self.Snl = Snl
+        self.bnl = bnl
+        self.fitted_nonlinearity = interp1d(bins[1:], Snl @ bnl)
+        self.nonparametric_nonlinearity = yy
         self.bins = bins[1:]
 
     def fnl(self, x, nl):
@@ -281,7 +278,7 @@ class Base:
             return x
 
         elif nl == 'nonparametric':
-            return np.maximum(self.fitted_nonlin(x), 1e-7)
+            return np.maximum(self.fitted_nonlinearity(x), 1e-7)
 
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
@@ -349,6 +346,8 @@ class Base:
         return params
 
     def fit(self, p0=None, num_iters=5, alpha=1, beta=0.5,
+            fit_linear_filter=True, fit_history_filter=False, 
+            fit_nonlinearity=False, fit_intercept=False,
             step_size=1e-2, tolerance=10, verbal=1):
 
         """
@@ -388,24 +387,37 @@ class Base:
         self.alpha = alpha
         self.num_iters = num_iters
 
-        if p0 is None: # if p0 is not provided, initialize it with spline MLE.
-            p0 = {'w': self.w_sta}
-            p0.update({'h': self.h_mle}) if self.response_history else p0.update({'h': None})
-            p0.update({'intercept': 0.}) if self.add_intercept else p0.update({'intercept': None})
+        self.fit_linear_filter = fit_linear_filter, 
+        self.fit_history_filter = fit_history_filter
+        self.fit_nonlinearity = fit_nonlinearity
+        self.fit_intercept = fit_intercept
 
+        if type(p0) is str:
+            if p0 == 'opt':
+                p0 = {'b': self.w_opt}     
+                p0.update({'h': self.h_opt}) if self.fit_history_filter else p0.update({'h': None})
+                p0.update({'intercept': 0.}) if self.fit_intercept else p0.update({'intercept': None})
+        else:
+            if p0 is None: # if p0 is not provided, initialize it with spline MLE.
+                p0 = {'w': self.w_sta}
+                p0.update({'h': self.h_mle}) if self.fit_history_filter else p0.update({'h': None})
+                p0.update({'intercept': 0.}) if self.fit_intercept else p0.update({'intercept': None})
+
+        # store optimized parameters
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
-        self.w_opt = self.p_opt['w']
-        self.h_opt = self.p_opt['h'] if self.response_history else None
-        self.intercept = self.p_opt['intercept'] if self.add_intercept else 0
+        self.w_opt = self.p_opt['w'] if self.fit_linear_filter else w_opt
+        self.h_opt = self.p_opt['h'] if self.fit_history_filter else None
+        self.bnl_opt = self.p_opt['bnl'] if self.fit_nonlinearity else None
+        self.intercept = self.p_opt['intercept'] if self.fit_intercept else 0
 
 
 class splineBase(Base):
 
 
-    def __init__(self, X, y, dims, df, smooth='cr', add_intercept=False, compute_mle=False, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', compute_mle=False, **kwargs):
 
-        super().__init__(X, y, dims, add_intercept, compute_mle, **kwargs) 
+        super().__init__(X, y, dims, compute_mle, **kwargs) 
         
         self.df = df # number basis / degree of freedom
         self.smooth = smooth # type of basis
@@ -421,10 +433,12 @@ class splineBase(Base):
         self.b_spl = np.linalg.solve(XS.T @ XS, XS.T @ y)
         self.w_spl = S @ self.b_spl
         
+
     def cost(self, b):
         pass
 
-    def add_response_history_filter(self, dims, df, smooth='cr'):
+
+    def initialize_response_history_filter(self, dims, df, smooth='cr'):
 
         """
         Parameters
@@ -449,9 +463,10 @@ class splineBase(Base):
         self.bh_spl = np.linalg.solve(yS.T @ yS, yS.T @ y)
         self.h_spl = Sh @ self.bh_spl
 
-        self.response_history = True
 
     def fit(self, p0=None, num_iters=5, alpha=1, beta=0.5,
+            fit_linear_filter=True, fit_history_filter=False, 
+            fit_nonlinearity=False, fit_intercept=True,
             step_size=1e-2, tolerance=10, verbal=1):
 
         """
@@ -491,17 +506,39 @@ class splineBase(Base):
         self.alpha = alpha
         self.num_iters = num_iters
 
-        if p0 is None: # if p0 is not provided, initialize it with spline MLE.
-            p0 = {'b': self.b_spl}
-            p0.update({'bh': self.bh_spl}) if self.response_history else p0.update({'bh': None})
-            p0.update({'intercept': 0.}) if self.add_intercept else p0.update({'intercept': None})
+        self.fit_linear_filter = fit_linear_filter
+        self.fit_history_filter = fit_history_filter
+        self.fit_nonlinearity = fit_nonlinearity
+        self.fit_intercept = fit_intercept
 
+        # initial parameters
+        if type(p0) is str:
+            if p0 == 'opt':
+                p0 = {'b': self.b_opt}
+                p0.update({'bh': self.bh_opt}) if self.fit_history_filter else p0.update({'bh': None})
+                p0.update({'bnl': self.bnl_opt}) if self.fit_nonlinearity else p0.update({'bnl': None})
+                p0.update({'intercept': self.intercept}) if self.fit_intercept else p0.update({'intercept': None})                
+        else:
+            if p0 is None: # if p0 is not provided, initialize it with spline MLE.
+                p0 = {'b': self.b_spl}
+                p0.update({'bh': self.bh_spl}) if self.fit_history_filter else p0.update({'bh': None})
+                p0.update({'bnl': self.bnl}) if self.fit_nonlinearity else p0.update({'bnl': None})
+                p0.update({'intercept': 0.}) if self.fit_intercept else p0.update({'intercept': None})
+        
+        # store optimized parameters
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, num_iters, step_size, tolerance, verbal)
-        self.b_opt = self.p_opt['b']
-        self.w_opt = self.S @ self.b_opt
-        self.h_opt = self.Sh @ self.p_opt['bh'] if self.response_history else None
-        self.intercept = self.p_opt['intercept'] if self.add_intercept else 0
+        
+        self.b_opt = self.p_opt['b'] if fit_linear_filter else self.b_opt # optimized RF basis coefficients
+        self.w_opt = self.S @ self.b_opt # optimized RF
+        
+        self.bh_opt = self.p_opt['bh'] if self.fit_history_filter else None
+        self.h_opt = self.Sh @ self.bh_opt if self.fit_history_filter else None
+        
+        self.bnl_opt = self.p_opt['bnl'] if self.fit_nonlinearity else None
+        self.intercept = self.p_opt['intercept'] if self.fit_intercept else 0.
+
+
 
 class interp1d:
 
