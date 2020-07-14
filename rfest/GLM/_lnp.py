@@ -28,6 +28,10 @@ class LNP(Base):
 
     def cost(self, p):
 
+        """
+        Negetive Log Likelihood.
+        """
+
         X = self.X
         y = self.y
         dt = self.dt
@@ -47,10 +51,7 @@ class LNP(Base):
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
 
-        
-        
         r = R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten() 
-
         term0 = - np.log(r) @ y # spike term from poisson log-likelihood
         term1 = np.sum(r) * dt # non-spike term
 
