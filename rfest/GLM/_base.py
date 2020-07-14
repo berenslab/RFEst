@@ -347,7 +347,7 @@ class Base:
 
     def fit(self, p0=None, num_iters=5, alpha=1, beta=0.5,
             fit_linear_filter=True, fit_history_filter=False, 
-            fit_nonlinearity=False, fit_intercept=False,
+            fit_nonlinearity=False, fit_intercept=True,
             step_size=1e-2, tolerance=10, verbal=1):
 
         """
