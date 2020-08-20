@@ -1,15 +1,12 @@
 from setuptools import setup, find_packages
 
+with open('requirements.txt') as f:
+    required = f.read().splitlines()
+
 setup(name='RFEst',
-      version='0.0.1',
-      description='Python 3 tool for receptive field estimation',
+      version='1.1.0',
+      description='Python 3 toolbox for receptive field estimation',
       author='Ziwei Huang',
       author_email='huang-ziwei@outlook.com',
-      packages=find_packages(),
-      install_requires=[
-        "numpy>=1.13.1",
-        "scipy",
-        "matplotlib",
-        "autograd"
-      ],
+      install_requires=required,
      )

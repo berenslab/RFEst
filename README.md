@@ -1,44 +1,74 @@
-# RFEst
+![showcase](./misc/showcase.png)
 
-A Python 3 tool for receptive field (RF) estimation using Empirical Bayes and automatic differentiation. 
-
-## Installation
-
-To install, clone this repo into local directory and then use `pip install -e`:
-
-    git clone https://github.com/berenslab/RFEst
-    pip install -e RFEst
+RFEst is a Python3 toolbox for neural receptive field estimation, featuring methods such as spline-based GLMs, Empirical Bayes with various Gaussian priors, and a few matrix factorization methods. 
 
 ## Supported Methods
 
+**Spline-based GLMs** [1]
+
+`splineLG`, `splineLNP` and `splineLNLN` use *natural cubic regression splines* and others to approximate spatio-temporal RFs. 
+
+Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=[nT, nX, nY]` :
+
+```python
+from rfest import splineLG
+
+spl = splineLG(X, y, dims=[5, 20, 15], df=[4, 9, 7], smooth='cr') 
+spl.fit(num_iters=500, alpha=1, beta=0.025, verbose=100)
+```
+
+**Evidence Optimization**
+
 * Ridge Regression 
-    * Ridge 
-    * RidgeFixedPoint 
-* Automatic Relevance Determination (ARD) [1]
-* Automatic Smoothness Determination (ASD) [2]
-* Automatic Locality Determination (ALD) [3]
+* Automatic Relevance Determination (ARD) [2]
+* Automatic Smoothness Determination (ASD) [3]
+* Automatic Locality Determination (ALD) [4]
 
-**NOTED** In case of data with 3 dimensions, the current implementations does not optimized for temporal dimension due to limited amount of data in our own dataset. Instead, we lagged the response matrix, and treat each time-lagged response as a 2D mapping, and optimized the average loss of each time-lagged with a shared set of parameters.
+```python
+from rfest import ASD
 
-## Usage
+asd = ASD(X, y, dims=[5, 20, 15]) # nT, nX, nY
+p0 = [1., 1., 2., 2., 2.] # sig, rho, 𝛿t, 𝛿y, 𝛿x
+asd.fit(p0=p0, num_iters=300)
+```
 
-Given a stimulus matrix (X) and the corresponding response matrix (Y), a optimized RF is calculated with respect to the dimension of the RF rf_dims=(nX, nY, nT). The response matrix would be lagged by `nT` automatically if it presents. 
+**Matrix Factorization**
 
-    from rfest import ASD
+A few matrix factorization methods have been implemented as a submodule (`MF`). 
 
-    asd = ASD(X, Y, rf_dims=(15, 20, 5))
-    asd.fit(num_iters=300)
+```python
+from rfest.MF import KMeans, semiNMF
+```
 
-The optimized spatial and temporal RFs are stored in `self.sRF_opt` and `self.tRF_opt`.
+For more information, see [here](https://github.com/berenslab/RFEst/blob/master/rfest/MF/README.md). 
 
-This package also comes with a simple linear gaussian data generator with three spatial filters ('gaussian', 'mexican_hat', 'gabor').
+## Installation
 
-    from rfest import make_data
+RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation and JIT compilation to GPU/CPU, so you need to install JAX first. 
 
-    ((X, Y), (Xtest, Ytest), 
-     w_true) = make_data(dims=(15, 20, 5), sigma=(1.5, 1.5),
-                               n_samples=2000, nsevar=1, 
-                               filter_type='mexican_hat', seed=2046)    
+To install CPU-only version for **Linux and MacOS**, simply clone this repo into a local directory and install via `pip`:
+
+```bash
+git clone https://github.com/berenslab/RFEst
+pip install -e RFEst
+```
+
+To enable GPU support on **Linux**, you need to consult the [JAX install guide](https://github.com/google/jax#pip-installation). For reference purpose, I copied the relevant steps here, but please always check the JAX README page for up-to-date information.
+
+```bash
+# install jaxlib
+PYTHON_VERSION=cp37  # alternatives: cp36, cp37, cp38
+CUDA_VERSION=cuda100  # alternatives: cuda100, cuda101, cuda102, cuda110
+PLATFORM=manylinux2010_x86_64  # alternatives: manylinux2010_x86_64
+BASE_URL='https://storage.googleapis.com/jax-releases'
+pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.50-$PYTHON_VERSION-none-$PLATFORM.whl
+
+pip install --upgrade jax  # install jax
+```
+
+### A Note For Windows Users
+
+JAX has no native Windows support yet, but can be installed on **CPU via the Windows Subsystem for Linux** (Windows 10 only, and make sure that the pip version is the latest `pip install --upgrade pip`). 
 
 ## Dependencies
 
@@ -46,12 +76,21 @@ This package also comes with a simple linear gaussian data generator with three 
     scipy
     sklearn
     matplotlib
-    autograd
+    jax
+    jaxlib
 
+## Data
+
+The accompanying data for example notebooks are from:
+
+Ran, Y., Huang, Z., et al. (2020). Type-specific dendritic integration in mouse retinal ganglion cells. Nat Commun 11, 2101. https://doi.org/10.1038/s41467-020-15867-9
+ 
 ## Reference
 
-[1] Tipping, M. E. (2001). Sparse Bayesian learning and the relevance vector machine. Journal of machine learning research, 1(Jun), 211-244.
+[1] Huang, Z., &  Berens, P. (2020). Efficient high dimensional receptive field inference using a flexible spline basis. Cosyne Abstracts 2020, Denver, CO. [[abstract]](./misc/Huang_et_al_Cosyne_abstract.pdf) [[poster]](./misc/Huang_et_al_Cosyne_poster.pdf)
 
-[2] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
+[2] MacKay, D. J. (1994). Bayesian nonlinear modeling for the prediction competition. ASHRAE transactions, 100(2), 1053-1062.
 
-[3] Park, M., & Pillow, J. W. (2011). Receptive field inference with localized priors. PLoS computational biology, 7(10), e1002219.
+[3] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
+
+[4] Park, M., & Pillow, J. W. (2011). Receptive field inference with localized priors. PLoS computational biology, 7(10), e1002219.

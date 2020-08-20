@@ -1,63 +1,183 @@
-import scipy.fftpack
+import jax.numpy as np
+from jax import grad
+from jax import jit
+from jax.experimental import optimizers
 
-import autograd.numpy as np
-import autograd.numpy.random as npr
-import autograd.scipy.stats.norm as norm
-from autograd import grad
-from autograd.misc import flatten
-from autograd.misc.optimizers import adam
-from sklearn.utils.extmath import randomized_svd
+from jax.config import config
+config.update("jax_enable_x64", True)
 
+from sklearn.metrics import mean_squared_error
 
-from .._utils import *
+from .._priors import *
 
 __all__ = ['EmpiricalBayes']
 
 class EmpiricalBayes:
 
-    def __init__(self, X, Y, rf_dims):
-        
-        self.X = X
-        self.n_samples = X.shape[0]
-        self.n_features = X.shape[1]
-
-        self.rf_dims = rf_dims
-        
-        if len(rf_dims) == 3:
-            self.dims_tRF = rf_dims[2]
-            self.dims_sRF = rf_dims[:2]
-            self.Y = get_rdm(Y, self.dims_tRF)
-        else:
-            self.dims_sRF = rf_dims
-            self.dims_tRF = None
-            self.Y = Y
-        
-        self.XtX = self.X.T @ self.X
-        self.XtY = self.X.T @ self.Y
-        self.YtY = self.Y.T @ self.Y
-
-        self.w_mle = np.linalg.solve(self.XtX, self.XtY)
-        self.sRF_mle, self.tRF_mle = self.SVD(self.w_mle)
+    """
     
-    def SVD(self, w):
+    Base class for evidence optimization methods.
 
-        if len(self.rf_dims) == 3:
-            U, S, Vt = randomized_svd(w.reshape(self.n_features,self.dims_tRF), 3)
-            sRF = U[:, 0].reshape(*self.dims_sRF)
-            tRF = Vt[0]
+    """
+
+    def __init__(self, X, y, dims, compute_mle=False, **kwargs):
+        
+        """
+        
+        Initializing the `EmpiricalBayes` class, sufficient statistics are calculated.
+
+        Parameters
+        ==========
+        X : array_like, shape (n_samples, n_features)
+            Stimulus design matrix.
+
+        y : array_like, shape (n_samples, )
+            Recorded response
+
+        dims : list or array_like, shape (ndims, )
+            Dimensions or shape of the RF to estimate. Assumed order [t, sy, sx]
+
+        compute_mle : bool
+            Compute sta and maximum likelihood optionally.
+
+        """
+        
+        # Wrapped with JAX DeviceArray
+        self.X = np.array(X) # stimulus design matrix
+        self.y = np.array(y) # response 
+        
+        self.dims = dims # assumed order [t, y, x]
+        self.n_samples, self.n_features = X.shape
+
+        self.XtX = X.T @ X
+        self.XtY = X.T @ y
+        self.YtY = y.T @ y
+
+        if np.array_equal(y, y.astype(bool)): # if y is spike
+            self.w_sta = self.XtY / sum(y)
+        else:                                 # if y is not spike
+            self.w_sta = self.XtY / len(y)
+ 
+        if compute_mle: #maximum likelihood estimation
+            self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+                         
+        # methods
+        self.time = kwargs['time'] if 'time' in kwargs.keys() else None
+        self.space = kwargs['space'] if 'space' in kwargs.keys() else None
+        self.n_hp_time = kwargs['n_hp_time'] if 'n_hp_time' in kwargs.keys() else None
+        self.n_hp_space = kwargs['n_hp_space'] if 'n_hp_space' in kwargs.keys() else None
+    
+    def cov1d_time(self, params, ncoeff):
+
+        """
+        
+        Placeholder for class method `cov1d` in time.
+        If you design a new prior, just overwrite this method. 
+        Same for `cov1d` in space.
+
+        Parameters
+        ==========
+        params : list or array_like, shape (n_hyperparams_1d,)
+            Hyperparameters in one dimension.
+
+        ncoeff : int
+            Number of coefficient in one dimension.
+
+        """
+
+        if self.time == 'asd':
+            return smoothness_kernel(params, ncoeff)
+        
+        elif self.time == 'ald':
+            return locality_kernel(params, ncoeff)
+        
+        elif self.time == 'ard':
+            return sparsity_kernel(params, ncoeff)
+        
+        elif self.time == 'ridge':
+            return ridge_kernel(params, ncoeff)
+        
         else:
-            sRF = w
-            tRF = None
-
-        return [sRF, tRF]
-
-    def initialize_params(self):
-        pass
-
+            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_time()` method.'.format(self.time))
+        
+    def cov1d_space(self, params, ncoeff):
+        
+        if self.space == 'asd':
+            return smoothness_kernel(params, ncoeff)
+        
+        elif self.space == 'ald':
+            return locality_kernel(params, ncoeff)
+        
+        elif self.space == 'ard':
+            return sparsity_kernel(params, ncoeff)
+        
+        elif self.space == 'ridge':
+            return ridge_kernel(params, ncoeff)
+        
+        else:
+            raise NotImplementedError('`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_space()` method.'.format(self.space))
+    
     def update_C_prior(self, params):
-        pass
+
+        """
+        
+        Using kronecker product to construct high-dimensional prior covariance.
+
+        Given RF dims = [t, y, x], the prior covariance:
+
+            C = kron(Ct, kron(Cy, Cx))
+            Cinv = kron(Ctinv, kron(Cyinv, Cxinv))
+            
+        """
+
+        n_hp_time = self.n_hp_time
+        n_hp_space = self.n_hp_space
+
+        rho = params[1]
+        params_time = params[ 2 : 2+n_hp_time ]
+
+        # Covariance Matrix in Time
+        C_t, C_t_inv = self.cov1d_time(params_time, self.dims[0])
+
+        if len(self.dims) == 1:
+
+            C, C_inv = rho * C_t, (1/rho) * C_t_inv
+
+        elif len(self.dims) ==2:
+
+            # Covariance Matrix in Space 
+            params_space = params[ 2+n_hp_time : 2+n_hp_time+n_hp_space ]
+            C_s, C_s_inv = self.cov1d_space(params_space, self.dims[1])
+
+            # Build 2D Covariance Matrix 
+            C = rho * np.kron(C_t, C_s)
+            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
+
+        elif len(self.dims) ==3:
+
+            # Covariance Matrix in Space 
+            params_spacey = params[ 2+n_hp_time : 2+n_hp_time+n_hp_space ]
+            params_spacex = params[ 2+n_hp_time+n_hp_space : ]
+        
+            C_sy, C_sy_inv = self.cov1d_space(params_spacey, self.dims[1])
+            C_sx, C_sx_inv = self.cov1d_space(params_spacex, self.dims[2])
+            
+            C_s = np.kron(C_sy, C_sx)
+            C_s_inv = np.kron(C_sy_inv, C_sx_inv)
+
+            # Build 3D Covariance Matrix
+            C = rho * np.kron(C_t, C_s)
+            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)  
+
+        return C, C_inv
     
-    def update_posterior(self, params, C_prior, C_prior_inv):
+    def update_C_posterior(self, params, C_prior_inv):
+
+        """
+
+        See eq(9) in Park & Pillow (2011).
+
+        """
 
         sigma = params[0]
 
@@ -68,62 +188,131 @@ class EmpiricalBayes:
         
         return C_post, C_post_inv, m_post
         
-    def log_evidence(self, params):
+    def negative_log_evidence(self, params):
+
+        """
+        
+        See eq(10) in Park & Pillow (2011).
+
+        """
         
         sigma = params[0]
         
         (C_prior, C_prior_inv) = self.update_C_prior(params)
         
-        (C_post, C_post_inv, m_post) = self.update_posterior(params, C_prior, C_prior_inv)
+        (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
         
         t0 = np.log(np.abs(2 * np.pi * sigma**2)) * self.n_samples
         t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
-        t2 = m_post.T @ C_post @ m_post
-        if len(np.shape(t2)) != 0:
-            t2 = - np.mean(np.diag(t2))
-        else:
-            t2 = - t2
+        t2 = -m_post.T @ C_post @ m_post
         t3 = self.YtY / sigma**2
-        if len(np.shape(t3)) != 0:
-            t3 = np.mean(np.diag(t3))
+        
+        return 0.5 * (t0 + t1 + t2 + t3)
+
+    def print_progress_header(self, params):
+        print('Iter\tcost')
+
+    def print_progress(self, i, params, cost):
+        print('{0:4d}\t{1:1.3f}'.format(
+                i, cost))   
+    
+    def optimize_params(self, p0, num_iters, step_size, tolerance, verbose):
+
+        """
+        
+        Perform gradient descent using JAX optimizers. 
+
+        """
+        
+        opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
+        opt_state = opt_init(p0)
+        
+        @jit
+        def step(i, opt_state):
+            p = get_params(opt_state)
+            g = grad(self.negative_log_evidence)(p)
+            return opt_update(i, g, opt_state)
+
+        cost_list = []
+        params_list = []
+
+        if verbose:
+            self.print_progress_header(p0)
+
+        for i in range(num_iters):
+            
+            opt_state = step(i, opt_state)
+            params_list.append(get_params(opt_state))
+            cost_list.append(self.negative_log_evidence(params_list[-1]))
+
+            if verbose:
+                if i % verbose == 0:
+                    self.print_progress(i, params_list[-1], cost_list[-1])
+    
+            if len(params_list) > tolerance:
+                
+                if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0 ):
+                    params = params_list[0]
+                    if verbose:
+                        print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
+                    break
+                elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
+                    params = params_list[-1]
+                    if verbose:
+                        print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
+                    break                    
+                else:
+                    params_list.pop(0)
+                    cost_list.pop(0)
+        
         else:
-            t3 = t3
-        
-        return -0.5 * (t0 + t1 + t2 + t3)
-    
-    def objective(self, params, t):
-        return -self.log_evidence(params)
 
-    def optimize_params(self, initial_params, step_size, num_iters, bounds, callback, ):
-        params = adam(grad(self.objective),
-                            x0 = initial_params,
-                            step_size = step_size,
-                            num_iters = num_iters,
-                            callback = callback)
+            params = params_list[-1]
+            if verbose:
+                print('Stop: reached {0} steps, final cost={1:.5f}.'.format(num_iters, cost_list[-1]))
+                   
         return params
-
     
-    def fit(self, initial_params=None, step_size=0.001, num_iters=1, bounds=None, callback=None):
+    def fit(self, p0, num_iters=20, step_size=1e-2, tolerance=10, verbose=True):
 
-        self.step_size = step_size
-        self.num_iters = num_iters
-        
-        if initial_params is None:
-            initial_params = self.initialize_params()
-        
-        self.optimized_params = self.optimize_params(initial_params, step_size, num_iters, bounds, callback)
+
+        """
+        Parameters
+        ==========
+
+        p0 : list or array_like, shape (n_hp_time, ) for 1D
+                                       (n_hp_time + n_hp_space) for 2D
+                                       (n_hp_time + n_hp_space*2) for 3D
+            Initial Gaussian prior hyperparameters
+
+        num_iters : int
+            Max number of optimization iterations.
+
+        step_size : float
+            Initial step size for Jax optimizer.
+            
+        tolerance : int
+            Set early stop tolerance. Optimization stops when cost monotonically 
+            increases or stop increases for tolerance=n steps.
+
+        verbose: int
+            When `verbose=0`, progress is not printed. When `verbose=n`,
+            progress will be printed in every n steps.
+
+        """
+    
+        self.p0 = np.array(p0)
+        self.num_iters = num_iters       
+        self.optimized_params = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbose)
 
         (optimized_C_prior, 
          optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
         
         (optimized_C_post, 
          optimized_C_post_inv, 
-         optimized_m_post) = self.update_posterior(self.optimized_params,
-                                                   optimized_C_prior,
+         optimized_m_post) = self.update_C_posterior(self.optimized_params,
                                                    optimized_C_prior_inv)
         
         self.optimized_C_prior = optimized_C_prior
         self.optimized_C_post = optimized_C_post
-        self.optimized_m_post = optimized_m_post
         self.w_opt = optimized_m_post
-        self.sRF_opt, self.tRF_opt = self.SVD(self.w_opt)   

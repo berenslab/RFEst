@@ -1,58 +1,41 @@
-import autograd.numpy as np
-from ._base import *
-from .._utils import *
+import jax.numpy as np
+from ._base import EmpiricalBayes
 
 __all__ = ['ASD']
 
 class ASD(EmpiricalBayes):
     
-    def __init__(self, X, Y, rf_dims):
-        super().__init__(X, Y, rf_dims)
-        self.D = self.squared_distance(self.dims_sRF)
+    """
+
+    Automatic Smoothness Determination (ASD).
+
+    Reference: Sahani, M., & Linden, J. F. (2003). 
+
+    """
+
+    def __init__(self, X, y, dims, compute_mle=True):
         
-    def squared_distance(self, rf_dims):
-
-        if len(rf_dims) == 1:
-
-            n = self.dims_sRF[0]
-
-            adjM = []
-            idx = np.arange(n)
-            for x in range(n):
-                adjM.append(np.square(x - idx))        
-            adjM = np.array(adjM)
-
-        elif len(rf_dims) > 1:
-
-            n, m = self.dims_sRF
-
-            xes = np.zeros([n, m])
-            yes = np.zeros([n, m])
-            coords = []
-            counter = 0
-            for x in range(n):
-                for y in range(m):
-                    coords.append([x, y])
-            coo = np.vstack(coords)      
-            adjM = np.vstack([np.sum((coo[i] - coo) ** 2, 1) for i in range(coo.shape[0])])
-
-        return adjM 
+        super().__init__(X, y, dims, compute_mle, 
+                         time='asd', space='asd',
+                         n_hp_time=1, n_hp_space=1)
     
-    def initialize_params(self):
+    def print_progress_header(self, params):
         
-        sigma = np.sqrt(np.sum((self.Y - self.X @ self.w_mle) ** 2) / self.n_samples)
-        rho = -2.3
-        delta = 1.
+        if len(params) == 3:
+            print('Iter\tσ\tρ\tδt\tcost')
+        elif len(params) == 4:
+            print('Iter\tσ\tρ\tδt\tδs\tcost')
+        elif len(params) == 5:
+            print('Iter\tσ\tρ\tδt\tδy\tδx\tcost')
 
-        return [sigma, rho, delta]
-    
-    
-    def update_C_prior(self, params):
-        
-        rho = params[1]
-        delta = params[2]
-
-        C_prior = np.exp(-rho - 0.5 * self.D/delta**2)
-        C_prior_inv = np.linalg.inv(C_prior)
-
-        return C_prior, C_prior_inv
+    def print_progress(self, i, params, cost):
+     
+        if len(params) == 3:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}'.format(
+                i, params[0], params[1], params[2], cost))  
+        elif len(params) == 4:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}'.format(
+                i, params[0], params[1], params[2], params[3], cost))  
+        elif len(params) == 5:
+            print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}'.format(
+                i, params[0], params[1], params[2], params[3], params[4], cost))  

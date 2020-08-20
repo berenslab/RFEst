@@ -1,59 +1,141 @@
-import autograd.numpy as np
-from ._base import *
-from .._utils import *
+import jax.numpy as np
+from sklearn.metrics import r2_score, mean_squared_error
+from ._base import EmpiricalBayes
 
-__all__ = ['Ridge', 'RidgeFixedPoint']
+__all__ = ['Ridge']
+
 
 class Ridge(EmpiricalBayes):
-    
-    def initialize_params(self):
-        
-        sigma = np.sum((self.Y - self.X @ self.w_mle) ** 2) / self.n_samples
-        theta = 10.
-        
-        return [sigma,theta]
-    
-    def update_C_prior(self, params):
-        
-        theta = params[1]
-        C_prior = np.eye(self.n_features) * theta
-        C_prior += 1e-07 * np.eye(self.n_features)
-        C_prior_inv = np.linalg.inv(C_prior)
-    
-        return C_prior, C_prior_inv
 
-class RidgeFixedPoint(Ridge):
+    """
 
-    def update_theta(self, params, C_post, m_post):
-        theta = params[1]
-        return self.n_features - theta * np.trace(C_post) / np.sum(m_post ** 2)
+    Ridge Regression
+
+    """
     
-    def update_sigma(self, params, C_post, m_post):
+    def __init__(self, X, Y, dims, compute_mle=True):
+
+        super().__init__(X, Y, dims, compute_mle,
+                        time='ridge', space='ridge',
+                        n_hp_time=1, n_hp_space=1)
+
+class RidgeFixedPoint:
+    
+    """
+
+    Ridge regression updated with iterative fixed-point algorithm.
+
+    """
+    
+    def __init__(self, X, y, dims):
+        
+        self.X = np.array(X) # stimulus design matrix
+        self.Y = np.array(y) # response 
+        
+        self.dims = dims # assumed order [t, y, x]
+        self.n_samples, self.n_features = X.shape
+
+        self.XtX = X.T @ X
+        self.XtY = X.T @ y
+        self.YtY = y.T @ y
+
+        self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+        
+    def update_params(self, params, C_post, m_post):
         
         sigma = params[0]
         theta = params[1]
         
-        numerator   = np.mean(np.sum((self.Y - np.dot(self.X, m_post))**2, 0))
-        denominator = self.n_samples - np.sum(1 - theta * np.diag(C_post))
+        theta = (self.n_features - theta * np.trace(C_post)) / np.sum(m_post**2)
         
-        return numerator / denominator
+        upper = np.sum(self.YtY - 2 * self.XtY * m_post + m_post.T @ self.XtX @ m_post)
+        lower = self.n_features - np.sum(1 - theta * np.diag(C_post))
+        sigma = upper / lower
+        
+        return np.asarray([sigma, theta])
+    
+    def update_C_prior(self, params):
+        
+        sigma = params[0]
+        theta = params[1]
+        
+        C_prior = np.identity(self.n_features) *  1 / theta
+        C_prior_inv = np.identity(self.n_features) * theta
+        return C_prior, C_prior_inv
+    
+    def update_C_posterior(self, params, C_prior_inv):
 
-    def update_params(self, params, num_iters, callback):
-        
-        for iteration in range(num_iters):
-            
-            if callback is not None:
-                callback(params, iteration)
-            
-            (C_prior,
-             C_prior_inv) = self.update_C_prior(params)
+        sigma = params[0]
 
-            (C_post, C_post_inv,
-             m_post) = self.update_posterior(params, C_prior, C_prior_inv)
+        C_post_inv = self.XtX / sigma**2 + C_prior_inv
+        C_post = np.linalg.inv(C_post_inv)
         
-            sigma = self.update_sigma(params, C_post, m_post)
-            theta = self.update_theta(params, C_post, m_post)
+        m_post = C_post @ self.XtY / (sigma**2)
         
-            params = [sigma, theta]
+        return C_post, C_post_inv, m_post
+    
+    def fit(self, p0, num_iters=100, threshold=1e-6, MAXTHETA=1e6, verbose=True):
+        
+        params = p0
+        
+        if verbose:
+            print('Iter\tσ\tθ')
+            print('{0}\t{1:.3f}\t{2:.3f}'.format(0, params[0], params[1]))
+
             
-        return params
+        for iteration in np.arange(1, num_iters+1):
+                        
+            params0 = params
+            
+            (C_prior, C_prior_inv) = self.update_C_prior(params)
+            (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
+            
+            params = self.update_params(params, C_post, m_post)
+            
+            dparams = np.linalg.norm(params - params0)
+            
+            if dparams < threshold:
+                if verbose:
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('Finished: Converged in {} steps'.format(iteration))
+                break
+            elif params[1] > MAXTHETA:
+                if verbose:
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('Finished: ridge regression: filter is all-zeros.')
+                break
+        else:
+            if verbose:
+                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                print('Finished: reached maxiter = {}.'.format(num_iters))
+         
+        self.optimized_params = params
+        
+        (optimized_C_prior, 
+         optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
+        
+        (optimized_C_post, 
+         optimized_C_post_inv, 
+         optimized_m_post) = self.update_C_posterior(self.optimized_params,
+                                                   optimized_C_prior_inv)
+        
+        self.optimized_C_prior = optimized_C_prior
+        self.optimized_C_post = optimized_C_post
+        self.w_opt = optimized_m_post
+
+    def _rcv(self, w, wSTA_test, X_test, y_test):
+
+        """Relative Mean Squared Error"""
+
+        a = mean_squared_error(y_test, X_test @ w)  
+        b = mean_squared_error(y_test, X_test @ wSTA_test)
+
+        return a - b
+
+    def measure_prediction_performance(self, X_test, y_test):
+
+        wSTA_test = np.linalg.solve(X_test.T @ X_test, X_test.T @ y_test)
+
+        w = self.w_opt.ravel()
+
+        return self._rcv(w, wSTA_test, X_test, y_test)
