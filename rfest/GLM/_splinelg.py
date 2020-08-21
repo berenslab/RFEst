@@ -8,7 +8,7 @@ from jax.config import config
 config.update("jax_enable_x64", True)
 
 from ._base import Base, splineBase, interp1d
-from .._splines import build_spline_matrix
+from ..splines import build_spline_matrix
 
 from copy import deepcopy
 

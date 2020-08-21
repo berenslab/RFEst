@@ -10,9 +10,9 @@ config.update("jax_enable_x64", True)
 import time
 import itertools
 
-from .._utils import build_design_matrix, uvec
-from .._splines import build_spline_matrix
-from .._metrics import accuracy, r2, mse, corrcoef
+from ..utils import build_design_matrix, uvec
+from ..splines import build_spline_matrix
+from ..metrics import accuracy, r2, mse, corrcoef
 
 from scipy.optimize import minimize
 
@@ -22,7 +22,7 @@ class Base:
 
     """
 
-    Base class for spline-based GLMs.
+    Base class for all GLMs.
 
     """
 
@@ -181,6 +181,9 @@ class Base:
         dims : list or array_like, shape (ndims, )
             Dimensions or shape of the response-history filter. It should be 1D [nt, ]
 
+        shift : int
+            Should be 1 or larger. 
+
         """
         y = self.y
         yh = np.array(build_design_matrix(y[:, np.newaxis], dims, shift=shift))
@@ -304,7 +307,7 @@ class Base:
 
         """
 
-        Gradient descent using JAX optimizer.
+        Gradient descent using JAX optimizer, and verbose logging. 
 
         """
 
@@ -325,7 +328,7 @@ class Base:
 
         if verbose:
             if extra is None:
-                if metric is not None:
+                if metric is None:
                     print('{0}\t{1:>10}\t{2:>10}'.format('Iters', 'Time (s)', 'Cost (train)'))
                 else:
                     print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Metric (train)')) 
@@ -375,13 +378,13 @@ class Base:
                 if i > 300 and np.all((np.array(cost_dev[-tolerance+1:]) - np.array(cost_dev[-tolerance:-1])) > 0) and extra is not None:
                     params = params_list[0]
                     if verbose:
-                        print('Stop at {0} steps: dev cost has been monotonically increasing for {1} steps, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
+                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
                     break
                 
                 if i > 300 and np.all(np.array(cost_train[-tolerance:-1]) - np.array(cost_train[-tolerance+1:]) < 1e-5):
                     params = params_list[-1]
                     if verbose:
-                        print('Stop at {0} steps: training cost has been changing less than 1e-5 for {1} steps, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
+                        print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
                     break
                 
                 params_list.pop(0)
@@ -440,11 +443,12 @@ class Base:
             Elastic net parameter, overall weight of regulization.
 
         step_size : float
-            Initial step size for JAX optimizer.
+            Initial step size for JAX optimizer (ADAM).
 
         tolerance : int
-            Set early stop tolerance. Optimization stops when cost monotonically
-            increases or stop increases for tolerance=n steps.
+            Set early stop tolerance. Optimization stops when cost (dev) monotonically
+            increases or cost (train) stop increases for tolerance=n steps. 
+            If `tolerance=0`, then early stop is not used.
 
         verbose: int
             When `verbose=0`, progress is not printed. When `verbose=n`,
@@ -525,6 +529,23 @@ class Base:
             self.intercept = self.p_opt['intercept']
 
     def predict(self, X, y=None, p=None):
+
+        """
+
+        Parameters
+        ==========
+
+        X : array_like, shape (n_samples, n_features)
+            Stimulus design matrix.
+
+        y : None or array_like, shape (n_samples, )
+            Recorded response. Needed when post-spike filter is fitted.
+
+        p : None or dict
+            Model parameters. Only needed if model performance is monitored
+            during training.
+
+        """
         
         extra = {'X': X, 'y': y}
         if hasattr(self, 'h_mle'):
@@ -553,14 +574,50 @@ class Base:
 
     def score(self, X, y, p=None, metric='corrcoef'):
 
+        # Performance measure.
+
         y_pred = self.predict(X, y, p)
+
         return self._score(y, y_pred, metric)
         
 
-
 class splineBase(Base):
 
+    """
+
+    Base class for spline-based GLMs.
+
+    """
+
     def __init__(self, X, y, dims, df, smooth='cr', compute_mle=False, **kwargs):
+
+        """
+
+        Parameters
+        ==========
+        X : array_like, shape (n_samples, n_features)
+            Stimulus design matrix.
+
+        y : array_like, shape (n_samples, )
+            Recorded response.
+
+        dims : list or array_like, shape (ndims, )
+            Dimensions or shape of the RF to estimate. Assumed order [t, sx, sy].
+
+        df : list or array_like, shape (ndims, )
+            Degree of freedom, or the number of basis used for each RF dimension. 
+
+        smooth : str
+            Type of basis. 
+            * cr: natrual cubic spline (default)
+            * cc: cyclic cubic spline
+            * bs: B-spline
+            * tp: thin plate spine
+
+        compute_mle : bool
+            Compute sta and maximum likelihood optionally.
+
+        """
 
         super().__init__(X, y, dims, compute_mle, **kwargs) 
         
@@ -595,6 +652,7 @@ class splineBase(Base):
     def initialize_history_filter(self, dims, df, smooth='cr', shift=1):
 
         """
+
         Parameters
         ==========
 
@@ -602,7 +660,14 @@ class splineBase(Base):
             Dimensions or shape of the response-history filter. It should be 1D [nt, ]
 
         df : list or array_list
-            number of basis.
+            Number of basis.
+
+        smooth : str
+            Type of basis.
+
+        shift : int
+            Should be 1 or larger. 
+
         """
         
         y = self.y
@@ -755,6 +820,23 @@ class splineBase(Base):
             self.intercept = self.p_opt['intercept']
 
     def predict(self, X, y=None, p=None):
+
+        """
+
+        Parameters
+        ==========
+
+        X : array_like, shape (n_samples, n_features)
+            Stimulus design matrix.
+
+        y : None or array_like, shape (n_samples, )
+            Recorded response. Needed when post-spike filter is fitted.
+
+        p : None or dict
+            Model parameters. Only needed if model performance is monitored
+            during training.
+
+        """
         
         if hasattr(self, 'n_c'):
             XS = np.dstack([X[:, :, i] @ self.S for i in range(self.n_c)]).reshape(X.shape[0], -1)

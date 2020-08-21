@@ -1,7 +1,7 @@
 import jax.numpy as np
 from sklearn.metrics import mean_squared_error
 from ._base import EmpiricalBayes
-from .._priors import sparsity_kernel
+from ..priors import sparsity_kernel
 
 # from ._base import *
 

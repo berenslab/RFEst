@@ -1,7 +1,7 @@
 import time
 import numpy as np
 from scipy.spatial.distance import cdist
-from .._splines import build_spline_matrix
+from ..splines import build_spline_matrix
 
 __all__ = ['KMeans']
 

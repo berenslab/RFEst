@@ -8,7 +8,7 @@ config.update("jax_enable_x64", True)
 
 from sklearn.metrics import mean_squared_error
 
-from .._priors import *
+from ..priors import *
 
 __all__ = ['EmpiricalBayes']
 

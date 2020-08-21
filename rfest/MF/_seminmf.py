@@ -1,7 +1,7 @@
 import time
 import numpy as np
 from ._initialize import initialize_factors
-from .._splines import build_spline_matrix
+from ..splines import build_spline_matrix
 
 __all__ = ['semiNMF']
 

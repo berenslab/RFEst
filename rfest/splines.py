@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg
 
-from ._utils import uvec 
+from .utils import uvec 
 
 
 def bs(x, df, degree=3):

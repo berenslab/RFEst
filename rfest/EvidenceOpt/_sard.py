@@ -9,8 +9,8 @@ config.update("jax_enable_x64", True)
 
 from sklearn.metrics import mean_squared_error
 from ._base import EmpiricalBayes
-from .._priors import sparsity_kernel
-from .._splines import build_spline_matrix
+from ..priors import sparsity_kernel
+from ..splines import build_spline_matrix
 
 __all__ = ['sARD']
 

@@ -9,8 +9,8 @@ config.update("jax_enable_x64", True)
 import time
 import itertools
 from ._base import splineBase, interp1d
-from .._utils import build_design_matrix
-from .._splines import build_spline_matrix
+from ..utils import build_design_matrix
+from ..splines import build_spline_matrix
 
 from ..MF import KMeans, semiNMF
 
