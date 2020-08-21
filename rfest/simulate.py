@@ -4,6 +4,12 @@ import scipy.stats
 
 from ._utils import build_design_matrix, uvec
 
+
+__all__ = ['gaussian1d', 'gaussian2d', 'gaussian2d',
+           'mexicanhat1d', 'mexicanhat2d', 'mexicanhat3d',
+           'gabor2d', 'gabor3d', 'V1complex_2d',
+           'get_stimulus']
+
 def gaussian1d(dim=200, std=15):
     return uvec(scipy.signal.gaussian(dim, std=std))
 
@@ -110,19 +116,19 @@ def get_stimulus(n_samples, dims, kind='3dnoise', delta=1000, random_seed=1990):
     if len(dims) == 1:
         
         Sigma = kernel(dims[0], delta)
-        Stim = np.random.multivariate_uvecal(np.zeros(len(Sigma)), Sigma, n_samples) 
+        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
         X = Stim
 
     elif len(dims) == 2 and kind=='2dbar':
 
         Sigma = kernel(dims[1], delta)
-        Stim = np.random.multivariate_uvecal(np.zeros(len(Sigma)), Sigma, n_samples)
+        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples)
         X = build_design_matrix(Stim, dims[0])
 
     elif len(dims) == 2 and kind=='2dnoise':
         
         Sigma = np.kron(kernel(dims[0], delta), kernel(dims[1], delta))
-        Stim = np.random.multivariate_uvecal(np.zeros(len(Sigma)), Sigma, n_samples) 
+        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
         X = Stim
 
     elif len(dims) == 3 and kind=='3dnoise':
