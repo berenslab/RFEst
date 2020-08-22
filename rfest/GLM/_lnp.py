@@ -26,12 +26,13 @@ class LNP(Base):
         super().__init__(X, y, dims, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
         
-    def forward_pass(self, p, extra):
+    def forward_pass(self, p, extra=None):
 
         """
         Model ouput with current estimated parameters.
         """
 
+        dt = self.dt
         X = self.X if extra is None else extra['X']
         X = X.reshape(X.shape[0], -1)
 
@@ -75,7 +76,7 @@ class LNP(Base):
         if self.fit_nonlinearity:
             self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
             
-        r = R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten()
+        r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten()
 
         return r
 
@@ -85,10 +86,11 @@ class LNP(Base):
         Negetive Log Likelihood.
         """
         y = self.y if extra is None else extra['y']
-        r = self.forward_pass(p, extra) if precomputed is None else precomputed 
+        r = self.forward_pass(p, extra) if precomputed is None else precomputed
+        dt = self.dt
 
-        term0 = - np.log(r) @ y # spike term from poisson log-likelihood
-        term1 = np.sum(r) * self.dt # non-spike term
+        term0 = - np.log(r / dt) @ y # spike term from poisson log-likelihood
+        term1 = np.sum(r) # non-spike term
 
         neglogli = term0 + term1
 

@@ -69,7 +69,7 @@ class LNLN(Base):
             else:
                 intercept = np.array([0.])
                 
-        r = R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
+        r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
 
         return r
 
@@ -78,8 +78,10 @@ class LNLN(Base):
         
         y = self.y if extra is None else extra['y']
         r = self.forward_pass(p, extra) if precomputed is None else precomputed 
-        term0 = - np.log(r) @ y # spike term from poisson log-likelihood
-        term1 = np.sum(r) * self.dt # non-spike term
+        dt = self.dt
+
+        term0 = - np.log(r / dt) @ y # spike term from poisson log-likelihood
+        term1 = np.sum(r) # non-spike term
 
         neglogli = term0 + term1
         

@@ -20,7 +20,7 @@ class splineLNP(splineBase):
         self.nonlinearity = nonlinearity
     
 
-    def forward_pass(self, p, extra):
+    def forward_pass(self, p, extra=None):
 
         """
         Model ouput with current estimated parameters.
@@ -69,7 +69,7 @@ class splineLNP(splineBase):
             else:
                 history_output = np.array([0.])
         
-        r = R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten()
+        r = self.dt * R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten()
 
         return r
 
@@ -81,9 +81,9 @@ class splineLNP(splineBase):
 
         y = self.y if extra is None else extra['y']
         r = self.forward_pass(p, extra) if precomputed is None else precomputed 
-
-        term0 = - np.log(r) @ y
-        term1 = np.sum(r) * self.dt
+        dt = self.dt
+        term0 = - np.log(r/dt) @ y
+        term1 = np.sum(r)
 
         neglogli = term0 + term1
         

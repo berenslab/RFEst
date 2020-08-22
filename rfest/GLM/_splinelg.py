@@ -23,7 +23,7 @@ class splineLG(splineBase):
         super().__init__(X, y, dims, df, smooth, compute_mle) 
         self.nonlinearity = nonlinearity
         
-    def forward_pass(self, p, extra):
+    def forward_pass(self, p, extra=None):
 
         XS = self.XS if extra is None else extra['XS']
 

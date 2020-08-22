@@ -25,8 +25,9 @@ class splineLNLN(splineBase):
         self.filter_nonlinearity = filter_nonlinearity
         self.output_nonlinearity = output_nonlinearity
 
-    def forward_pass(self, p, extra):
+    def forward_pass(self, p, extra=None):
 
+        dt = self.dt
         XS = self.XS if extra is None else extra['XS']
  
         if hasattr(self, 'h_spl'):
@@ -66,7 +67,7 @@ class splineLNLN(splineBase):
             else:
                 history_output = np.array([0.])
         
-        r = R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten()
+        r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten()
 
         return r
 
@@ -75,11 +76,13 @@ class splineLNLN(splineBase):
         """
         Negetive Log Likelihood.
         """
+        
         y = self.y if extra is None else extra['y']
         r = self.forward_pass(p, extra) if precomputed is None else precomputed 
+        dt = self.dt
 
-        term0 = - np.log(r) @ y
-        term1 = np.sum(r) * self.dt
+        term0 = - np.log(r / dt) @ y
+        term1 = np.sum(r)
 
         neglogli = term0 + term1
         
