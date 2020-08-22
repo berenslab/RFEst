@@ -20,7 +20,7 @@ class LNP(Base):
 
     """
 
-    def __init__(self, X, y, dims, R=1, compute_mle=False,
+    def __init__(self, X, y, dims, compute_mle=False,
             nonlinearity='softplus',**kwargs):
 
         super().__init__(X, y, dims, compute_mle, **kwargs)
