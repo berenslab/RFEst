@@ -116,6 +116,78 @@ def uvec(x):
     # turn input array into a unit vector
     return x / np.linalg.norm(x)
 
+def get_n_samples(t, dt):
+    # get number of samples based on time (in minute) and frame rates (in second).
+    return np.round(t * 60 / dt).astype(int)
+
+def get_length(n, dt):
+    # get length in minutes based on number of samples and frame rates (in second).
+    return np.round(n * dt / 60, 2)
+
+def split_data(X, y, dt, frac_train=0.8, frac_dev=0.1, verbose=1):
+
+    """
+    Split data into training, development and test set.
+
+    Parameters
+    ==========
+    X : array_like, shape (n_samples, n_features)
+        Stimulus desgin matrix.
+
+    y : array_like, shape (n_samples, )
+        Response
+
+    dt : float
+        Stimulus frame rate in second.
+
+    len_train / len_dev : float
+        length of training / dev set in fraction. 
+        Test set will be the rest of n_samples.
+
+    """
+
+    if not X.shape[0] == y.shape[0]:
+        raise ValueError('X and y must be of same length.')
+        
+    if frac_train + frac_dev > 1:
+        raise ValueError('`frac_train` + `frac_dev` must be < 1.')
+        
+    n_samples = X.shape[0]
+    frac_test = np.round(np.maximum(1 - frac_train - frac_dev, 0), 2)
+    
+    len_total = get_length(n_samples, dt)
+    len_train = get_length(n_samples * frac_train, dt)
+    len_dev = get_length(n_samples * frac_dev, dt)
+    len_test = np.maximum(get_length(n_samples * frac_test, dt), 0)
+    
+    n_train = get_n_samples(len_train, dt)
+    n_dev = get_n_samples(len_dev, dt)
+    n_test = np.maximum(n_samples - n_train - n_dev, 0)
+    
+    if verbose:
+
+        len_type_list = ['Total', 'Train', 'Dev', 'Test']
+        data_list = [(n_samples, len_total, 1.), (n_train, len_train ,frac_train),
+                    (n_dev, len_dev, frac_dev), (n_test, len_test, frac_test)]
+        row_format ="{:<5} {:>10} {:>10} {:>10}"
+        print("SUMMARY")
+        print(row_format.format('', *['N', 'Minutes',  'Fraction']))
+        for len_type, row in zip(len_type_list, data_list):
+            print(row_format.format(len_type, *row))
+    
+    X_train = X[:n_train]
+    y_train = y[:n_train]
+
+    X_dev = X[n_train:n_train+n_dev]
+    y_dev = y[n_train:n_train+n_dev]
+
+    X_test = X[n_train+n_dev:]
+    y_test = y[n_train+n_dev:]
+
+    return ((X_train, y_train), 
+            (X_dev, y_dev), 
+            (X_test, y_test))
+
 def fetch_data(data=None, datapath='./data/', overwrite=False):
 
     import urllib.request
