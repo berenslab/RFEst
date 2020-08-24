@@ -9,6 +9,7 @@ config.update("jax_enable_x64", True)
 import time
 import itertools
 from ._base import Base, interp1d
+from ..utils import build_design_matrix
 
 __all__ = ['LNLN']
 
@@ -33,7 +34,13 @@ class LNLN(Base):
 
         dt = self.dt
         X = self.X if extra is None else extra['X']
-        y = self.y if extra is None else extra['y']
+        X = X.reshape(X.shape[0], -1)
+    
+        if hasattr(self, 'h_mle'):
+            if extra is not None:
+                yh = extra['yh']
+            else:
+                yh = self.yh
 
         if self.fit_R:
             R = p['R']
@@ -42,24 +49,24 @@ class LNLN(Base):
 
         if self.fit_nonlinearity:
             if np.ndim(p['bnl']) != 1:
-                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p['bnl'][i]) for i in range(self.n_subunits)]
+                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p['bnl'][i]) for i in range(self.n_s)]
             else:
                 self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl']) 
 
         if self.fit_linear_filter:
-            filter_output = np.mean(self.fnl(X @ p['w'].reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
+            filter_output = np.mean(self.fnl(X @ p['w'].reshape(self.n_features * self.n_c, self.n_s), nl=self.filter_nonlinearity), 1)
         else:
-            filter_output = np.mean(self.fnl(X @ self.w_opt.reshape(self.n_features, self.n_subunits), nl=self.filter_nonlinearity), 1)
+            filter_output = np.mean(self.fnl(X @ self.w_opt.reshape(self.n_features * self.n_c, self.n_s), nl=self.filter_nonlinearity), 1)
         
         if self.fit_history_filter:
-            history_output = self.yh @ p['h']  
+            history_output = yh @ p['h']  
         else:
             if hasattr(self, 'h_opt'):
-                history_output = self.yh @ self.h_mle
+                history_output = yh @ self.h_mle
             elif hasattr(self, 'h_mle'):
-                history_output = self.yh @ self.h_mle
+                history_output = yh @ self.h_mle
             else:
-                history_output = np.array([0.])
+                history_output = 0.
         
         if self.fit_intercept:
             intercept = p['intercept']
@@ -67,7 +74,7 @@ class LNLN(Base):
             if hasattr(self, 'intercept'):
                 intercept = self.intercept
             else:
-                intercept = np.array([0.])
+                intercept = 0.
                 
         r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
 
@@ -102,7 +109,7 @@ class LNLN(Base):
         self.beta = beta # elastic net parameter - global penalty weight
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
         
-        self.n_subunits = num_subunits
+        self.n_s = num_subunits
         self.num_iters = num_iters   
         
         if fit_nonlinearity:  
@@ -131,7 +138,7 @@ class LNLN(Base):
 
         if 'w' not in dict_keys:
             key = random.PRNGKey(random_seed)
-            w0 = 0.01 * random.normal(key, shape=(self.n_features, self.n_subunits)).flatten() 
+            w0 = 0.01 * random.normal(key, shape=(self.n_features * self.n_c * self.n_s, )).flatten() 
             p0.update({'w': w0})
 
         if 'intercept' not in dict_keys:
@@ -162,7 +169,10 @@ class LNLN(Base):
         self.R = self.p_opt['R']
         
         if fit_linear_filter: 
-            self.w_opt = self.p_opt['w'].reshape(self.n_features, self.n_subunits)
+            if self.n_c > 1:
+                self.w_opt = self.p_opt['w'].reshape(self.n_features, self.n_c, self.n_s)
+            else:
+                self.w_opt = self.p_opt['w'].reshape(self.n_features, self.n_s)
         
         if fit_history_filter:
             self.h_opt = self.p_opt['h']

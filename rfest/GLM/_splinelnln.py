@@ -120,7 +120,6 @@ class splineLNLN(splineBase):
         dict_keys = p0.keys()
         if 'b' not in dict_keys:
             key = random.PRNGKey(random_seed)
-            # b0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_s)).flatten()
             b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c * self.n_s, )).flatten()
             p0.update({'b': b0})
 
