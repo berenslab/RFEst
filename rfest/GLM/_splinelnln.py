@@ -48,14 +48,14 @@ class splineLNLN(splineBase):
 
         if self.fit_nonlinearity:
             if np.ndim(p['bnl']) != 1:
-                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p['bnl'][i]) for i in range(self.n_subunits)]
+                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p['bnl'][i]) for i in range(self.n_s)]
             else:
                 self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl']) 
 
         if self.fit_linear_filter:
-            filter_output = np.mean(self.fnl(XS @ p['b'].reshape(self.n_b, self.n_subunits), nl=self.filter_nonlinearity), 1) 
+            filter_output = np.mean(self.fnl(XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s), nl=self.filter_nonlinearity), 1) 
         else:
-            filter_output = np.mean(self.fnl(XS @ self.b_opt.reshape(self.n_b, self.n_subunits) , nl=self.filter_nonlinearity), 1) 
+            filter_output = np.mean(self.fnl(XS @ self.b_opt.reshape(self.n_b * self.n_c, self.n_s) , nl=self.filter_nonlinearity), 1) 
   
         if self.fit_history_filter:
             history_output = yS @ p['bh']  
@@ -104,7 +104,7 @@ class splineLNLN(splineBase):
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
         self.beta = beta # elastic net parameter - global penalty weight
 
-        self.n_subunits = num_subunits
+        self.n_s = num_subunits
         self.num_iters = num_iters   
 
         self.fit_linear_filter = fit_linear_filter
@@ -120,7 +120,8 @@ class splineLNLN(splineBase):
         dict_keys = p0.keys()
         if 'b' not in dict_keys:
             key = random.PRNGKey(random_seed)
-            b0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_subunits)).flatten()
+            # b0 = 0.01 * random.normal(key, shape=(self.n_b, self.n_s)).flatten()
+            b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c * self.n_s, )).flatten()
             p0.update({'b': b0})
 
         if 'intercept' not in dict_keys:
@@ -147,7 +148,12 @@ class splineLNLN(splineBase):
                 self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p0['bnl'])
 
         if extra is not None:
-            extra.update({'XS': extra['X'] @ self.S})
+
+            if self.n_c > 1:
+                XS_ext = np.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(extra['X'].shape[0], -1)
+                extra.update({'XS': XS_ext}) 
+            else:
+                extra.update({'XS': extra['X'] @ self.S})
 
             if hasattr(self, 'h_spl'):
                 
@@ -163,8 +169,12 @@ class splineLNLN(splineBase):
         self.R = self.p_opt['R'] if fit_R else np.array([1.])        
 
         if fit_linear_filter:
-            self.b_opt = self.p_opt['b'].reshape(self.n_b, self.n_subunits)
-            self.w_opt = self.S @ self.b_opt
+            self.b_opt = self.p_opt['b']
+            
+            if self.n_c > 1:
+                self.w_opt = np.stack([(self.S @ self.b_opt.reshape(self.n_b, self.n_c, self.n_s)[:, :, i]) for i in range(self.n_s)], axis=-1)
+            else:
+                self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_s)
         
         if fit_history_filter:
             self.h_opt = self.Sh @ self.p_opt['bh']

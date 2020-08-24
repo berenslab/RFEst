@@ -54,6 +54,7 @@ class Base:
             self.dims = dims[:-1] 
         else:
             self.n_samples, self.n_features = X.shape
+            self.n_c = 1
             self.dims = dims # assumed order [t, y, x]
         
         self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for LNP and LNLN)
@@ -70,13 +71,13 @@ class Base:
             self.w_sta = self.XtY / len(y)
 
         
-        if hasattr(self, 'n_c') : 
+        if self.n_c > 1: 
             self.w_sta = self.w_sta.reshape(self.n_features, self.n_c)
 
         if compute_mle:
             self.XtX = X.T @ X
             self.w_mle = np.linalg.solve(self.XtX, self.XtY)
-            if hasattr(self, 'n_c'): 
+            if self.n_c > 1: 
                 self.w_mle = self.w_mle.reshape(self.n_features, self.n_c)       
 
         self.X = np.array(X) # stimulus design matrix
@@ -626,7 +627,7 @@ class splineBase(Base):
 
         S = np.array(build_spline_matrix(self.dims, df, smooth)) # for w
         
-        if hasattr(self, 'n_c'):
+        if self.n_c > 1:
             XS = np.dstack([self.X[:, :, i] @ S for i in range(self.n_c)]).reshape(self.n_samples, -1)
         else:
             XS = self.X @ S
@@ -639,7 +640,7 @@ class splineBase(Base):
         # compute spline-based maximum likelihood
         self.b_spl = np.linalg.solve(XS.T @ XS, XS.T @ y)
 
-        if hasattr(self, 'n_c'): 
+        if self.n_c > 1: 
             self.w_spl = S @ self.b_spl.reshape(self.n_b, self.n_c)
         else:
             self.w_spl = S @ self.b_spl 
@@ -756,7 +757,7 @@ class splineBase(Base):
             else:
                 if initialize == 'random':
                     key = random.PRNGKey(random_seed)
-                    b0 = 0.01 * random.normal(key, shape=(self.b_spl.shape[0], )).flatten()
+                    b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c, )).flatten()
                     p0.update({'b': b0})
 
         if 'intercept' not in dict_keys:
@@ -781,7 +782,7 @@ class splineBase(Base):
 
         if extra is not None:
 
-            if hasattr(self, 'n_c'):
+            if self.n_c > 1:
                 XS_ext = np.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(extra['X'].shape[0], -1)
                 extra.update({'XS': XS_ext}) 
             else:
@@ -804,7 +805,7 @@ class splineBase(Base):
 
         if fit_linear_filter:
             self.b_opt = self.p_opt['b'] # optimized RF basis coefficients
-            if hasattr(self, 'n_c'):
+            if self.n_c > 1:
                 self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_c)  
             else:
                 self.w_opt = self.S @ self.b_opt # optimized RF
@@ -838,7 +839,7 @@ class splineBase(Base):
 
         """
         
-        if hasattr(self, 'n_c'):
+        if self.n_c > 1:
             XS = np.dstack([X[:, :, i] @ self.S for i in range(self.n_c)]).reshape(X.shape[0], -1)
         else:
             XS = X @ self.S
