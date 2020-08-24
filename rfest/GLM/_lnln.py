@@ -106,8 +106,10 @@ class LNLN(Base):
             fit_history_filter=False, fit_nonlinearity=False, 
             step_size=1e-2, tolerance=10, verbose=1, random_seed=2046):
 
-        self.beta = beta # elastic net parameter - global penalty weight
+        self.metric = metric
+
         self.alpha = alpha # elastic net parameter (1=L1, 0=L2)
+        self.beta = beta # elastic net parameter - global penalty weight for linear filter
         
         self.n_s = num_subunits
         self.num_iters = num_iters   

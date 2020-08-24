@@ -58,8 +58,6 @@ class Base:
             self.dims = dims # assumed order [t, y, x]
         
         self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for LNP and LNLN)
-        self.R = kwargs['R'] if 'R' in kwargs.keys() else 1 # scale factor for firing rate (for LNP and LNLN)
-
         self.compute_mle = compute_mle
 
         # compute sufficient statistics
@@ -404,7 +402,7 @@ class Base:
         return params
 
     def fit(self, p0=None, extra=None, initialize=None,
-            num_iters=5, metric=None, alpha=1, beta=0.5,
+            num_iters=5, metric=None, alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
             step_size=1e-2, tolerance=10, verbose=1, random_seed=1990):
@@ -459,8 +457,8 @@ class Base:
 
         self.metric = metric # metric for cross-validation and prediction
 
-        self.beta = beta
         self.alpha = alpha
+        self.beta = beta # elastic net parameter - global penalty weight for linear filter
         self.num_iters = num_iters
 
         self.fit_R = fit_R
@@ -482,7 +480,6 @@ class Base:
                     key = random.PRNGKey(random_seed)
                     w0 = 0.01 * random.normal(key, shape=(self.w_sta.shape[0], )).flatten()
                     p0.update({'w': w0})
-
 
         if 'intercept' not in dict_keys:
             p0.update({'intercept': np.array([0.])})
@@ -684,7 +681,7 @@ class splineBase(Base):
 
 
     def fit(self, p0=None, extra=None, initialize=None,
-            num_iters=5, metric=None, alpha=1, beta=0.5,
+            num_iters=5, metric=None, alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
             step_size=1e-2, tolerance=10, verbose=1, random_seed=1990):
@@ -718,7 +715,7 @@ class splineBase(Base):
             * 1.0 -> only L1
 
         beta : float
-            Elastic net parameter, overall weight of regulization.
+            Elastic net parameter, overall weight of regulization for receptive field.
 
         step_size : float
             Initial step size for JAX optimizer.
@@ -735,8 +732,8 @@ class splineBase(Base):
 
         self.metric = metric
 
-        self.beta = beta
         self.alpha = alpha
+        self.beta = beta # elastic net parameter - global penalty weight for linear filter
         self.num_iters = num_iters
 
         self.fit_R = fit_R

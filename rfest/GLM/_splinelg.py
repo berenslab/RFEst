@@ -18,9 +18,9 @@ __all__ = ['splineLG']
 class splineLG(splineBase):
 
     def __init__(self, X, y, dims, df, smooth='cr', compute_mle=False,
-            nonlinearity='none'):
+            nonlinearity='none', **kwargs):
         
-        super().__init__(X, y, dims, df, smooth, compute_mle) 
+        super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs) 
         self.nonlinearity = nonlinearity
         
     def forward_pass(self, p, extra=None):
@@ -81,5 +81,5 @@ class splineLG(splineBase):
             l1 = np.linalg.norm(p['b'], 1)
             l2 = np.linalg.norm(p['b'], 2)
             mse += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1) 
-            
+
         return mse       

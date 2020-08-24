@@ -94,7 +94,7 @@ class splineLNLN(splineBase):
         return neglogli
 
     def fit(self, p0=None, extra=None, num_subunits=2, num_iters=5, metric=None,
-            alpha=1, beta=0.05, 
+            alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
             step_size=1e-2, tolerance=10, verbose=1, random_seed=2046):
