@@ -2,7 +2,7 @@ import numpy as np
 import scipy.signal
 import scipy.stats
 
-from ._utils import build_design_matrix, uvec
+from .utils import build_design_matrix, uvec
 
 
 __all__ = ['gaussian1d', 'gaussian2d', 'gaussian2d',

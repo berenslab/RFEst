@@ -3,7 +3,8 @@ import jax.random as random
 from jax import grad
 from jax import jit
 from jax.experimental import optimizers
-
+from jax.experimental import stax
+from jax.experimental.stax import Dense, Relu
 from jax.config import config
 config.update("jax_enable_x64", True)
 
@@ -13,6 +14,7 @@ import itertools
 from ..utils import build_design_matrix, uvec
 from ..splines import build_spline_matrix
 from ..metrics import accuracy, r2, mse, corrcoef
+from ..nonlinearities import *
 
 from scipy.optimize import minimize
 
@@ -249,42 +251,41 @@ class Base:
         self.nl0 = self.fitted_nonlinearity(self.bins)
         self.nonparametric_nl = yy
 
-    def fnl(self, x, nl):
+    def fnl(self, x, nl, ):
 
         '''
         Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
         '''
 
         if  nl == 'softplus':
-            return np.log(1 + np.exp(x)) + 1e-7
+            return softplus(x)
 
         elif nl == 'exponential':
             return np.exp(x)
 
         elif nl == 'softmax':
-            z = np.exp(x)
-            return z / z.sum()
+            return softmax(x)
 
         elif nl == 'sigmoid':
-            return 1 / (1 + np.exp(-x))
+            return sigmoid(x)
 
         elif nl == 'tanh':
-            return 2 / (1 + np.exp(-2*x)) - 1
+            return np.tanh(x)
 
         elif nl == 'relu':
-            return np.where(x > 0, x, 1e-15)
+            return relu(x)
 
         elif nl == 'leaky_relu':
-            return np.where(x > 0, x, x * 0.01)
+            return leaky_relu(x)
 
         elif nl == 'selu':
-            return 1.0507 * np.where(x > 0, x, 1.6733 * np.exp(x) - 1.6733)
+            return selu(x)
 
         elif nl == 'swish':
-            return x / ( 1 + np.exp(-x))
+            return swish(x)
 
         elif nl == 'elu':
-            return np.where(x > 0, x, np.exp(x)-1)
+            return elu(x)
 
         elif nl == 'none':
             return x
