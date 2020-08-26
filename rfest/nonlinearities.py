@@ -24,9 +24,3 @@ def swish(x):
 
 def elu(x):
     return np.where(x > 0, x, np.exp(x)-1)
-
-def nn(x, params):
-    A = x.reshape(-1, 1)
-    for w, b in params:
-        A = relu(A @ w + b)
-    return A

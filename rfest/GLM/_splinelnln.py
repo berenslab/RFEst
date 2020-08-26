@@ -47,15 +47,19 @@ class splineLNLN(splineBase):
             R = np.array([1.])
 
         if self.fit_nonlinearity:
-            if np.ndim(p['bnl']) != 1:
-                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p['bnl'][i]) for i in range(self.n_s)]
+            nl_params = p['nl_params']
+        else:
+            if hasattr(self, 'nl_params'):
+                nl_params = self.nl_params
             else:
-                self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl']) 
+                nl_params = None
 
         if self.fit_linear_filter:
-            filter_output = np.mean(self.fnl(XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s), nl=self.filter_nonlinearity), 1) 
+            filter_output = np.mean(self.fnl(XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s), 
+                                            nl=self.filter_nonlinearity, params=nl_params), 1) 
         else:
-            filter_output = np.mean(self.fnl(XS @ self.b_opt.reshape(self.n_b * self.n_c, self.n_s) , nl=self.filter_nonlinearity), 1) 
+            filter_output = np.mean(self.fnl(XS @ self.b_opt.reshape(self.n_b * self.n_c, self.n_s) , 
+                                                nl=self.filter_nonlinearity, params=nl_params), 1) 
   
         if self.fit_history_filter:
             history_output = yS @ p['bh']  
@@ -79,6 +83,7 @@ class splineLNLN(splineBase):
         
         y = self.y if extra is None else extra['y']
         r = self.forward_pass(p, extra) if precomputed is None else precomputed 
+        r = np.maximum(r, 1e-20) # remove zero to avoid nan in log.
         dt = self.dt
 
         term0 = - np.log(r / dt) @ y
@@ -135,16 +140,11 @@ class splineLNLN(splineBase):
             except:
                 p0.update({'bh': None}) 
                 
-        if 'bnl' not in dict_keys:
-            try:
-                p0.update({'bnl': self.bnl})
-            except:
-                p0.update({'bnl': None})
-        else:
-            if np.ndim(p0['bnl']) != 1:
-                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p0['bnl'][i]) for i in range(num_subunits)]
+        if 'nl_params' not in dict_keys:
+            if hasattr(self, 'nl_params'):
+                p0.update({'nl_params': self.nl_params})
             else:
-                self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p0['bnl'])
+                p0.update({'nl_params': None})
 
         if extra is not None:
 
@@ -182,5 +182,5 @@ class splineLNLN(splineBase):
             self.intercept = self.p_opt['intercept']
         
         if fit_nonlinearity:
-            self.bnl_opt = self.p_opt['bnl']
+            self.nl_params_opt = self.p_opt['nl_params']
 

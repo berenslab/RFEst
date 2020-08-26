@@ -48,7 +48,12 @@ class splineLNP(splineBase):
             R = np.array([1.])
 
         if self.fit_nonlinearity:
-            self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
+            nl_params = p['nl_params']
+        else:
+            if hasattr(self, 'nl_params'):
+                nl_params = self.nl_params
+            else:
+                nl_params = None
 
         if self.fit_linear_filter:
             filter_output = XS @ p['b'] 
@@ -69,7 +74,7 @@ class splineLNP(splineBase):
             else:
                 history_output = np.array([0.])
         
-        r = self.dt * R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity).flatten()
+        r = self.dt * R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity, params=nl_params).flatten()
 
         return r
 
@@ -81,7 +86,9 @@ class splineLNP(splineBase):
 
         y = self.y if extra is None else extra['y']
         r = self.forward_pass(p, extra) if precomputed is None else precomputed 
+        r = np.maximum(r, 1e-20) # remove zero to avoid nan in log.
         dt = self.dt
+        
         term0 = - np.log(r/dt) @ y
         term1 = np.sum(r)
 

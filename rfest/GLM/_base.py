@@ -7,12 +7,13 @@ from jax.experimental import stax
 from jax.experimental.stax import Dense, Relu
 from jax.config import config
 config.update("jax_enable_x64", True)
+config.update("jax_debug_nans", True)
 
 import time
 import itertools
 
 from ..utils import build_design_matrix, uvec
-from ..splines import build_spline_matrix
+from ..splines import build_spline_matrix, cr, cc, bs
 from ..metrics import accuracy, r2, mse, corrcoef
 from ..nonlinearities import *
 
@@ -84,7 +85,7 @@ class Base:
         self.y = np.array(y) # response
 
 
-    def STC(self, prewhiten=False, n_repeats=10, percentile=100., random_seed=2046, verbose=5):
+    def fit_STC(self, prewhiten=False, n_repeats=10, percentile=100., random_seed=2046, verbose=5):
 
         """
 
@@ -171,8 +172,7 @@ class Base:
             self.w_stc = eigvec
             self.w_stc_eigval = eigval
             self.w_stc_eigval_mask = np.ones_like(eigval).astype(bool)
-
-
+        
     def initialize_history_filter(self, dims, shift=1):
 
         """
@@ -190,31 +190,8 @@ class Base:
         yh = np.array(build_design_matrix(y[:, np.newaxis], dims, shift=shift))
         self.yh = np.array(yh)
         self.h_mle = np.linalg.solve(yh.T @ yh, yh.T @ y)
-        
-    
-    def initialize_nonlinearity(self, nbin=50, df=7, w=None):
 
-        """
-
-        Estimate nonlinearity with nonparametric method, then
-        interpolate with spline.
-
-        Parameters
-        ==========
-
-        nbin: int
-            Number of bins for histogram.
-
-        df : int
-            Number of basis for spline.
-
-        w : None or array_lik
-            RF used for nonlinearity estimation. If w=None, 
-            w will search for a pre-calculated RF, in order of
-            `w_spl`, `w_mle`, `w_sta`. You can also feed in a
-            RF calculated in another way as a numpy array. 
-
-        """
+    def fit_nonparametric_nonlinearity(self, nbins=50, w=None):
 
         if w is None:
             if hasattr(self, 'w_spl'):
@@ -226,32 +203,106 @@ class Base:
         else:
             w = np.array(w)
 
-        Snl = np.array(build_spline_matrix(dims=[nbin,], df=[df,], smooth='cr'))
-
         output_raw = self.X @ uvec(w)
         output_spk = self.X[self.y!=0] @ uvec(w)
 
-        hist_raw, bins = np.histogram(output_raw, bins=nbin, density=True)
+        hist_raw, bins = np.histogram(output_raw, bins=nbins, density=True)
         hist_spk, _ = np.histogram(output_spk, bins=bins, density=True)
 
         mask = ~(hist_raw ==0)
 
         yy0 = hist_spk[mask] / hist_raw[mask]
-        yy = interp1d(bins[1:][mask], yy0)(bins[1:])
+    
+        self.nl_bins = bins[1:]
+        self.fnl_nonparametric = interp1d(bins[1:][mask], yy0)        
 
-        b0 = np.ones(Snl.shape[1])
-        func = lambda b: np.mean((yy - Snl @ b)**2)
+    def initialize_parametric_nonlinearity(self, method='spline', init_to='exponential', params_dict=None):
+        
+        # prepare data 
+        xrange = params_dict['xrange']
+        nx= params_dict['nx']
+        x0 = np.linspace(-xrange, xrange, nx)
+        if init_to == 'exponential':
+            y0 = np.exp(x0)
+            
+        elif init_to == 'softplus':
+            y0 = softplus(x0)
+            
+        elif init_to == 'nonparametric':
+            y0 = self.fnl_nonparametric(x0)
+            
+        # fit nonlin
+        if method == 'spline':
+            smooth = params_dict['smooth']
+            df = params_dict['df']
+            if smooth == 'cr':
+                X = cr(x0, df)
+            elif smooth == 'cc':
+                X = cc(x0, df)
+            elif smooth == 'bs':
+                deg = params_dict['degree'] if 'degree' in params_dict else 3
+                X = bs(x0, df, deg)
+            
+            opt_params = np.linalg.inv(X.T @ X) @ X.T @ y0
+            
+            def _nl(opt_params, x_new):
+                return np.maximum(interp1d(x0, X @ opt_params)(x_new), 0)
+            
+        elif method == 'nn':
+                
+            def loss(params, data):
+                x = data['x']
+                y = data['y']
+                yhat = _predict(params, x)
+                return np.mean((y - yhat)**2)
+            
+            @jit
+            def step(i, opt_state, data):
+                p = get_params(opt_state)
+                g = grad(loss)(p, data)
+                return opt_update(i, g, opt_state)
 
-        bnl = minimize(func, b0).x
+            random_seed = params_dict['random_seed']
+            key = random.PRNGKey(random_seed)
 
-        self.Snl = Snl
-        self.bnl = bnl
-        self.bins = bins[1:]
-        self.fitted_nonlinearity = interp1d(self.bins, Snl @ bnl)
-        self.nl0 = self.fitted_nonlinearity(self.bins)
-        self.nonparametric_nl = yy
+            step_size = params_dict['step_size']
+            layer_sizes = params_dict['layer_sizes']
+            layers = []
+            for layer_size in layer_sizes:
+                layers.append(Dense(layer_size))
+                layers.append(Relu)
+            else:
+                layers.pop(-1)
 
-    def fnl(self, x, nl, ):
+            init_random_params, _predict = stax.serial(
+                *layers)
+
+            num_subunits = params_dict['num_subunits'] if 'num_subunits' in params_dict else 1 
+            _, init_params = init_random_params(key, (-1, num_subunits))
+
+            opt_init, opt_update, get_params = optimizers.adam(step_size)
+            opt_state = opt_init(init_params)
+
+            num_iters = params_dict['num_iters']
+            if num_subunits == 1: 
+                data = {'x': x0.reshape(-1,1), 'y': y0.reshape(-1,1)}
+            else:
+                data = {'x': np.vstack([x0 for i in range(num_subunits)]).T, 'y': y0.reshape(-1,1)}
+
+            for i in range(num_iters):
+                opt_state = step(i, opt_state, data)
+            opt_params = get_params(opt_state)
+            
+            def _nl(opt_params, x_new):
+                if len(x_new.shape) == 1:
+                    x_new = x_new.reshape(-1, 1)
+                return np.maximum(_predict(opt_params, x_new), 0)
+        
+        self.nl_xrange = x0
+        self.nl_params = opt_params
+        self.fnl_fitted = _nl
+
+    def fnl(self, x, nl, params=None):
 
         '''
         Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
@@ -291,10 +342,11 @@ class Base:
             return x
 
         elif nl == 'nonparametric':
-            if np.ndim(self.p0['bnl']) > 1:
-                return np.maximum(np.vstack([self.fitted_nonlinearity[i](x[:, i]) for i in range(self.n_subunits)]), 1e-7).T
-            else:
-                return np.maximum(self.fitted_nonlinearity(x), 1e-7)
+            return self.fnl_nonparametric(x)
+
+        elif nl == 'spline' or nl == 'nn':
+
+            return self.fnl_fitted(params, x)
 
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
@@ -386,7 +438,14 @@ class Base:
                     if verbose:
                         print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
                     break
-                
+        
+                # actually, gradient shouldn't reach nan. if so, there must be a bug.
+                # if np.isnan(np.array(cost_train[-tolerance+1:])).any():
+                #     params = params_list[-2] 
+                #     if verbose:
+                #         print('Stop at {0} steps: cost (train) hits a `nan`, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
+                #     break
+
                 params_list.pop(0)
         else:
             params = params_list[-1]
@@ -522,7 +581,7 @@ class Base:
             self.h_opt = self.p_opt['h']
         
         if fit_nonlinearity:
-            self.bnl_opt = self.p_opt['bnl']
+            self.nl_params_opt = self.p_opt['nl_params']
         
         if fit_intercept:
             self.intercept = self.p_opt['intercept']
@@ -770,13 +829,11 @@ class splineBase(Base):
             else:
                 p0.update({'bh': None}) 
 
-        if 'bnl' not in dict_keys:
-            if hasattr(self, 'bnl'):
-                p0.update({'bnl': self.bnl})
+        if 'nl_params' not in dict_keys:
+            if hasattr(self, 'nl_params'):
+                p0.update({'nl_params': self.nl_params})
             else:
-                p0.update({'bnl': None})
-        else:
-            self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p0['bnl'])
+                p0.update({'nl_params': None})
 
         if extra is not None:
 
@@ -813,7 +870,7 @@ class splineBase(Base):
             self.h_opt = self.Sh @ self.bh_opt
 
         if fit_nonlinearity:
-            self.bnl_opt = self.p_opt['bnl']
+            self.nl_params_opt = self.p_opt['nl_params']
        
         if fit_intercept:
             self.intercept = self.p_opt['intercept']
