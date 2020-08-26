@@ -195,16 +195,20 @@ class Base:
 
         if w is None:
             if hasattr(self, 'w_spl'):
-                w = self.w_spl
+                w = self.w_spl.flatten()
             elif hasattr(self, 'w_mle'):
-                w = self.w_mle
+                w = self.w_mle.flatten()
             elif hasattr(self, 'w_sta'):
-                w = self.w_sta
+                w = self.w_sta.flatten()
         else:
             w = np.array(w)
 
-        output_raw = self.X @ uvec(w)
-        output_spk = self.X[self.y!=0] @ uvec(w)
+        X = self.X
+        X = X.reshape(X.shape[0], -1)
+        y = self.y
+
+        output_raw = X @ uvec(w)
+        output_spk = X[y!=0] @ uvec(w)
 
         hist_raw, bins = np.histogram(output_raw, bins=nbins, density=True)
         hist_spk, _ = np.histogram(output_spk, bins=bins, density=True)
