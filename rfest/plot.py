@@ -16,7 +16,7 @@ def plot1d(models, dt=None, shift=None, model_names=None):
 
     dt = models[0].dt if dt is None else dt
 
-    fig, ax = plt.subplots(1, 2, figsize=(8,3))
+    fig, ax = plt.subplots(1, 3, figsize=(12,3))
 
     for i, model in enumerate(models): 
            
@@ -32,14 +32,27 @@ def plot1d(models, dt=None, shift=None, model_names=None):
             trange = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
 
             ax[1].plot(trange, h, color=f'C{i}')
+            ax[1].set_title('Post-spike Filter')
+        else:
+            ax[1].axis('off')
 
-    for i in range(2):
+
+        if hasattr(model, 'fnl_fitted'):
+            
+            nl_params = model.nl_params_opt
+            nl_xrange = model.nl_xrange
+            fnl_fitted = model.fnl_fitted
+            ax[2].plot(nl_xrange, fnl_fitted(nl_params, nl_xrange))
+            ax[2].set_title('Fitted nonlinearity')
+        else:
+            ax[2].axis('off')
+
+    for i in range(3):
         ax[i].spines['top'].set_visible(False)
         ax[i].spines['right'].set_visible(False)
         ax[i].set_xlabel('Time (s)')
 
     ax[0].set_title('RF')
-    ax[1].set_title('Post-spike Filter')
     ax[0].legend(frameon=False, loc='upper left', bbox_to_anchor=(0., 1.1))
 
 def plot2d(models):

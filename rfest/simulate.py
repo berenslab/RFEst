@@ -3,7 +3,7 @@ import scipy.signal
 import scipy.stats
 
 from .utils import build_design_matrix, uvec
-
+from .nonlinearities import * 
 
 __all__ = ['gaussian1d', 'gaussian2d', 'gaussian2d',
            'mexicanhat1d', 'mexicanhat2d', 'mexicanhat3d',
@@ -69,8 +69,8 @@ def V1complex_2d(dims=[30, 40], scale=[.025, .03]):
 
     kt1 = scipy.stats.gamma.pdf(-tt, dims[0]/7.5, scale=scale[0])
     kt2 = scipy.stats.gamma.pdf(-tt, dims[1]/6, scale=scale[1])
-    kt1 /= np.linalg.uvec(kt1)
-    kt2 /= -np.linalg.uvec(kt2)
+    kt1 /= np.linalg.norm(kt1)
+    kt2 /= -np.linalg.norm(kt2)
 
     kt = np.vstack([kt1, kt2]).T
 
@@ -79,8 +79,8 @@ def V1complex_2d(dims=[30, 40], scale=[.025, .03]):
     kx1 = np.cos(2*np.pi*xx/2 + np.pi/5) * np.exp(-1/(2*0.35**2) * xx**2)
     kx2 = np.sin(2*np.pi*xx/2 + np.pi/5) * np.exp(-1/(2*0.35**2) * xx**2)
 
-    kx1 /= np.linalg.uvec(kx1)
-    kx2 /= np.linalg.uvec(kx2)
+    kx1 /= np.linalg.norm(kx1)
+    kx2 /= np.linalg.norm(kx2)
 
     kx = np.vstack([kx1, kx2])
 
@@ -88,53 +88,142 @@ def V1complex_2d(dims=[30, 40], scale=[.025, .03]):
     
     return uvec(k)
 
-def get_stimulus(n_samples, dims, kind='3dnoise', delta=1000, random_seed=1990):
-
-    """
-    Parameters
-    ==========
-    n_samples: int
-        number of frames
-    
-    dims: list or array_like
-        RF size
-    
-    delta: float
-        size of the gaussian kernel. 
-        larger delta means stronger correlation in the stimulus. 
-    """
-
-    def kernel(ncoeff, delta):
-        grid = np.arange(ncoeff)
-        square_distance = np.sqrt((grid - grid.reshape(-1,1))**2) 
-        C = np.exp(-square_distance / (ncoeff/delta))
-        return C
-
+def get_fullfield_flicker(n_samples, dims=None, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
 
     np.random.seed(random_seed)
 
-    if len(dims) == 1:
+    if noise == 'gaussian':
         
-        Sigma = kernel(dims[0], delta)
-        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
-        X = Stim
-
-    elif len(dims) == 2 and kind=='2dbar':
-
-        Sigma = kernel(dims[1], delta)
-        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples)
-        X = build_design_matrix(Stim, dims[0])
-
-    elif len(dims) == 2 and kind=='2dnoise':
+        X = np.random.randn(n_samples)[:, np.newaxis]
         
-        Sigma = np.kron(kernel(dims[0], delta), kernel(dims[1], delta))
-        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
-        X = Stim
-
-    elif len(dims) == 3 and kind=='3dnoise':
+    elif noise == 'binary':
         
-        Sigma = np.kron(kernel(dims[1], delta), kernel(dims[2], delta))
-        Stim = np.random.multivariate_normal(np.zeros(len(Sigma)), Sigma, n_samples) 
-        X = build_design_matrix(Stim, dims[0])
+        X = np.random.choice([-1, 1], size=n_samples)[:, np.newaxis]
+        
+    
+    if beta is not None:
+        X = colornoise1d(1, dims=n_samples, beta=beta, phi=X.flatten(), random_seed=2046)[:, np.newaxis]
+        X = (X - X.mean()) / X.std()
+        
+    if design_matrix:
+        
+        if dims is None:
+            raise ValueError('`dims` is needed for building stimulus design matrix.')
+        X = build_design_matrix(X, dims, shift)
         
     return X
+
+def get_flicker_bar(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
+    
+    nt, nx = dims
+    
+    if noise == 'gaussian':
+        
+        X = np.random.randn(n_samples, nx)
+        
+    elif noise == 'binary': 
+        
+        X = np.random.choice([-1, 1], size=[n_samples, nx])
+        
+    if beta is not None:
+        if noise != 'gaussian': 
+            raise ValueError('1/f noise only applis to Gaussian noise.')
+        X = colornoise1d(n_samples=n_samples, dims=nx, beta=beta, phi=X, random_seed=random_seed)
+        X = (X - X.mean()) / X.std()        
+            
+    if design_matrix:
+        
+        X = build_design_matrix(X, nt, shift)
+        
+    return X
+
+def get_checkerboard(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
+    
+    if len(dims) == 2:
+        nt = None
+        
+    elif len(dims) == 3:
+        nt = dims[0]
+        dims = dims[1:]
+    
+    if noise == 'gaussian':
+
+        X = np.random.randn(n_samples, *dims)
+        
+    elif noise == 'binary':
+        
+        X = np.random.choice([-1, 1], size=[n_samples, *dims])
+        
+    if beta is not None:
+        if noise != 'gaussian': 
+            raise ValueError('1/f noise only applis to Gaussian noise.')
+            
+        X = colornoise2d(n_samples=n_samples, dims=dims, beta=beta, phi=X, random_seed=random_seed)
+        X = (X - X.mean()) / X.std()
+        
+    if design_matrix:
+        if nt is None:
+            pass
+        else:
+            X = build_design_matrix(X, nt, shift)
+            
+    return X
+        
+def colornoise1d(n_samples, dims, beta=1, phi=None, random_seed=2046):
+    
+    u = np.fft.fftfreq(dims)
+    Sf = (u ** 2) ** (- beta / 2)
+    Sf[np.isinf(Sf)] = 0
+    
+    np.random.seed(random_seed)
+    phi = np.random.randn(n_samples, dims) if phi is None else phi
+    
+    f = np.cos(2 * np.pi * phi, dtype=complex) 
+    f.imag = np.sin(2 * np.pi * phi)
+
+    x = np.fft.fft(Sf ** 0.5 * f)
+    
+    return x.real        
+    
+    
+def colornoise2d(n_samples, dims, beta=1, phi=None, random_seed=2046):
+        
+    u = np.fft.fftfreq(dims[0])[:, np.newaxis]
+    u = np.tile(u, dims[1])
+    v = np.fft.fftfreq(dims[1])[:, np.newaxis]
+    v = np.tile(v.T, (dims[0], 1))
+
+    Sf = (u ** 2 + v ** 2) ** (- beta / 2)
+    Sf[np.isinf(Sf)] = 0
+
+    np.random.seed(random_seed)
+    phi = np.random.randn(n_samples, *dims) if phi is None else phi
+    
+    f = np.cos(2 * np.pi * phi, dtype=complex) 
+    f.imag = np.sin(2 * np.pi * phi)
+
+    x = np.fft.fft2(Sf ** 0.5 * f)
+    
+    return x.real
+
+def get_response(X, w, intercept=0, dt=1, R=10, random_seed=2046,
+                distr='gaussian', nonlinearity='none'):
+
+    np.random.seed(random_seed)
+    if nonlinearity == 'softplus':
+        fnl = softplus
+    elif nonlinearity == 'exponential':
+        fnl = np.exp
+    elif nonlinearity == 'none':
+        fnl = lambda x : x
+
+    r = dt * R * fnl(X @ w + intercept)
+
+    if distr == 'gaussian':
+        return np.random.normal(r)
+
+    elif distr == 'poisson':
+        r = np.maximum(dt * r, 1e-17) # avoid 0.
+        return np.random.poisson(r)
+
+

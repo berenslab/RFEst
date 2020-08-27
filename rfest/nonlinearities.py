@@ -1,5 +1,8 @@
 import jax.numpy as np
 
+__all__ = ['softplus', 'softmax', 'sigmoid', 'relu', 'leaky_relu',
+            'selu', 'swish', 'elu']
+
 def softplus(x):
     return np.log(1 + np.exp(x)) 
 
