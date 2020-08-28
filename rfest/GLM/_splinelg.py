@@ -57,9 +57,14 @@ class splineLG(splineBase):
                 history_output = 0.
                 
         if self.fit_nonlinearity:
-            self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl'])
+            nl_params = p['nl_params']
+        else:
+            if hasattr(self, 'nl_params'):
+                nl_params = self.nl_params
+            else:
+                nl_params = None
 
-        yhat = self.fnl(filter_output + history_output + intercept, self.nonlinearity)
+        yhat = self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity, params=nl_params).flatten()
 
         return yhat
 

@@ -4,7 +4,7 @@ from jax import grad
 from jax import jit
 from jax.experimental import optimizers
 from jax.experimental import stax
-from jax.experimental.stax import Dense, Relu
+from jax.experimental.stax import Dense, BatchNorm, Relu
 from jax.config import config
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
@@ -220,25 +220,35 @@ class Base:
         self.nl_bins = bins[1:]
         self.fnl_nonparametric = interp1d(bins[1:][mask], yy0)        
 
-    def initialize_parametric_nonlinearity(self, method='spline', init_to='exponential', params_dict=None):
-        
+    def initialize_parametric_nonlinearity(self, init_to='exponential', params_dict=None):
+
+        if hasattr(self, 'nonlinearity'):
+            method= self.nonlinearity
+        else:
+            method= self.filter_nonlinearity
+ 
         # prepare data 
-        xrange = params_dict['xrange']
-        nx= params_dict['nx']
+        if params_dict is None: 
+           params_dict = {}
+        xrange = params_dict['xrange'] if 'xrange' in params_dict else 5 
+        nx= params_dict['nx'] if 'nx' in params_dict else 1000
         x0 = np.linspace(-xrange, xrange, nx)
         if init_to == 'exponential':
             y0 = np.exp(x0)
             
         elif init_to == 'softplus':
             y0 = softplus(x0)
+
+        elif init_to == 'relu':
+            y0 = relu(x0)
             
         elif init_to == 'nonparametric':
             y0 = self.fnl_nonparametric(x0)
             
         # fit nonlin
         if method == 'spline':
-            smooth = params_dict['smooth']
-            df = params_dict['df']
+            smooth = params_dict['smooth'] if 'smooth' in params_dict else 'cr'
+            df = params_dict['df'] if 'df' in params_dict else 7
             if smooth == 'cr':
                 X = cr(x0, df)
             elif smooth == 'cc':
@@ -266,14 +276,15 @@ class Base:
                 g = grad(loss)(p, data)
                 return opt_update(i, g, opt_state)
 
-            random_seed = params_dict['random_seed']
+            random_seed = params_dict['random_seed'] if 'random_seed' in params_dict else 2046 
             key = random.PRNGKey(random_seed)
 
-            step_size = params_dict['step_size']
-            layer_sizes = params_dict['layer_sizes']
+            step_size = params_dict['step_size'] if 'step_size' in params_dict else 0.01 
+            layer_sizes = params_dict['layer_sizes'] if 'layer_sizes' in params_dict else [10, 10, 1]
             layers = []
             for layer_size in layer_sizes:
                 layers.append(Dense(layer_size))
+                layers.append(BatchNorm(axis=(0, 1)))
                 layers.append(Relu)
             else:
                 layers.pop(-1)
@@ -287,7 +298,7 @@ class Base:
             opt_init, opt_update, get_params = optimizers.adam(step_size)
             opt_state = opt_init(init_params)
 
-            num_iters = params_dict['num_iters']
+            num_iters = params_dict['num_iters'] if 'num_iters' in params_dict else 1000
             if num_subunits == 1: 
                 data = {'x': x0.reshape(-1,1), 'y': y0.reshape(-1,1)}
             else:

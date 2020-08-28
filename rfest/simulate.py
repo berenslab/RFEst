@@ -88,7 +88,7 @@ def V1complex_2d(dims=[30, 40], scale=[.025, .03]):
     
     return uvec(k)
 
-def get_fullfield_flicker(n_samples, dims=None, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
+def flickerfield(n_samples, dims=None, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
 
     np.random.seed(random_seed)
 
@@ -100,7 +100,6 @@ def get_fullfield_flicker(n_samples, dims=None, shift=0, beta=None, noise='gauss
         
         X = np.random.choice([-1, 1], size=n_samples)[:, np.newaxis]
         
-    
     if beta is not None:
         X = colornoise1d(1, dims=n_samples, beta=beta, phi=X.flatten(), random_seed=2046)[:, np.newaxis]
         X = (X - X.mean()) / X.std()
@@ -113,7 +112,7 @@ def get_fullfield_flicker(n_samples, dims=None, shift=0, beta=None, noise='gauss
         
     return X
 
-def get_flicker_bar(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
+def flickerbar(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
     
     nt, nx = dims
     
@@ -137,7 +136,7 @@ def get_flicker_bar(n_samples, dims, shift=0, beta=None, noise='gaussian', desig
         
     return X
 
-def get_checkerboard(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
+def checkerboard(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
     
     if len(dims) == 2:
         nt = None
@@ -170,6 +169,9 @@ def get_checkerboard(n_samples, dims, shift=0, beta=None, noise='gaussian', desi
     return X
         
 def colornoise1d(n_samples, dims, beta=1, phi=None, random_seed=2046):
+
+    import warnings
+    warnings.filterwarnings("ignore")
     
     u = np.fft.fftfreq(dims)
     Sf = (u ** 2) ** (- beta / 2)
@@ -185,8 +187,10 @@ def colornoise1d(n_samples, dims, beta=1, phi=None, random_seed=2046):
     
     return x.real        
     
-    
 def colornoise2d(n_samples, dims, beta=1, phi=None, random_seed=2046):
+
+    import warnings
+    warnings.filterwarnings("ignore")
         
     u = np.fft.fftfreq(dims[0])[:, np.newaxis]
     u = np.tile(u, dims[1])
@@ -206,7 +210,7 @@ def colornoise2d(n_samples, dims, beta=1, phi=None, random_seed=2046):
     
     return x.real
 
-def get_response(X, w, intercept=0, dt=1, R=10, random_seed=2046,
+def get_response(X, w, intercept=0, dt=1, R=10, random_seed=None,
                 distr='gaussian', nonlinearity='none'):
 
     np.random.seed(random_seed)
@@ -214,6 +218,8 @@ def get_response(X, w, intercept=0, dt=1, R=10, random_seed=2046,
         fnl = softplus
     elif nonlinearity == 'exponential':
         fnl = np.exp
+    elif nonlinearity == 'relu':
+        fnl = relu
     elif nonlinearity == 'none':
         fnl = lambda x : x
 
