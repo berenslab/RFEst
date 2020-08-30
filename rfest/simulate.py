@@ -90,6 +90,10 @@ def V1complex_2d(dims=[30, 40], scale=[.025, .03]):
 
 def flickerfield(n_samples, dims=None, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
 
+    """
+    Full field flicker.
+    """
+
     np.random.seed(random_seed)
 
     if noise == 'gaussian':
@@ -114,6 +118,10 @@ def flickerfield(n_samples, dims=None, shift=0, beta=None, noise='gaussian', des
 
 def flickerbar(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
     
+    """
+    Flicker bar.
+    """
+
     nt, nx = dims
     
     if noise == 'gaussian':
@@ -136,8 +144,12 @@ def flickerbar(n_samples, dims, shift=0, beta=None, noise='gaussian', design_mat
         
     return X
 
-def checkerboard(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
+def noise2d(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix=False, random_seed=2046):
     
+    """
+    2D noise. Gaussian white noise or checkerboard binary noise.
+    """
+
     if len(dims) == 2:
         nt = None
         

@@ -53,21 +53,22 @@ def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
                 
         dims = model.dims
         ax_w_rf = fig.add_subplot(spec[idx, 0])
+        if idx == 0:
+            ax_w_rf.set_title('RF', fontsize=14)
+
         w_sta = uvec(model.w_sta.reshape(dims))
-        ax_w_rf.plot(w_sta, label='STA')
+        ax_w_rf.plot(w_sta, color='C0', label='STA')
         ax_w_rf.spines['top'].set_visible(False)
         ax_w_rf.spines['right'].set_visible(False)
         ax_w_rf.set_ylabel(model_names[idx], fontsize=14)
         
-        w_spl = uvec(model.w_spl.reshape(dims))
-        ax_w_rf.plot(w_spl, label='SPL')
-        
-        if idx == 0:
-            ax_w_rf.set_title('RF', fontsize=14)
-                
+        if hasattr(model, 'w_spl'):
+            w_spl = uvec(model.w_spl.reshape(dims))
+            ax_w_rf.plot(w_spl, color='C1', label='SPL')
+                        
         if hasattr(model, 'w_opt'):
             w_opt = uvec(model.w_opt.reshape(dims))
-            ax_w_rf.plot(w_opt,label='OPT')
+            ax_w_rf.plot(w_opt, color='C2', label='OPT')
         
         if plot_h_opt:
             ax_h_opt = fig.add_subplot(spec[idx, 1])
@@ -75,7 +76,7 @@ def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
             if hasattr(model, 'h_opt'):
                 
                 h_opt = model.h_opt
-                ax_h_opt.plot(h_opt)
+                ax_h_opt.plot(h_opt, color='C2')
                 ax_h_opt.spines['top'].set_visible(False)
                 ax_h_opt.spines['right'].set_visible(False)
             else:
@@ -95,8 +96,8 @@ def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
                 nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)                
                 nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
                 xrng = model.nl_xrange
-                ax_nl.plot(xrng, nl0, label='init')
-                ax_nl.plot(xrng, nl_opt, label='fitted')
+                ax_nl.plot(xrng, nl0, color='black', label='init')
+                ax_nl.plot(xrng, nl_opt, color='red', label='fitted')
                 ax_nl.spines['top'].set_visible(False)
                 ax_nl.spines['right'].set_visible(False)
             else:
@@ -234,7 +235,6 @@ def plot2d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
         ax_pred.legend(frameon=False)
 
     fig.tight_layout()
-
     
 def plot3d(model, X_test, y_test, dt=None,
         shift=None, model_name=None, response_type='spike'):
@@ -367,7 +367,6 @@ def plot3d_frames(model, shift=None):
 
     fig.tight_layout()
         
-
 def plot_prediction(models, X_test, y_test, dt=None, len_time=None, 
                     response_type='spike', model_names=None):
     
