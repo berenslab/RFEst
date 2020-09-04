@@ -16,24 +16,16 @@ class NMF:
 
     """
 
-    def __init__(self, V, k, random_seed=2046, **kwargs):
+    def __init__(self, V, k, init_method='random', random_seed=2046, **kwargs):
 
         # build basis or not
-        self.build_L = kwargs['build_L'] if 'build_L' in kwargs.keys() else False
-        self.build_R = kwargs['build_R'] if 'build_R' in kwargs.keys() else False
 
-        self.dims_L = kwargs['dims_L'] if self.build_L else None
-        self.df_L = kwargs['df_L'] if self.build_L else None
+        self.dims = kwargs['dims'] if 'dims' in kwargs else None
+        self.df = kwargs['df'] if 'df' in kwargs else None
 
-        self.dims_R = kwargs['dims_R'] if self.build_R else None
-        self.df_R = kwargs['df_R'] if self.build_R else None
+        self.smooth = kwargs['smooth'] if 'smooth' in kwargs else 'cr'
 
-        self.smooth_L = kwargs['smooth_L'] if 'smooth_L' in kwargs.keys() else 'cr'
-        self.smooth_R = kwargs['smooth_R'] if 'smooth_R' in kwargs.keys() else 'bs'
-
-        self.L = build_spline_matrix(self.dims_L, self.df_L, self.smooth_L) if self.build_L else None
-        self.R = build_spline_matrix(self.dims_R, self.df_R, self.smooth_R) if self.build_R else None
-
+        self.S = build_spline_matrix(self.dims, self.df, self.smooth) if self.df is not None else None
 
         # store input data
         self.V = V # data
@@ -41,26 +33,21 @@ class NMF:
         # data shape / dimension
         self.m, self.n = V.shape
         self.k = k # number of subunits
-        self.b = self.L.shape[1] if self.L is not None else None
-        self.d = self.R.shape[1] if self.R is not None else None
+        self.b = self.S.shape[1] if self.S is not None else None
 
         # initialize W and H
 
         np.random.seed(random_seed)
-
-        if self.L is not None:
+    
+        if self.S is not None:
             self.B = np.abs(np.random.rand(self.b, self.k))
-            self.W = self.L @ self.B
+            self.W = self.S @ self.B
+ 
         else:
             self.B = None
             self.W = np.abs(np.random.rand(self.m, self.k))
-
-        if self.R is not None:
-            self.D = np.abs(np.random.rand(self.d, self.k))
-            self.H = self.R @ self.D
-        else:
-            self.D = None
-            self.H = np.abs(np.random.rand(self.n, self.k))
+        
+        self.H = np.abs(np.random.rand(self.n, self.k))
 
     def update_W(self):
 
@@ -72,23 +59,19 @@ class NMF:
         W = self.W
 
         # basis
-        L = self.L
-        R = self.R
-
-        # basis coeff
+        S = self.S
         B = self.B
-        D = self.D
 
         VH = V @ H
         HtH = H.T @ H
 
-        if L is not None:
+        if S is not None:
 
-            upper = L.T @ VH + 1e-7
-            lower = L.T @ L @ B @ HtH + 1e-7
+            upper = S.T @ VH + 1e-7
+            lower = S.T @ S @ B @ HtH + 1e-7
 
             B *= np.sqrt(upper / lower)
-            W = L @ B
+            W = S @ B
 
         else:
 
@@ -109,32 +92,15 @@ class NMF:
         W = self.W
 
         # basis
-        L = self.L
-        R = self.R
-
-        # basis coeff
-        B = self.B
-        D = self.D
-
         VtW = V.T @ W
         WtW = W.T @ W
 
-        if R is not None:
+        upper = VtW
+        lower = H @ WtW
 
-            upper = R.T @ VtW + 1e-7
-            lower = R.T @ R @ D @ WtW + 1e-7
+        H *= upper / lower
 
-            D *= np.sqrt(upper/lower)
-            H = R @ D
-
-        else:
-
-            upper = VtW
-            lower = H @ WtW
-
-            H *= upper / lower
-
-        return H, D
+        return H
 
     def compute_cost(self):
 
@@ -156,8 +122,8 @@ class NMF:
         time_start = time.time()
         for itr in range(num_iters):
 
+            self.H = self.update_H()
             self.W, self.B = self.update_W()
-            self.H, self.D = self.update_H()
 
             time_elapsed = time.time() - time_start
 

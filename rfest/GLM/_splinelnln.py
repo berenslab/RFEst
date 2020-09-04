@@ -98,7 +98,8 @@ class splineLNLN(splineBase):
 
         return neglogli
 
-    def fit(self, p0=None, extra=None, num_subunits=2, num_iters=3000, 
+    def fit(self, p0=None, extra=None, num_subunits=2, 
+            num_epochs=1, num_iters=3000, 
             initialize='random', metric=None,
             alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
@@ -165,7 +166,7 @@ class splineLNLN(splineBase):
             extra = {key: np.array(extra[key]) for key in extra.keys()}
 
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_iters, metric, step_size, tolerance, verbose)   
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)   
         
         self.R = self.p_opt['R'] if fit_R else np.array([1.])        
 

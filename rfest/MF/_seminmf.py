@@ -82,7 +82,7 @@ class semiNMF:
         else:
             W = VHHtHinv
         
-        # W /= np.linalg.norm(W, axis=0)
+        # W /= np.maximum(np.linalg.norm(W, axis=0), 1e-7)
 
         return W, B
     

@@ -370,7 +370,7 @@ class Base:
         pass
 
 
-    def optimize_params(self, p0, extra, num_iters, metric, step_size, tolerance, verbose):
+    def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose):
 
         """
 
@@ -378,20 +378,18 @@ class Base:
 
         """
 
-        opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
-        opt_state = opt_init(p0)
-
         @jit
         def step(i, opt_state):
             p = get_params(opt_state)
             g = grad(self.cost)(p)
             return opt_update(i, g, opt_state)
 
-        cost_train = []
-        cost_dev = []
-        metric_train = []
-        metric_dev = []
-        params_list = []
+        # preallocation
+        cost_train = [0] * num_iters 
+        cost_dev = [0] * num_iters
+        metric_train = [0] * num_iters
+        metric_dev = [0] * num_iters    
+        params_list = [0] * num_iters
 
         if verbose:
             if extra is None:
@@ -406,78 +404,94 @@ class Base:
                     print('{0}\t{1:>10}\t{2:>10}\t{3:>10}\t{4:>10}\t{5:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Cost (dev)', 'Metric (train)', 'Metric (dev)')) 
 
         time_start = time.time()
-        for i in range(num_iters):
 
-            opt_state = step(i, opt_state)
-            params_list.append(get_params(opt_state))
+        for epoch in range(num_epochs):   
 
-            y_pred_train = self.forward_pass(p=params_list[-1], extra=None)
-            cost_train.append(self.cost(p=params_list[-1], precomputed=y_pred_train))
-            if extra is not None:
-                y_pred_dev = self.forward_pass(p=params_list[-1], extra=extra)
-                cost_dev.append(self.cost(p=params_list[-1], extra=extra, precomputed=y_pred_dev))
+            opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
+            if epoch == 0:
+                opt_state = opt_init(p0)
+            else:
+                opt_state = opt_init(params)
 
-            if metric is not None:
+            if verbose and num_epochs > 1:
                 
-                metric_train.append(self._score(self.y, y_pred_train, metric))
+                print('\n===Epoch {0}==='.format(epoch))
+            
+            for i in range(num_iters):
+
+                opt_state = step(i, opt_state)
+                params_list[i] = get_params(opt_state)
+
+                y_pred_train = self.forward_pass(p=params_list[i], extra=None)
+                c_train = self.cost(p=params_list[i], precomputed=y_pred_train)
+                cost_train[i] = c_train 
+                
                 if extra is not None:
-                    metric_dev.append(self._score(extra['y'], y_pred_dev, metric))                
+                    y_pred_dev = self.forward_pass(p=params_list[i], extra=extra)
+                    c_dev = self.cost(p=params_list[i], extra=extra, precomputed=y_pred_dev)
+                    cost_dev[i] = c_dev
 
-            time_elapsed = time.time() - time_start
-            if verbose:
-                if i % int(verbose) == 0:
-                    if extra is None:
-                        if metric is None:
-                           print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}'.format(i, time_elapsed, cost_train[-1]))
+                if metric is not None:
+                    
+                    m_train = self._score(self.y, y_pred_train, metric)
+                    metric_train[i] = m_train
+
+                    if extra is not None:
+                        m_dev = self._score(extra['y'], y_pred_dev, metric)
+                        metric_dev[i] = m_dev
+
+                time_elapsed = time.time() - time_start
+                if verbose:
+                    if i % int(verbose) == 0:
+                        if extra is None:
+                            if metric is None:
+                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}'.format(i, time_elapsed, c_train))
+                            else:
+                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, c_train, m_train)) 
+
                         else:
-                           print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, cost_train[-1], metric_train[-1])) 
+                            if metric is None:
+                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, c_train, c_dev))
+                            else:
+                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}\t{4:>10.3f}\t{5:>10.3f}'.format(i, time_elapsed, c_train, c_dev, m_train, m_dev))
 
-                    else:
-                        if metric is None:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, cost_train[-1], cost_dev[-1]))
-                        else:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}\t{4:>10.3f}\t{5:>10.3f}'.format(i, time_elapsed, cost_train[-1], cost_dev[-1], metric_train[-1], metric_dev[-1]))
+                if tolerance and i > 300: # tolerance = 0: no early stop.
 
-            if tolerance and len(params_list) > tolerance: # tolerance = 0: no early stop.
-
+                    total_time_elapsed = time.time() - time_start
+                    cost_train_slice = np.array(cost_train[i-tolerance:i])
+                    cost_dev_slice = np.array(cost_dev[i-tolerance:i])
+                    
+                    if np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
+                        params = params_list[i-tolerance]
+                        if verbose:
+                            print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(i, tolerance))
+                        break
+                    
+                    if np.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
+                        params = params_list[i]
+                        if verbose:
+                            print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.\n'.format(i, tolerance))
+                        break
+            
+            else:
+                params = params_list[i]
                 total_time_elapsed = time.time() - time_start
 
-                if i > 300 and np.all((np.array(cost_dev[-tolerance+1:]) - np.array(cost_dev[-tolerance:-1])) > 0) and extra is not None:
-                    params = params_list[0]
-                    if verbose:
-                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
-                    break
-                
-                if i > 300 and np.all(np.array(cost_train[-tolerance:-1]) - np.array(cost_train[-tolerance+1:]) < 1e-5):
-                    params = params_list[-1]
-                    if verbose:
-                        print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
-                    break
-        
-                # actually, gradient shouldn't reach nan. if so, there must be a bug.
-                # if np.isnan(np.array(cost_train[-tolerance+1:])).any():
-                #     params = params_list[-2] 
-                #     if verbose:
-                #         print('Stop at {0} steps: cost (train) hits a `nan`, total time elapsed = {2:.03f} s'.format(i, tolerance, total_time_elapsed))
-                #     break
-
-                params_list.pop(0)
-        else:
-            params = params_list[-1]
-            total_time_elapsed = time.time() - time_start
-
-            if verbose:
-                print('Stop: reached {0} steps, total time elapsed= {1:.3f} s.'.format(num_iters, total_time_elapsed))
-        
-        self.cost_train = cost_train
-        self.cost_dev = cost_dev
-        self.metric_train = metric_train
-        self.metric_dev = metric_dev
+                if verbose:
+                    print('Stop: reached {0} steps.\n'.format(num_iters))
+            
+        else:    
+            print('Total time elapsed: {0:.3f} s.'.format(total_time_elapsed))
+            
+        self.cost_train = cost_train[:i+1]
+        self.cost_dev = cost_dev[:i+1]
+        self.metric_train = metric_train[:i+1]
+        self.metric_dev = metric_dev[:i+1]
 
         return params
 
     def fit(self, p0=None, extra=None, initialize='random',
-            num_iters=5, metric=None, alpha=1, beta=0.05, 
+            num_epochs=1, num_iters=5, metric=None, alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
             step_size=1e-2, tolerance=10, verbose=1, random_seed=2046):
@@ -568,13 +582,11 @@ class Base:
             else:
                 p0.update({'h': None})  
 
-        if 'bnl' not in dict_keys:
-            if hasattr(self, 'bnl'):
-                p0.update({'bnl': self.bnl})
+        if 'nl_params' not in dict_keys:
+            if hasattr(self, 'nl_params'):
+                p0.update({'nl_params': self.nl_params})
             else:
-                p0.update({'bnl': None})
-        else:
-            self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p0['bnl'])
+                p0.update({'nl_params': None})
 
         if extra is not None:
             
@@ -586,7 +598,7 @@ class Base:
 
         # store optimized parameters
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_iters, metric, step_size, tolerance, verbose)
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)
         self.R = self.p_opt['R'] if fit_R else np.array([1.])
 
         if fit_linear_filter:
@@ -756,7 +768,7 @@ class splineBase(Base):
 
 
     def fit(self, p0=None, extra=None, initialize='random',
-            num_iters=3000, metric=None, alpha=1, beta=0.05, 
+            num_epochs=1, num_iters=3000, metric=None, alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
             step_size=1e-2, tolerance=10, verbose=100, random_seed=2046):
@@ -870,7 +882,7 @@ class splineBase(Base):
 
         # store optimized parameters
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_iters, metric, step_size, tolerance, verbose)
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)
         self.R = self.p_opt['R'] if fit_R else np.array([1.])
 
         if fit_linear_filter:

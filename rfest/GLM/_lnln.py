@@ -100,7 +100,8 @@ class LNLN(Base):
         return neglogli
         
         
-    def fit(self, p0=None, extra=None, num_subunits=2, num_iters=3000, metric=None,
+    def fit(self, p0=None, extra=None, num_subunits=2, 
+            num_epochs=1, num_iters=3000, metric=None,
             alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
@@ -167,7 +168,7 @@ class LNLN(Base):
                 self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p0['bnl'])
 
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_iters, metric, step_size, tolerance, verbose)   
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)   
         self.R = self.p_opt['R']
         
         if fit_linear_filter: 
