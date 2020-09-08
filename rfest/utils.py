@@ -116,6 +116,9 @@ def uvec(x):
     # turn input array into a unit vector
     return x / np.linalg.norm(x)
 
+def uvec_rows(A):
+    return A / np.maximum(np.linalg.norm(A, axis=0, ord=2, keepdims=True), 1e-8)
+
 def get_n_samples(t, dt):
     # get number of samples based on time (in minute) and frame rates (in second).
     return np.round(t * 60 / dt).astype(int)
