@@ -449,6 +449,8 @@ def plot_learning_curves(models, model_names=None):
 
     len_iters = []
     fig, ax = plt.subplots(len(models),2, figsize=(8, len(models)*2))
+    ax = ax.reshape(len(models), 2)
+
     for i, model in enumerate(models):
         
         ax[i, 0].plot(model.cost_train, label='train', color='black', linewidth=3)
@@ -486,4 +488,238 @@ def plot_learning_curves(models, model_names=None):
     
     ax[0, 0].legend(frameon=False)
     
+    fig.tight_layout()
+
+def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None, response_type='spike', len_time=30, ncols=5):
+    
+    import matplotlib.gridspec as gridspec
+    import warnings
+    warnings.filterwarnings("ignore")
+
+    model_name = str(type(model)).split('.')[-1][:-2] if model_name is None else model_name 
+    
+    ws = uvec(model.w_opt)
+    dims = model.dims
+    num_subunits = ws.shape[1]
+    
+    vmax = np.max([np.abs(ws.max()), np.abs(ws.min())])
+    t_hRF = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
+    
+    fig = plt.figure(figsize=(8, 4))
+    
+    nrows = np.ceil(num_subunits/ncols).astype(int)
+    num_left = ncols - num_subunits % ncols
+    spec = gridspec.GridSpec(ncols=ncols, nrows=nrows+1, figure=fig)  
+    axs = []
+    
+    for j in range(nrows):
+        for i in range(ncols):
+            ax_subunits = fig.add_subplot(spec[j, i])
+            axs.append(ax_subunits)
+            
+    for i in range(num_subunits):
+        w = ws[:, i].reshape(dims)
+        axs[i].imshow(w, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        axs[i].set_xticks([])
+        axs[i].set_yticks([])
+    else:
+        for j in range(1, num_left+1):
+            axs[i+j].axis('off')
+            
+    if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
+        ax_h_opt = fig.add_subplot(spec[nrows, -1])
+        ax_h_opt.plot(t_hRF, model.h_opt, color='black')
+        ax_h_opt.set_title('History Filter')
+        ax_h_opt.spines['top'].set_visible(False)
+        ax_h_opt.spines['right'].set_visible(False)
+        
+        ax_pred = fig.add_subplot(spec[nrows, :-1])
+    elif not hasattr(model, 'h_opt') and hasattr(model, 'nl_params_opt'): 
+        
+        ax_nl = fig.add_subplot(spec[nrows, -1])
+        nl = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+        xrng = model.nl_xrange
+        
+        ax_nl.plot(xrng, nl)
+        ax_nl.set_title('Fitted nonlinearity')
+        ax_nl.spines['top'].set_visible(False)
+        ax_nl.spines['right'].set_visible(False)    
+        
+        ax_pred = fig.add_subplot(spec[nrows, :-1])
+        
+    elif hasattr(model, 'h_opt') and hasattr(model, 'nl_params_opt'):
+        ax_h_opt = fig.add_subplot(spec[nrows, -2])
+        ax_h_opt.plot(t_hRF, model.h_opt, color='black')
+        ax_h_opt.set_title('History Filter')
+        ax_h_opt.spines['top'].set_visible(False)
+        ax_h_opt.spines['right'].set_visible(False)    
+        
+        ax_nl = fig.add_subplot(spec[nrows, -1])
+        nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)                
+        nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+        xrng = model.nl_xrange
+        
+        ax_nl.plot(xrng, nl0)
+        ax_nl.plot(xrng, nl_opt)
+        ax_nl.set_title('Fitted nonlinearity')
+        ax_nl.spines['top'].set_visible(False)
+        ax_nl.spines['right'].set_visible(False)    
+        
+        ax_pred = fig.add_subplot(spec[nrows, :-2])
+    else:
+        ax_pred = fig.add_subplot(spec[nrows, :])
+    
+    y_pred = model.predict(X_test, y_test)
+    
+    if len_time is not None: 
+        n = get_n_samples(len_time / 60, dt)
+    else:
+        n = y_test.shape[0]
+
+    t_pred = np.arange(n)
+
+    pred_score = model.score(X_test, y_test)
+
+    if response_type == 'spike':
+        markerline, stemlines, baseline = ax_pred.stem(t_pred * dt, y_test[t_pred], linefmt='black',
+                            markerfmt='none', use_line_collection=True, label=f'{response_type}')
+        markerline.set_markerfacecolor('none')
+        plt.setp(baseline,'color', 'none')
+    else:
+        ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')    
+        
+    ax_pred.plot(t_pred * dt, y_pred[t_pred], color='C3', linewidth=3, label=f'{pred_score:.3f}')
+    ax_pred.spines['top'].set_visible(False)
+    ax_pred.spines['right'].set_visible(False)
+    ax_pred.legend(loc="upper left" , frameon=False)
+    ax_pred.set_title('Prediction performance')
+    
+    ax_pred.set_xlabel('Time (s)', fontsize=12)
+    ax_pred.set_ylabel(f'{response_type}', fontsize=12, color='black')
+    ax_pred.tick_params(axis='y', colors='black')
+
+    fig.tight_layout()
+
+def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None, response_type='spike', len_time=1):
+    
+    import matplotlib.gridspec as gridspec
+    import warnings
+    warnings.filterwarnings("ignore")
+
+    model_name = str(type(model)).split('.')[-1][:-2] if model_name is None else model_name 
+
+    dims = model.dims
+    dt = model.dt if dt is None else dt
+    shift = 0 if shift is None else -shift
+    t_tRF = np.linspace(-(dims[0]-shift)*dt, shift*dt, dims[0]+1)[1:]
+    t_hRF = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
+
+    ws = uvec(model.w_opt)
+    
+    num_subunits = ws.shape[1]
+    
+    sRFs = []
+    tRFs = []
+    for i in range(num_subunits):
+        sRF, tRF = get_spatial_and_temporal_filters(ws[:, i], dims)
+        sRFs.append(sRF)
+        tRFs.append(tRF)
+    
+    sRFs = np.stack(sRFs)
+    
+    vmax = np.max([np.abs(sRFs.max()), np.abs(sRFs.min())])
+    
+    fig = plt.figure(figsize=(8, 4))
+    
+    ncols = num_subunits if num_subunits > 5 else 5    
+    nrows = 2
+    spec = gridspec.GridSpec(ncols=ncols, nrows=nrows+1, figure=fig)  
+    axs = []
+    
+    for i in range(num_subunits):
+        ax_sRF = fig.add_subplot(spec[0, i])       
+        ax_sRF.imshow(sRFs[i], cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        ax_sRF.set_xticks([])
+        ax_sRF.set_yticks([])
+        ax_sRF.set_title(f'S{i}')
+    
+        ax_tRF = fig.add_subplot(spec[1, i])       
+        ax_tRF.plot(t_tRF, tRFs[i], color='black')
+        ax_tRF.spines['top'].set_visible(False)
+        ax_tRF.spines['right'].set_visible(False)        
+        
+    if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
+        ax_h_opt = fig.add_subplot(spec[nrows, -1])
+        ax_h_opt.plot(t_hRF, model.h_opt, color='black')
+        ax_h_opt.set_title('History Filter')
+        ax_h_opt.spines['top'].set_visible(False)
+        ax_h_opt.spines['right'].set_visible(False)
+        
+        ax_pred = fig.add_subplot(spec[nrows, :-1])
+        
+    elif not hasattr(model, 'h_opt') and hasattr(model, 'nl_params_opt'): 
+        
+        ax_nl = fig.add_subplot(spec[nrows, -1])
+        nl = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+        xrng = model.nl_xrange
+        
+        ax_nl.plot(xrng, nl)
+        ax_nl.set_title('Fitted nonlinearity')
+        ax_nl.spines['top'].set_visible(False)
+        ax_nl.spines['right'].set_visible(False)    
+        
+        ax_pred = fig.add_subplot(spec[nrows, :-1])
+        
+    elif hasattr(model, 'h_opt') and hasattr(model, 'nl_params_opt'):
+        ax_h_opt = fig.add_subplot(spec[nrows, -2])
+        ax_h_opt.plot(t_hRF, model.h_opt, color='black')
+        ax_h_opt.set_title('History Filter')
+        ax_h_opt.spines['top'].set_visible(False)
+        ax_h_opt.spines['right'].set_visible(False)    
+        
+        ax_nl = fig.add_subplot(spec[nrows, -1])
+        nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)                
+        nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+        xrng = model.nl_xrange
+        
+        ax_nl.plot(xrng, nl0)
+        ax_nl.plot(xrng, nl_opt)
+        ax_nl.set_title('Fitted nonlinearity')
+        ax_nl.spines['top'].set_visible(False)
+        ax_nl.spines['right'].set_visible(False)    
+        
+        ax_pred = fig.add_subplot(spec[nrows, :-2])
+        
+    else:
+        ax_pred = fig.add_subplot(spec[nrows, :])
+    
+    y_pred = model.predict(X_test, y_test)
+    
+    if len_time is not None: 
+        n = get_n_samples(len_time / 60, dt)
+    else:
+        n = y_test.shape[0]
+
+    t_pred = np.arange(n)
+
+    pred_score = model.score(X_test, y_test)
+
+    if response_type == 'spike':
+        markerline, stemlines, baseline = ax_pred.stem(t_pred * dt, y_test[t_pred], linefmt='black',
+                            markerfmt='none', use_line_collection=True, label=f'{response_type}')
+        markerline.set_markerfacecolor('none')
+        plt.setp(baseline,'color', 'none')
+    else:
+        ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')    
+        
+    ax_pred.plot(t_pred * dt, y_pred[t_pred], color='C3', linewidth=3, label=f'{pred_score:.3f}')
+    ax_pred.spines['top'].set_visible(False)
+    ax_pred.spines['right'].set_visible(False)
+    ax_pred.legend(loc="upper left" , frameon=False)
+    ax_pred.set_title('Prediction performance')    
+        
+    ax_pred.set_xlabel('Time (s)', fontsize=12)
+    ax_pred.set_ylabel(f'{response_type}', fontsize=12, color='black')
+    ax_pred.tick_params(axis='y', colors='black')
+        
     fig.tight_layout()
