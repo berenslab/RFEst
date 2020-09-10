@@ -626,21 +626,34 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     
     num_subunits = ws.shape[1]
     
-    sRFs = []
+    sRFs_max = []
+    sRFs_min = []
     tRFs = []
     for i in range(num_subunits):
-        sRF, tRF = get_spatial_and_temporal_filters(ws[:, i], dims)
-        sRFs.append(sRF)
+        w = ws[:, i].reshape(dims)
+        sRF, tRF = get_spatial_and_temporal_filters(w, dims)
+        
+        ref = [sRF[2:, 2:].max(), sRF[2:, 2:].min()][np.argmax([np.abs(sRF.max()), np.abs(sRF.min())])]
+        max_coord = np.where(sRF == ref)
+        tRF = w[:,max_coord[0], max_coord[1]].flatten()
+        tRF_max = np.argmax(tRF)
+        sRF_max = w[tRF_max]
+        sRFs_max.append(sRF_max)
+        tRF_min = np.argmin(tRF)
+        sRF_min = w[tRF_min]
+        sRFs_min.append(sRF_min)
+
         tRFs.append(tRF)
     
-    sRFs = np.stack(sRFs)
-    
-    vmax = np.max([np.abs(sRFs.max()), np.abs(sRFs.min())])
+    sRFs_max = np.stack(sRFs_max)
+    sRFs_min = np.stack(sRFs_min)
+
+    vmax = np.max([np.abs(sRFs_max.max()), np.abs(sRFs_max.min()), np.abs(sRFs_min.max()), np.abs(sRFs_min.min())])
     
     fig = plt.figure(figsize=(8, 4))
     
     ncols = num_subunits if num_subunits > 5 else 5    
-    nrows = 2
+    nrows = 3
 
     figsize = figsize if figsize is not None else (3 * ncols, 2 * nrows + 2)
     fig = plt.figure(figsize=figsize)
@@ -648,17 +661,31 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     axs = []
     
     for i in range(num_subunits):
-        ax_sRF = fig.add_subplot(spec[0, i])       
-        ax_sRF.imshow(sRFs[i], cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
-        ax_sRF.set_xticks([])
-        ax_sRF.set_yticks([])
-        ax_sRF.set_title(f'S{i}')
+        ax_sRF_min = fig.add_subplot(spec[0, i])       
+        ax_sRF_min.imshow(sRFs_min[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        ax_sRF_min.set_xticks([])
+        ax_sRF_min.set_yticks([])
+        ax_sRF_min.set_title(f'S{i}')
+
+        ax_sRF_max = fig.add_subplot(spec[1, i])       
+        ax_sRF_max.imshow(sRFs_max[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        ax_sRF_max.set_xticks([])
+        ax_sRF_max.set_yticks([])
     
-        ax_tRF = fig.add_subplot(spec[1, i])       
+        ax_tRF = fig.add_subplot(spec[2, i])       
         ax_tRF.plot(t_tRF, tRFs[i], color='black')
         ax_tRF.spines['top'].set_visible(False)
-        ax_tRF.spines['right'].set_visible(False)        
+        ax_tRF.spines['right'].set_visible(False)
+        tRF_max = np.argmax(tRFs[i])
+        tRF_min = np.argmin(tRFs[i])
+        ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
+        ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
         
+        if i == 0:
+            ax_sRF_min.set_ylabel('Min Frame')
+            ax_sRF_max.set_ylabel('Max Frame')
+
+            
     if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
         ax_h_opt = fig.add_subplot(spec[nrows, -1])
         ax_h_opt.plot(t_hRF, model.h_opt, color='black')
