@@ -78,7 +78,7 @@ class LNLN(Base):
                 history_output = yh @ self.h_mle
             else:
                 history_output = 0.
-.
+        
         r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
 
         return r
