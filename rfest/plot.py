@@ -255,7 +255,7 @@ def plot3d(model, X_test, y_test, dt=None,
     max_coord = np.where(sRF == ref)
     tRF = w[:,max_coord[0], max_coord[1]].flatten()
     t_tRF = np.linspace(-(dims[0]-shift)*dt, shift*dt, dims[0]+1)[1:]
-    t_hRF = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
+
     
     fig = plt.figure(figsize=(8, 6))
     spec = gridspec.GridSpec(ncols=8, nrows=3, figure=fig)
@@ -282,6 +282,8 @@ def plot3d(model, X_test, y_test, dt=None,
     ax_tRF.set_title('Temporal (center)')
     
     if hasattr(model, 'h_opt'):
+        dims_h = len(model.h_opt)
+        t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
         ax_hRF.plot(t_hRF, model.h_opt, color='black')
         ax_hRF.set_title('post-spike filter')
     else:
