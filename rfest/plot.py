@@ -534,6 +534,10 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
                 axs[i+j].axis('off')
             
     if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
+
+        dims_h = len(model.h_opt)
+        t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
+
         ax_h_opt = fig.add_subplot(spec[nrows, -1])
         ax_h_opt.plot(t_hRF, model.h_opt, color='black')
         ax_h_opt.set_title('History Filter')
@@ -560,7 +564,8 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_pred = fig.add_subplot(spec[nrows, :-1])
         
     elif hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'):
-
+        dims_h = len(model.h_opt)
+        t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
         ax_h_opt = fig.add_subplot(spec[nrows, -2])
         ax_h_opt.plot(t_hRF, model.h_opt, color='black')
         ax_h_opt.set_title('History Filter')
