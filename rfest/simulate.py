@@ -265,21 +265,30 @@ def get_response(X, w, intercept=0, dt=1, R=1, random_seed=None,
 
 
 def get_subunits_response(X, w, intercept=0, dt=1, R=1, random_seed=None,
-                distr='gaussian', nonlinearity='none'):
+                distr='gaussian', nl0='none', nl1='none'):
 
     np.random.seed(random_seed)
-    if nonlinearity == 'softplus':
-        fnl = softplus
-    elif nonlinearity == 'exponential':
-        fnl = np.exp
-    elif nonlinearity == 'relu':
-        fnl = relu
-    elif nonlinearity == 'none':
-        fnl = lambda x : x
+    if nl0 == 'softplus':
+        fnl0 = softplus
+    elif nl0 == 'exponential':
+        fnl0 = np.exp
+    elif nl0 == 'relu':
+        fnl0 = relu
+    elif nl0 == 'none':
+        fnl0 = lambda x : x
 
-    filter_output = np.mean(fnl(X @ w), axis=1)
+    if nl1 == 'softplus':
+        fnl1 = softplus
+    elif nl1 == 'exponential':
+        fnl1 = np.exp
+    elif nl1 == 'relu':
+        fnl1 = relu
+    elif nl1 == 'none':
+        fnl1 = lambda x : x
+
+    filter_output = np.mean(fnl0(X @ w), axis=1)
         
-    r = dt * R * fnl(filter_output + intercept)
+    r = dt * R * fnl1(filter_output + intercept)
     
     if distr == 'gaussian':
         return np.random.normal(r)

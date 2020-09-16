@@ -42,10 +42,21 @@ class LNLN(Base):
             else:
                 yh = self.yh
 
-        if self.fit_R:
+        if self.fit_intercept:
+            intercept = p['intercept'] 
+        else:
+            if hasattr(self, 'intercept'):
+                intercept = self.intercept
+            else:
+                intercept = 0.
+        
+        if self.fit_R: # maximum firing rate / scale factor
             R = p['R']
         else:
-            R = np.array([1.])
+            if hasattr(self, 'R'):
+                R = self.R
+            else:
+                R = 1.
 
         if self.fit_nonlinearity:
             if np.ndim(p['bnl']) != 1:
@@ -67,15 +78,7 @@ class LNLN(Base):
                 history_output = yh @ self.h_mle
             else:
                 history_output = 0.
-        
-        if self.fit_intercept:
-            intercept = p['intercept']
-        else:
-            if hasattr(self, 'intercept'):
-                intercept = self.intercept
-            else:
-                intercept = 0.
-                
+.
         r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten() # conditional intensity (per bin)
 
         return r

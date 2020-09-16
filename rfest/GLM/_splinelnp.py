@@ -40,12 +40,15 @@ class splineLNP(splineBase):
             if hasattr(self, 'intercept'):
                 intercept = self.intercept
             else:
-                intercept = np.array([0.])
+                intercept = 0.
         
-        if self.fit_R:
+        if self.fit_R: # maximum firing rate / scale factor
             R = p['R']
         else:
-            R = np.array([1.])
+            if hasattr(self, 'R'):
+                R = self.R
+            else:
+                R = 1.
 
         if self.fit_nonlinearity:
             nl_params = p['nl_params']

@@ -541,10 +541,14 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     elif not hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'): 
         
         ax_nl = fig.add_subplot(spec[nrows, -1])
-        nl = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
         xrng = model.nl_xrange
+        nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
+        ax_nl.plot(xrng, nl0)
+
+        if hasattr(model, 'nl_params_opt'):
+            nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+            ax_nl.plot(xrng, nl_opt)
         
-        ax_nl.plot(xrng, nl)
         ax_nl.set_title('Fitted nonlinearity')
         ax_nl.spines['top'].set_visible(False)
         ax_nl.spines['right'].set_visible(False)    
