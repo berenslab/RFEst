@@ -5,11 +5,6 @@ import scipy.stats
 from .utils import build_design_matrix, uvec
 from .nonlinearities import * 
 
-__all__ = ['gaussian1d', 'gaussian2d', 'gaussian2d',
-           'mexicanhat1d', 'mexicanhat2d', 'mexicanhat3d',
-           'gabor2d', 'gabor3d', 'V1complex_2d',
-           'get_stimulus']
-
 def gaussian1d(dim=200, std=15):
     return uvec(scipy.signal.gaussian(dim, std=std))
 
@@ -58,7 +53,28 @@ def gabor3d(dims, std, omega, theta, func=np.cos, K=np.pi):
     g_t = np.gradient(gaussian1d(dims[0], std))
     g_s = gabor2d(dims[1:], omega, theta, func, K).flatten()
     g = np.kron(g_t, g_s)  
-    return uvec(g).reshape(dims)    
+    return uvec(g).reshape(dims)   
+
+def subunits2d(num_subunits=5, dims=[25, 25], std=[3,3], offset=[3,3], kind='gaussian', random_seed=2046):
+    
+    if kind == 'gaussian':
+        
+        filter2d = gaussian2d
+    
+    elif kind == 'mexicanhat':
+        
+        filter2d = mexicanhat2d
+    
+    w = np.zeros(dims+[num_subunits])
+    f = filter2d(dims, std)
+    for i in range(num_subunits):
+           
+        if random_seed is not None:
+            np.random.seed(random_seed+i+5)
+        h, v = np.random.randint(low=-offset[0], high=offset[1], size=2)
+        w[:, :, i] = uvec(np.roll(np.roll(f, h, axis=0), v, axis=1))
+        
+    return w
 
 def V1complex_2d(dims=[30, 40], scale=[.025, .03]):
 
@@ -222,7 +238,33 @@ def colornoise2d(n_samples, dims, beta=1, phi=None, random_seed=2046):
     
     return x.real
 
-def get_response(X, w, intercept=0, dt=1, R=10, random_seed=None,
+def get_response(X, w, intercept=0, dt=1, R=1, random_seed=None,
+                distr='gaussian', nonlinearity='none'):
+
+    np.random.seed(random_seed)
+    if nonlinearity == 'softplus':
+        fnl = softplus
+    elif nonlinearity == 'exponential':
+        fnl = np.exp
+    elif nonlinearity == 'relu':
+        fnl = relu
+    elif nonlinearity == 'none':
+        fnl = lambda x : x
+        
+    r = dt * R * fnl(X @ w + intercept)
+
+    if distr == 'gaussian':
+        return np.random.normal(r)
+
+    elif distr == 'poisson':
+        r = np.maximum(dt * r, 1e-17) # avoid 0.
+        return np.random.poisson(r)
+
+    elif distr == 'none':
+        return r
+
+
+def get_subunits_response(X, w, intercept=0, dt=1, R=1, random_seed=None,
                 distr='gaussian', nonlinearity='none'):
 
     np.random.seed(random_seed)
@@ -235,8 +277,10 @@ def get_response(X, w, intercept=0, dt=1, R=10, random_seed=None,
     elif nonlinearity == 'none':
         fnl = lambda x : x
 
-    r = dt * R * fnl(X @ w + intercept)
-
+    filter_output = np.mean(fnl(X @ w), axis=1)
+        
+    r = dt * R * fnl(filter_output + intercept)
+    
     if distr == 'gaussian':
         return np.random.normal(r)
 
@@ -244,4 +288,5 @@ def get_response(X, w, intercept=0, dt=1, R=10, random_seed=None,
         r = np.maximum(dt * r, 1e-17) # avoid 0.
         return np.random.poisson(r)
 
-
+    elif distr == 'none':
+        return r
