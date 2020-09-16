@@ -505,10 +505,11 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     vmax = np.max([np.abs(ws.max()), np.abs(ws.min())])
     t_hRF = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
     
-
-    
     nrows = np.ceil(num_subunits/ncols).astype(int)
-    num_left = ncols - num_subunits % ncols
+    if num_subunits % ncols != 0:
+        num_left = ncols - num_subunits % ncols
+    else:
+        num_left = 0
 
     figsize = figsize if figsize is not None else (3 * ncols, 2 * nrows + 2)
     fig = plt.figure(figsize=figsize)
@@ -526,8 +527,9 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         axs[i].set_xticks([])
         axs[i].set_yticks([])
     else:
-        for j in range(1, num_left+1):
-            axs[i+j].axis('off')
+        if num_left > 0:
+            for j in range(1, num_left+1):
+                axs[i+j].axis('off')
             
     if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
         ax_h_opt = fig.add_subplot(spec[nrows, -1])
