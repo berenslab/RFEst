@@ -236,8 +236,8 @@ def plot2d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
 
     fig.tight_layout()
     
-def plot3d(model, X_test, y_test, dt=None,
-        shift=None, model_name=None, response_type='spike'):
+def plot3d(model, X_test, y_test, dt=None, 
+        shift=None, model_name=None, response_type='spike', len_time=None):
         
     import matplotlib.gridspec as gridspec
     import warnings
@@ -292,7 +292,13 @@ def plot3d(model, X_test, y_test, dt=None,
     ax_pred = fig.add_subplot(spec[1, :])
 
     y_pred = model.predict(X_test, y_test)
-    t_pred = np.arange(300)
+
+    if len_time is not None: 
+        n = get_n_samples(len_time / 60, dt)
+    else:
+        n = y_test.shape[0]
+
+    t_pred = np.arange(n)
 
     pred_score = model.score(X_test, y_test)
 
@@ -304,7 +310,7 @@ def plot3d(model, X_test, y_test, dt=None,
     else:
         ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')
     
-    ax_pred.plot(t_pred * dt, y_pred[t_pred], color='C3', linewidth=3, label=f'SPL LG={pred_score:.3f}')
+    ax_pred.plot(t_pred * dt, y_pred[t_pred], color='C3', linewidth=3, label=f'{model_name}={pred_score:.3f}')
     ax_pred.spines['top'].set_visible(False)
     ax_pred.spines['right'].set_visible(False)
     ax_pred.legend(loc="upper left" , frameon=False)

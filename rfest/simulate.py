@@ -288,7 +288,7 @@ def get_subunits_response(X, w, intercept=0, dt=1, R=1, random_seed=None,
 
     filter_output = np.mean(fnl0(X @ w), axis=1)
         
-    r = dt * R * fnl1(filter_output + intercept)
+    r = R * fnl1(filter_output + intercept)
     
     if distr == 'gaussian':
         return np.random.normal(r)

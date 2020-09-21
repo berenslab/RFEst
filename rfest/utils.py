@@ -117,6 +117,7 @@ def uvec(x):
     return x / np.linalg.norm(x)
 
 def uvec_rows(A):
+    # turn each row of a matrix into a unit vector
     return A / np.maximum(np.linalg.norm(A, axis=0, ord=2, keepdims=True), 1e-8)
 
 def get_n_samples(t, dt):
@@ -313,3 +314,124 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
             print('Done.')
             
         return data
+
+def znorm(x):
+    return (x - x.mean()) / x.std()
+
+def upsample_data(stim, stimtime, trace, tracetime):
+
+    """
+    Upsampling the stimulus into the calcium trace sampling rate.
+
+    Parameters
+    ==========
+    stim : array
+        Stimulus
+
+    stimtime : array
+        Trigger time of the stimulus
+
+    trace : array
+        Calcium trace
+
+    tracetime : array
+        Time of each recorded point of the calcium trace.
+    
+    Return
+    ======
+    X : array
+        Upsampled Stimulus
+    
+    y : array
+        Gradient of the calcium trace.
+
+    dt : float
+        timebin size.
+    """
+
+    valid_duration = np.logical_and(tracetime > stimtime[0], tracetime < stimtime[-1])
+
+    trace_valid = trace[valid_duration]
+    tracetime_valid = tracetime[valid_duration]
+
+    y = znorm(trace_valid.copy())
+    y = np.gradient(y)
+    
+    frames = np.vstack([stimtime[:-1], stimtime[1:]]).T
+
+    num_repeats = []
+    for i in range(len(frames)):
+        num_repeats.append(sum((tracetime > frames[i][0]).astype(int) * (tracetime <= frames[i][1]).astype(int)))
+    num_repeats = np.hstack(num_repeats)
+
+    X = np.repeat(stim[:len(frames)], num_repeats, axis=0)
+   
+    cut = np.min([X.shape[0], y.shape[0]])
+
+    dt = np.mean(np.diff(tracetime))
+    
+    return X[:cut], y[:cut], dt    
+
+def downsample_data(stim, stimtime, trace, tracetime):
+
+    """
+    Downsampling the calcium trace to the stimulus refresh rate.
+
+    Parameters
+    ==========
+    stim : array
+        Stimulus
+
+    stimtime : array
+        Trigger time of the stimulus
+
+    trace : array
+        Calcium trace
+
+    tracetime : array
+        Time of each recorded point of the calcium trace.
+    
+    Return
+    ======
+    X : array
+        Stimulus
+    
+    y : array
+        Downsampled gradient of the calcium trace.
+
+    dt : float
+        timebin size.
+    """
+
+    from scipy.interpolate import interp1d 
+
+    data_interp = interp1d(
+        tracetime.flatten(), 
+        znorm(trace.flatten()),
+        kind = 'linear', fill_value='extrapolate',
+    ) (stimtime)
+
+    X = stim
+    y = znorm(np.gradient(data_interp))
+    
+    cut = np.min([X.shape[0], y.shape[0]])
+
+    dt = np.mean(np.diff(stimtime))
+
+    return X[:cut], y[:cut], dt
+
+def resample_spikes(stim, stimtime, spiketime):
+
+    """
+    Resampling spikes to the stimulus refresh rate
+    """
+
+    stimtime_new = np.linspace(stimtime[0], stimtime[-1], stim.shape[0])
+    y, _ = np.histogram(spiketime, bins=np.hstack([stimtime_new, stimtime_new[-1]+np.mean(np.diff(stimtime_new))]))
+
+    dt = np.mean(np.diff(stimtime_new))
+    
+    X = stim
+    cut = np.min([X.shape[0], y.shape[0]]) 
+    
+    return X[:cut], y[:cut], dt
