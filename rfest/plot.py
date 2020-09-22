@@ -76,7 +76,10 @@ def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
             if hasattr(model, 'h_opt'):
                 
                 h_opt = model.h_opt
-                ax_h_opt.plot(h_opt, color='C2')
+                dims_h = len(model.h_opt)
+                t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
+
+                ax_h_opt.plot(t_hRF, h_opt, color='C2')
                 ax_h_opt.spines['top'].set_visible(False)
                 ax_h_opt.spines['right'].set_visible(False)
             else:
@@ -639,7 +642,6 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     dt = model.dt if dt is None else dt
     shift = 0 if shift is None else -shift
     t_tRF = np.linspace(-(dims[0]-shift)*dt, shift*dt, dims[0]+1)[1:]
-    t_hRF = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
 
     ws = uvec(model.w_opt)
     
@@ -706,6 +708,10 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
 
             
     if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
+
+        dims_h = len(model.h_opt)
+        t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
+
         ax_h_opt = fig.add_subplot(spec[nrows, -1])
         ax_h_opt.plot(t_hRF, model.h_opt, color='black')
         ax_h_opt.set_title('History Filter')
@@ -728,6 +734,9 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_pred = fig.add_subplot(spec[nrows, :-1])
         
     elif hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'):
+
+        dims_h = len(model.h_opt)
+        t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
 
         ax_h_opt = fig.add_subplot(spec[nrows, -2])
         ax_h_opt.plot(t_hRF, model.h_opt, color='black')
@@ -797,7 +806,6 @@ def plot_multicolors3d(model, X_test, y_test, dt=None, shift=None, response_type
     dt = model.dt if dt is None else dt
     shift = 0 if shift is None else -shift
     t_tRF = np.linspace(-(dims[0]-shift)*dt, shift*dt, dims[0]+1)[1:]
-    t_hRF = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
 
     ws = uvec(model.w_opt)
     
@@ -837,6 +845,10 @@ def plot_multicolors3d(model, X_test, y_test, dt=None, shift=None, response_type
         ax_tRF.spines['right'].set_visible(False)        
         
     if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
+
+        dims_h = len(model.h_opt)
+        t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
+
         ax_h_opt = fig.add_subplot(spec[nrows, -1])
         ax_h_opt.plot(t_hRF, model.h_opt, color='black')
         ax_h_opt.set_title('History Filter')
@@ -859,6 +871,10 @@ def plot_multicolors3d(model, X_test, y_test, dt=None, shift=None, response_type
         ax_pred = fig.add_subplot(spec[nrows, :-1])
         
     elif hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'):
+
+        dims_h = len(model.h_opt)
+        t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
+
         ax_h_opt = fig.add_subplot(spec[nrows, -2])
         ax_h_opt.plot(t_hRF, model.h_opt, color='black')
         ax_h_opt.set_title('History Filter')
