@@ -931,3 +931,54 @@ def plot_multicolors3d(model, X_test, y_test, dt=None, shift=None, response_type
     ax_pred.tick_params(axis='y', colors='black')
         
     fig.tight_layout()
+
+def plot_stc2d(model, figsize=(8, 4), cmap=plt.cm.bwr):
+    
+    import matplotlib.gridspec as gridspec
+    import warnings
+    warnings.filterwarnings("ignore")
+
+    dims = model.dims
+    
+    n_w_stc_pos = model.w_stc_pos.shape[1]
+    n_w_stc_neg = model.w_stc_neg.shape[1]
+    ncols = np.max([n_w_stc_pos, n_w_stc_neg])
+    nrows = 3
+    
+    fig = plt.figure(figsize=figsize)
+    spec = gridspec.GridSpec(ncols=ncols, nrows=nrows+1, figure=fig)  
+    
+    if n_w_stc_pos > 0: 
+        w_stc_pos = uvec(model.w_stc_pos)
+        vmax = np.max([np.abs(w_stc_pos.max()), np.abs(w_stc_pos.min())])
+        for i in range(n_w_stc_pos):
+            w = w_stc_pos[:, i].reshape(dims)
+            ax_w_stc_pos = fig.add_subplot(spec[-2, i])
+            ax_w_stc_pos.imshow(w, cmap=cmap, vmin=-vmax, vmax=vmax)
+            ax_w_stc_pos.set_xticks([])
+            ax_w_stc_pos.set_yticks([])
+            if i == 0:
+                ax_w_stc_pos.set_ylabel('Pos. Filters')
+
+    if n_w_stc_neg > 0:
+        w_stc_neg = uvec(model.w_stc_neg)
+        vmax = np.max([np.abs(w_stc_neg.max()), np.abs(w_stc_neg.min())])
+        for i in range(n_w_stc_neg):
+            w = w_stc_neg[:, i].reshape(dims)
+            ax_w_stc_neg = fig.add_subplot(spec[-1, i])
+            ax_w_stc_neg.imshow(w, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+            ax_w_stc_neg.set_xticks([])
+            ax_w_stc_neg.set_yticks([])
+            if i == 0:
+                ax_w_stc_neg.set_ylabel('Neg. Filters')
+            
+    ax_eigen = fig.add_subplot(spec[:2, :])
+    xx = np.arange(len(model.w_stc_eigval))
+    mask = model.w_stc_eigval_mask
+    ax_eigen.axhspan(model.w_stc_min_null, model.w_stc_max_null, alpha=0.5, color='grey', label='null')
+    ax_eigen.plot(xx, model.w_stc_eigval, 'k.')
+    ax_eigen.plot(xx[mask], model.w_stc_eigval[mask], 'r.')
+    ax_eigen.set_title('Eigen Values')
+    ax_eigen.legend(frameon=False)
+    
+    fig.tight_layout()

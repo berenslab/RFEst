@@ -207,8 +207,8 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
         print('\t1. A V1 Complex cell from Rust, et al., 2005. (stimulus: flicker bars; source: https://github.com/pillowlab/subunit_mele)')
         print('\t2. Salamander RGCs from Maheswaranathan et. al. 2018 (stimulus: flicker bars; source: https://github.com/baccuslab/inferring-hidden-structure-retinal-circuits)')
         print('\t3. Macaque RGCs from Uzzell & Chichilnisky, 2004 (stimulus: full-field flicker; source: https://github.com/pillowlab/GLMspiketraintutorial)')
-        print('\t4. Salamander RGCs from Liu, et al., 2017 (stimulus: checkerboard; source: https://gin.g-node.org/gollischlab/Liu_etal_2017_RGC_spiketrains_for_STNMF)')
-        # print('\t5. Mouse RGCs from Ran, et al. 2020 (source: htpps://github.com/berenslab/RFEst)')
+        print('\t4. Tiger Salamander RGCs from Liu, et al., 2017 (stimulus: checkerboard; source: https://gin.g-node.org/gollischlab/Liu_etal_2017_RGC_spiketrains_for_STNMF)')
+        print('\t5. Mouse RGCs from Ran, et al. 2020 (stimulus: checkerboard; source: https://github.com/huangziwei/data_RFEst)')
         
     else:
 
@@ -218,18 +218,18 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
         if data == 1:
                         
             if os.path.exists(datapath + '544l029.p21_stc.mat') is True and overwrite is False:
-                print('Data is already downloaded. To re-download the same file, please set `overwrite=False`.')
+                print('(Rust, et al., 2005) is already downloaded. To re-download the same file, please set `overwrite=False`.')
                 
             else:
                 if overwrite is True:
-                    print('Re-downloading...')
+                    print('Re-downloading (Rust, et al., 2005)...')
                 else:
-                    print('Downloading...')
+                    print('Downloading (Rust, et al., 2005)...')
                 url = 'https://github.com/pillowlab/subunit_mele/blob/master/neural_data/544l029.p21_stc.mat?raw=true'
                 urllib.request.urlretrieve(url, datapath + '544l029.p21_stc.mat')
                 print('Done.')
                 
-            print('Loading data (V1 Complex cell, Rust, et al., 2005.)')
+            print('Loading data...')
             with h5py.File(datapath + '544l029.p21_stc.mat', 'r') as f:
                 data = {key:f[key][:] for key in f.keys() if key != '#refs#'}
             print('Done.')
@@ -237,17 +237,17 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
         elif data == 2:
         
             if os.path.exists(datapath + 'rgc_whitenoise.h5') is True and overwrite is False:
-                print('Data is already downloaded. To re-download the same file, please set `overwrite=False`.')
+                print('(Maheswaranathan et. al. 2018) is already downloaded. To re-download the same file, please set `overwrite=False`.')
             else:     
                 if overwrite is True:
-                    print('Re-downloading...')
+                    print('Re-downloading (Maheswaranathan et. al. 2018)...')
                 else:
-                    print('Downloading...')                
+                    print('Downloading (Maheswaranathan et. al. 2018)...')                
                 url = 'https://github.com/baccuslab/inferring-hidden-structure-retinal-circuits/blob/master/rgc_whitenoise.h5?raw=true'
                 urllib.request.urlretrieve(url, datapath + 'rgc_whitenoise.h5')
                 print('Done.')
             
-            print('Loading data (Salamander RGCs from Maheswaranathan et. al. 2018)')
+            print('Loading data...')
             with h5py.File(datapath + 'rgc_whitenoise.h5', 'r') as f:
                 data = {key:f[key][:] for key in f.keys()}
             print('Done.')
@@ -255,17 +255,17 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
         elif data == 3:
         
             if os.path.exists(datapath + 'data_RGCs.zip') is True and overwrite is False:
-                print('Data is already downloaded. To re-download the same file, please set `overwrite=False`.')
+                print('(Uzzell & Chichilnisky, 2004) is already downloaded. To re-download the same file, please set `overwrite=False`.')
             else:     
                 if overwrite is True:
-                    print('Re-downloading...')
+                    print('Re-downloading (Uzzell & Chichilnisky, 2004)...')
                 else:
-                    print('Downloading...')                
+                    print('Downloading (Uzzell & Chichilnisky, 2004)...')                
                 url = 'http://pillowlab.princeton.edu/data/data_RGCs.zip'
                 urllib.request.urlretrieve(url, datapath + 'data_RGCs.zip')
                 print('Done.')
 
-            print('Loading data (Macaque GRCs from Uzzell & Chichilnisky, 2004)')
+            print('Loading data...')
             
             if not os.path.exists(datapath + 'data_RGCs'):            
                 from zipfile import ZipFile
@@ -287,12 +287,12 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
         elif data == 4:
 
             if os.path.exists(datapath + 'stnmf.zip') is True and overwrite is False:
-                print('Data is already downloaded. To re-download the same file, please set `overwrite=False`.')
+                print('(Liu, et al., 2017) is already downloaded. To re-download the same file, please set `overwrite=False`.')
             else:     
                 if overwrite is True:
-                    print('Re-downloading...')
+                    print('Re-downloading (Liu, et al., 2017)...')
                 else:
-                    print('Downloading...')                
+                    print('Downloading (Liu, et al., 2017)...')                
                 url = 'https://github.com/huangziwei/data_RFEst/blob/master/stnmf.zip?raw=true'
                 urllib.request.urlretrieve(url, datapath + 'stnmf.zip')
                 print('Done.')
@@ -303,7 +303,7 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
                 archive = ZipFile(datapath + 'stnmf.zip', 'r')
                 archive.extractall(path=datapath)
             
-            print('Loading data (Salamander RGCs from Liu, et al., 2017)')
+            print('Loading data...')
             with h5py.File(datapath + 'stnmf/train.h5', 'r') as f:
                 train = {key:f[key][:] for key in f.keys()}
 
@@ -312,7 +312,27 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
 
             data = {'train': train, 'test':test}
             print('Done.')
-            
+
+
+        elif data == 5:
+            import pickle
+
+            if os.path.exists(datapath + 'rgc_dendrites.pickle') is True and overwrite is False:
+                print('(Ran, et al. 2020) is already downloaded. To re-download the same file, please set `overwrite=False`.')
+            else:
+                if overwrite is True:
+                    print('Re-downloading (Ran, et al. 2020)...')
+                else:
+                    print('Downloading (Ran, et al. 2020)...')
+                url = 'https://github.com/huangziwei/data_RFEst/blob/master/rgc_dendrites.pickle?raw=true'
+                urllib.request.urlretrieve(url, datapath + 'rgc_dendrites.pickle')
+                print('Done.')                
+
+            print('Loading data (Ran, et al. 2020)...')
+            with open(datapath + 'rgc_dendrites.pickle', 'rb') as f:
+                data = pickle.load(f)
+            print('Done.')
+
         return data
 
 def znorm(x):
