@@ -149,7 +149,7 @@ class Base:
                 eigval_null.append(eigval_randomize)
             else:
                 if verbose:
-                    print(f' Done.')
+                    print(f'Done.')
             eigval_null = np.vstack(eigval_null)
             max_null, min_null = np.percentile(eigval_null, percentile), np.percentile(eigval_null, 100-percentile)
             mask_sig_pos = eigval > max_null
@@ -220,13 +220,19 @@ class Base:
         self.nl_bins = bins[1:]
         self.fnl_nonparametric = interp1d(bins[1:][mask], yy0)        
 
-    def initialize_parametric_nonlinearity(self, init_to='exponential', params_dict=None):
+    def initialize_parametric_nonlinearity(self, init_to='exponential', method=None, params_dict=None):
 
-        if hasattr(self, 'nonlinearity'):
-            method= self.nonlinearity
+        if method is None:
+            if hasattr(self, 'nonlinearity'):
+                method = self.nonlinearity
+            else:
+                method = self.filter_nonlinearity
         else:
-            method= self.filter_nonlinearity
- 
+            if hasattr(self, 'nonlinearity'):
+                self.nonlinearity = method
+            else:
+                self.filter_nonlinearity = method   
+         
         # prepare data 
         if params_dict is None: 
            params_dict = {}

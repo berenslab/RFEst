@@ -79,12 +79,10 @@ JAX has no native Windows support yet, but can be installed on **CPU via the Win
     jax
     jaxlib
 
-## Data
+## Tutorial
 
-The accompanying data for example notebooks are from:
+Tutorial notebooks can be found here: [https://github.com/huangziwei/notebooks_RFEst](https://github.com/huangziwei/notebooks_RFEst)
 
-Ran, Y., Huang, Z., et al. (2020). Type-specific dendritic integration in mouse retinal ganglion cells. Nat Commun 11, 2101. https://doi.org/10.1038/s41467-020-15867-9
- 
 ## Reference
 
 [1] Huang, Z., &  Berens, P. (2020). Efficient high dimensional receptive field inference using a flexible spline basis. Cosyne Abstracts 2020, Denver, CO. [[abstract]](./misc/Huang_et_al_Cosyne_abstract.pdf) [[poster]](./misc/Huang_et_al_Cosyne_poster.pdf)

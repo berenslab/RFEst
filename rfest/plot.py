@@ -120,7 +120,7 @@ def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
 
     fig.tight_layout()   
 
-def plot2d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, response_type='spike', dt=None, len_time=None):
+def plot2d(models, X_test=None, y_test=None, model_names=None, figsize=None, vmax=0.5, response_type='spike', dt=None, len_time=None):
     
     if type(models) is not list:
         models = [models]
@@ -147,25 +147,26 @@ def plot2d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
     fig = plt.figure(figsize=figsize)
     spec = gridspec.GridSpec(ncols=ncols, nrows=nrows, figure=fig)   
     
-    ax_pred = fig.add_subplot(spec[nrows-1, :])
-    dt = models[0].dt if dt is None else dt
-    if len_time is not None: 
-        n = get_n_samples(len_time / 60, dt)
-    else:
-        n = y_test.shape[0]
+    if X_test is not None:
+        ax_pred = fig.add_subplot(spec[nrows-1, :])
+        dt = models[0].dt if dt is None else dt
+        if len_time is not None: 
+            n = get_n_samples(len_time / 60, dt)
+        else:
+            n = y_test.shape[0]
 
-    t_pred = np.arange(n)
-    
-    if response_type == 'spike':
-        markerline, stemlines, baseline = ax_pred.stem(t_pred * dt, y_test[t_pred], linefmt='black',
-                            markerfmt='none', use_line_collection=True, label=f'{response_type}')
-        markerline.set_markerfacecolor('none')
-        plt.setp(baseline,'color', 'none')
-    else:
-        ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')
-    ax_pred.spines['top'].set_visible(False)
-    ax_pred.spines['right'].set_visible(False)
-    ax_pred.set_xlabel('Time (s)')
+        t_pred = np.arange(n)
+        
+        if response_type == 'spike':
+            markerline, stemlines, baseline = ax_pred.stem(t_pred * dt, y_test[t_pred], linefmt='black',
+                                markerfmt='none', use_line_collection=True, label=f'{response_type}')
+            markerline.set_markerfacecolor('none')
+            plt.setp(baseline,'color', 'none')
+        else:
+            ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')
+        ax_pred.spines['top'].set_visible(False)
+        ax_pred.spines['right'].set_visible(False)
+        ax_pred.set_xlabel('Time (s)')
     
     for idx, model in enumerate(models):
                 
@@ -219,27 +220,35 @@ def plot2d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
 
             if hasattr(model, 'fnl_fitted'):
                 
-                nl = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
                 xrng = model.nl_xrange
-                ax_nl.plot(xrng, nl)
+                nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
+                ax_nl.plot(xrng, nl0)
+
+                if hasattr(model, 'nl_params_opt'):
+                    nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+                    ax_nl.plot(xrng, nl_opt)
+
                 ax_nl.spines['top'].set_visible(False)
                 ax_nl.spines['right'].set_visible(False)
+
             else:
                 ax_nl.axis('off')
-                
+        
+
             if idx == 0:
                 ax_nl.set_title('Fitted nonlinearity')
-                
-        y_pred = model.predict(X_test, y_test)
-        pred_score = model.score(X_test, y_test)
-    
-        ax_pred.plot(t_pred * dt, y_pred[t_pred], color=f'C{idx}', linewidth=2,
-            label=f'{model_names[idx]} = {pred_score:.3f}')
-        ax_pred.legend(frameon=False)
+            
+        if X_test is not None:
+            y_pred = model.predict(X_test, y_test)
+            pred_score = model.score(X_test, y_test)
+        
+            ax_pred.plot(t_pred * dt, y_pred[t_pred], color=f'C{idx}', linewidth=2,
+                label=f'{model_names[idx]} = {pred_score:.3f}')
+            ax_pred.legend(frameon=False)
 
     fig.tight_layout()
     
-def plot3d(model, X_test, y_test, dt=None, 
+def plot3d(model, X_test=None, y_test=None, dt=None, 
         shift=None, model_name=None, response_type='spike', len_time=None):
         
     import matplotlib.gridspec as gridspec
@@ -259,7 +268,6 @@ def plot3d(model, X_test, y_test, dt=None,
     tRF = w[:,max_coord[0], max_coord[1]].flatten()
     t_tRF = np.linspace(-(dims[0]-shift)*dt, shift*dt, dims[0]+1)[1:]
 
-    
     fig = plt.figure(figsize=(8, 6))
     spec = gridspec.GridSpec(ncols=8, nrows=3, figure=fig)
     
@@ -291,47 +299,48 @@ def plot3d(model, X_test, y_test, dt=None,
         ax_hRF.set_title('post-spike filter')
     else:
         ax_hRF.axis('off')
+    
+    if X_test is not None:
+        ax_pred = fig.add_subplot(spec[1, :])
+
+        y_pred = model.predict(X_test, y_test)
+
+        if len_time is not None: 
+            n = get_n_samples(len_time / 60, dt)
+        else:
+            n = y_test.shape[0]
+
+        t_pred = np.arange(n)
+
+        pred_score = model.score(X_test, y_test)
+
+        if response_type == 'spike':
+            markerline, stemlines, baseline = ax_pred.stem(t_pred * dt, y_test[t_pred], linefmt='black',
+                                markerfmt='none', use_line_collection=True, label=f'{response_type}')
+            markerline.set_markerfacecolor('none')
+            plt.setp(baseline,'color', 'none')
+        else:
+            ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')
         
-    ax_pred = fig.add_subplot(spec[1, :])
+        ax_pred.plot(t_pred * dt, y_pred[t_pred], color='C3', linewidth=3, label=f'{model_name}={pred_score:.3f}')
+        ax_pred.spines['top'].set_visible(False)
+        ax_pred.spines['right'].set_visible(False)
+        ax_pred.legend(loc="upper left" , frameon=False)
+        ax_pred.set_title('Prediction performance')
+        
+        ax_cost = fig.add_subplot(spec[2, :4])
+        ax_metric = fig.add_subplot(spec[2, 4:])
+        
+        ax_cost.plot(model.cost_train, color='black', label='train')
+        ax_cost.plot(model.cost_dev, color='red', label='dev')
+        ax_cost.set_title('cost')
+        ax_cost.set_ylabel('MSE')
+        ax_cost.legend(frameon=False)
 
-    y_pred = model.predict(X_test, y_test)
-
-    if len_time is not None: 
-        n = get_n_samples(len_time / 60, dt)
-    else:
-        n = y_test.shape[0]
-
-    t_pred = np.arange(n)
-
-    pred_score = model.score(X_test, y_test)
-
-    if response_type == 'spike':
-        markerline, stemlines, baseline = ax_pred.stem(t_pred * dt, y_test[t_pred], linefmt='black',
-                            markerfmt='none', use_line_collection=True, label=f'{response_type}')
-        markerline.set_markerfacecolor('none')
-        plt.setp(baseline,'color', 'none')
-    else:
-        ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')
-    
-    ax_pred.plot(t_pred * dt, y_pred[t_pred], color='C3', linewidth=3, label=f'{model_name}={pred_score:.3f}')
-    ax_pred.spines['top'].set_visible(False)
-    ax_pred.spines['right'].set_visible(False)
-    ax_pred.legend(loc="upper left" , frameon=False)
-    ax_pred.set_title('Prediction performance')
-    
-    ax_cost = fig.add_subplot(spec[2, :4])
-    ax_metric = fig.add_subplot(spec[2, 4:])
-    
-    ax_cost.plot(model.cost_train, color='black', label='train')
-    ax_cost.plot(model.cost_dev, color='red', label='dev')
-    ax_cost.set_title('cost')
-    ax_cost.set_ylabel('MSE')
-    ax_cost.legend(frameon=False)
-
-    ax_metric.plot(model.metric_train, color='black', label='train')
-    ax_metric.plot(model.metric_dev, color='red', label='dev')
-    ax_metric.set_title('metric')
-    ax_metric.set_ylabel('corrcoef')
+        ax_metric.plot(model.metric_train, color='black', label='train')
+        ax_metric.plot(model.metric_dev, color='red', label='dev')
+        ax_metric.set_title('metric')
+        ax_metric.set_ylabel('corrcoef')
     
     for ax in [ax_sRF_min, ax_sRF_max]:
         ax.set_xticks([])
@@ -982,3 +991,24 @@ def plot_stc2d(model, figsize=(8, 4), cmap=plt.cm.bwr):
     ax_eigen.legend(frameon=False)
     
     fig.tight_layout()
+
+def plot_nonlinearity(model, others=None):
+    
+    if not hasattr(model, 'nl_bins'):
+        raise ValueError('Nonlinearity is not fitted yet.')
+    
+    fig, ax = plt.subplots(figsize=(4,3))
+    if hasattr(model, 'fnl_nonparametric'):
+        ax.plot(model.nl_bins, model.fnl_nonparametric(model.nl_bins), label='nonparametric')
+        
+    if hasattr(model, 'fnl_nonparametric'):
+        ax.plot(model.nl_bins, model.fnl_fitted(model.nl_params, model.nl_bins), label='parametric')
+        
+    if others is not None:
+        for nl in others:
+            ax.plot(model.nl_bins, model.fnl(model.nl_bins, nl=nl), label=nl)
+     
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.set_title('Fitted Nonlinearities')
+    ax.legend(frameon=False)
