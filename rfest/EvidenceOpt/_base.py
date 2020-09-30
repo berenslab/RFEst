@@ -182,7 +182,7 @@ class EmpiricalBayes:
         sigma = params[0]
 
         C_post_inv = self.XtX / sigma**2 + C_prior_inv
-        C_post = np.linalg.inv(C_post_inv)
+        C_post = np.linalg.pinv(C_post_inv)
         
         m_post = C_post @ self.XtY / (sigma**2)
         

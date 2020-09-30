@@ -77,7 +77,7 @@ class Base:
 
         if compute_mle:
             self.XtX = X.T @ X
-            self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+            self.w_mle = np.linalg.lstsq(self.XtX, self.XtY, rcond=None)[0]
             if self.n_c > 1: 
                 self.w_mle = self.w_mle.reshape(self.n_features, self.n_c)       
 
@@ -263,7 +263,7 @@ class Base:
                 deg = params_dict['degree'] if 'degree' in params_dict else 3
                 X = bs(x0, df, deg)
             
-            opt_params = np.linalg.inv(X.T @ X) @ X.T @ y0
+            opt_params = np.linalg.pinv(X.T @ X) @ X.T @ y0
             
             def _nl(opt_params, x_new):
                 return np.maximum(interp1d(x0, X @ opt_params)(x_new), 0)
@@ -728,7 +728,7 @@ class splineBase(Base):
         self.n_b = S.shape[1] # num:ber of spline coefficients
 
         # compute spline-based maximum likelihood
-        self.b_spl = np.linalg.solve(XS.T @ XS, XS.T @ y)
+        self.b_spl = np.linalg.lstsq(XS.T @ XS, XS.T @ y, rcond=None)[0]
 
         if self.n_c > 1: 
             self.w_spl = S @ self.b_spl.reshape(self.n_b, self.n_c)
