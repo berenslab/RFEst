@@ -250,6 +250,10 @@ class Base:
             
         elif init_to == 'nonparametric':
             y0 = self.fnl_nonparametric(x0)
+
+        elif init_to == 'gaussian':
+            import scipy.signal
+            y0 = scipy.signal.gaussian(nx, nx/10)
             
         # fit nonlin
         if method == 'spline':

@@ -261,7 +261,17 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
     dt = model.dt if dt is None else dt
     shift = 0 if shift is None else -shift
 
-    w = uvec(model.w_opt.reshape(dims))
+    if hasattr(model, 'w_opt'):
+        w = uvec(model.w_opt.reshape(dims))
+    elif hasattr(model, 'w_spl'):
+        w = uvec(model.w_spl.reshape(dims))
+    elif hasattr(model, 'w_mle'):
+        w = uvec(model.w_mle.reshape(dims))
+    else:
+        w = uvec(model.w_sta.reshape(dims))
+
+    vmax = np.max([np.abs(w.max()), np.abs(w.min())])
+
     sRF, tRF = get_spatial_and_temporal_filters(w, dims)
     ref = [sRF.max(), sRF.min()][np.argmax([np.abs(sRF.max()), np.abs(sRF.min())])]
     max_coord = np.where(sRF == ref)
@@ -276,14 +286,13 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
     ax_tRF = fig.add_subplot(spec[0, 4:6])
     ax_hRF = fig.add_subplot(spec[0, 6:])
 
-    vmax = np.max([np.abs(sRF.max()), np.abs(sRF.min())])
     tRF_max = np.argmax(tRF)
     sRF_max = w[tRF_max]
     tRF_min = np.argmin(tRF)
     sRF_min = w[tRF_min]
 
-    ax_sRF_max.imshow(sRF_max, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
-    ax_sRF_min.imshow(sRF_min, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+    ax_sRF_max.imshow(sRF_max.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+    ax_sRF_min.imshow(sRF_min.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
     ax_sRF_min.set_title('Spatial (min)')
     ax_sRF_max.set_title('Spatial (max)')
 
@@ -291,12 +300,16 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
     ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
     ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
     ax_tRF.set_title('Temporal (center)')
-    
+    ax_tRF.spines['top'].set_visible(False)
+    ax_tRF.spines['right'].set_visible(False)
+
     if hasattr(model, 'h_opt'):
         dims_h = len(model.h_opt)
         t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
         ax_hRF.plot(t_hRF, model.h_opt, color='black')
         ax_hRF.set_title('post-spike filter')
+        ax_hRF.spines['top'].set_visible(False)
+        ax_hRF.spines['right'].set_visible(False)
     else:
         ax_hRF.axis('off')
     
@@ -334,24 +347,31 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
         ax_cost.plot(model.cost_train, color='black', label='train')
         ax_cost.plot(model.cost_dev, color='red', label='dev')
         ax_cost.set_title('cost')
-        ax_cost.set_ylabel('MSE')
+
+        if 'LG' in model_name:
+            ax_cost.set_ylabel('MSE')
+        else:
+            ax_cost.set_ylabel('nLL')
+
         ax_cost.legend(frameon=False)
 
         ax_metric.plot(model.metric_train, color='black', label='train')
         ax_metric.plot(model.metric_dev, color='red', label='dev')
         ax_metric.set_title('metric')
         ax_metric.set_ylabel('corrcoef')
+
+        for ax in [ax_metric, ax_cost]:
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
     
     for ax in [ax_sRF_min, ax_sRF_max]:
         ax.set_xticks([])
         ax.set_yticks([])
-        
-    for ax in [ax_tRF, ax_hRF, ax_metric, ax_cost]:
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        
+                
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])
     fig.suptitle(model_name, fontsize=14)
+
+    return fig
 
 def plot3d_frames(model, shift=None):
     
@@ -368,9 +388,8 @@ def plot3d_frames(model, shift=None):
         w = uvec(model.w_opt.reshape(dims))
         vmax = np.max([np.abs(w.max()), np.abs(w.min())])
 
-
         for i in range(nt):
-            ax[i].imshow(w[i], cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+            ax[i].imshow(w[i].T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
             ax[i].set_xticks([])
             ax[i].set_yticks([])
             ax[i].set_title(f'{t_tRF[i]:.3f} s', fontsize=18)
@@ -639,7 +658,7 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
 
     fig.tight_layout()
 
-def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None, response_type='spike', len_time=1, figsize=None):
+def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None, response_type='spike', len_time=1, contour=None, figsize=None):
     
     import matplotlib.gridspec as gridspec
     import warnings
@@ -689,7 +708,8 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     fig = plt.figure(figsize=figsize)
     spec = gridspec.GridSpec(ncols=ncols, nrows=nrows+1, figure=fig)  
     axs = []
-    
+    ax_sRF_mins= []
+    ax_sRF_maxs = []
     for i in range(num_subunits):
         ax_sRF_min = fig.add_subplot(spec[0, i])       
         ax_sRF_min.imshow(sRFs_min[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
@@ -715,6 +735,22 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
             ax_sRF_min.set_ylabel('Min Frame')
             ax_sRF_max.set_ylabel('Max Frame')
 
+        ax_sRF_mins.append(ax_sRF_min)
+        ax_sRF_maxs.append(ax_sRF_max)
+
+    if contour is not None: # then plot contour
+       for i in range(num_subunits):
+           for j in range(num_subunits):
+                if i != j:
+                    color = 'grey'
+                    alpha = 0.5
+                    style = '--'                    
+                else:
+                    color = 'black'
+                    alpha = 1
+                    style = '--'
+                ax_sRF_mins[i].contour(sRFs_min[j].T, levels=[-contour], colors=[color], linestyles=[style], alpha=alpha)
+                ax_sRF_maxs[i].contour(sRFs_max[j].T, levels=[contour], colors=[color], linestyles=[style], alpha=alpha)
             
     if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
 
@@ -800,7 +836,8 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     ax_pred.set_ylabel(f'{response_type}', fontsize=12, color='black')
     ax_pred.tick_params(axis='y', colors='black')
         
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+    fig.suptitle(f'{model_name}', fontsize=14)
 
 def plot_multicolors3d(model, X_test, y_test, dt=None, shift=None, response_type='spike', len_time=1,
                        model_name=None, cmaps=None, figsize=None):
@@ -1012,3 +1049,238 @@ def plot_nonlinearity(model, others=None):
     ax.spines['right'].set_visible(False)
     ax.set_title('Fitted Nonlinearities')
     ax.legend(frameon=False)
+
+def compare_LNP_and_LNLN(lnp, lnln, X_test, y_test, dt=None, shift=None, title=None, response_type='spike', len_time=1, contour=None, figsize=None):
+    
+    import matplotlib.gridspec as gridspec
+    import warnings
+    warnings.filterwarnings("ignore")
+
+    dims = lnln.dims
+    dt = lnln.dt if dt is None else dt
+    shift = 0 if shift is None else -shift
+    t_tRF = np.linspace(-(dims[0]-shift)*dt, shift*dt, dims[0]+1)[1:]
+
+    ws = uvec(lnln.w_opt)
+    num_subunits = ws.shape[1]
+    
+    sRFs_max = []
+    sRFs_min = []
+    tRFs = []
+    for i in range(num_subunits):
+        w = ws[:, i].reshape(dims)
+        sRF, tRF = get_spatial_and_temporal_filters(w, dims)
+        
+        ref = [sRF[2:, 2:].max(), sRF[2:, 2:].min()][np.argmax([np.abs(sRF.max()), np.abs(sRF.min())])]
+        max_coord = np.where(sRF == ref)
+        tRF = w[:, max_coord[0], max_coord[1]].flatten()
+        tRF_max = np.argmax(tRF)
+        sRF_max = w[tRF_max]
+        sRFs_max.append(sRF_max)
+        tRF_min = np.argmin(tRF)
+        sRF_min = w[tRF_min]
+        sRFs_min.append(sRF_min)
+        tRFs.append(tRF)
+    
+    sRFs_max = np.stack(sRFs_max)
+    sRFs_min = np.stack(sRFs_min)
+
+    vmax = np.max([np.abs(sRFs_max.max()), np.abs(sRFs_max.min()), np.abs(sRFs_min.max()), np.abs(sRFs_min.min())])
+    
+    fig = plt.figure(figsize=(8, 4))
+    
+    ncols = num_subunits if num_subunits > 5 else 5 
+    ncols += 1 # add lnp
+    nrows = 3
+
+    figsize = figsize if figsize is not None else (3 * ncols, 2 * nrows + 2)
+    fig = plt.figure(figsize=figsize)
+    spec = gridspec.GridSpec(ncols=ncols, nrows=nrows+1, figure=fig)  
+    axs = []
+    ax_sRF_mins= []
+    ax_sRF_maxs = []    
+   
+    # LNP
+    w_lnp = uvec(lnp.w_opt).reshape(dims)
+    vmax_lnp = np.max([np.abs(w_lnp.max()), np.abs(w_lnp.min())])
+    sRF_lnp, tRF_lnp = get_spatial_and_temporal_filters(w_lnp, dims)
+    ref = [sRF_lnp[2:, 2:].max(), sRF_lnp[2:, 2:].min()][np.argmax([np.abs(sRF_lnp.max()), np.abs(sRF_lnp.min())])]
+    max_coord = np.where(sRF_lnp == ref)
+    tRF_lnp = w_lnp[:, max_coord[0], max_coord[1]].flatten()
+    tRF_max = np.argmax(tRF_lnp)
+    sRF_max = w_lnp[tRF_max]
+    tRF_min = np.argmin(tRF_lnp)
+    sRF_min = w_lnp[tRF_min]
+        
+    ax_sRF_min = fig.add_subplot(spec[0, 0])       
+    ax_sRF_min.imshow(sRF_min.T, cmap=plt.cm.bwr, vmax=vmax_lnp, vmin=-vmax_lnp)
+    ax_sRF_min.set_xticks([])
+    ax_sRF_min.set_yticks([])
+    ax_sRF_min.set_title(f'LNP')
+
+    ax_sRF_max = fig.add_subplot(spec[1, 0])       
+    ax_sRF_max.imshow(sRF_max.T, cmap=plt.cm.bwr, vmax=vmax_lnp, vmin=-vmax_lnp)
+    ax_sRF_max.set_xticks([])
+    ax_sRF_max.set_yticks([])
+
+    ax_tRF = fig.add_subplot(spec[2, 0])       
+    ax_tRF.plot(t_tRF, tRFs[i], color='black')
+    ax_tRF.spines['top'].set_visible(False)
+    ax_tRF.spines['right'].set_visible(False)
+    tRF_max = np.argmax(tRFs[i])
+    tRF_min = np.argmin(tRFs[i])
+    ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
+    ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
+
+    ax_sRF_min.set_ylabel('Min Frame')
+    ax_sRF_max.set_ylabel('Max Frame')   
+    
+    ax_sRF_mins.append(ax_sRF_min)
+    ax_sRF_maxs.append(ax_sRF_max)     
+
+    # LNLN subunits
+
+    for i in range(num_subunits):
+        ax_sRF_min = fig.add_subplot(spec[0, i+1])       
+        ax_sRF_min.imshow(sRFs_min[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        ax_sRF_min.set_xticks([])
+        ax_sRF_min.set_yticks([])
+        ax_sRF_min.set_title(f'S{i}')
+
+        ax_sRF_max = fig.add_subplot(spec[1, i+1])       
+        ax_sRF_max.imshow(sRFs_max[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        ax_sRF_max.set_xticks([])
+        ax_sRF_max.set_yticks([])
+    
+        ax_tRF = fig.add_subplot(spec[2, i+1])       
+        ax_tRF.plot(t_tRF, tRFs[i], color='black')
+        ax_tRF.spines['top'].set_visible(False)
+        ax_tRF.spines['right'].set_visible(False)
+        tRF_max = np.argmax(tRFs[i])
+        tRF_min = np.argmin(tRFs[i])
+        ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
+        ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
+        
+        ax_sRF_mins.append(ax_sRF_min)
+        ax_sRF_maxs.append(ax_sRF_max)
+        
+    if contour is not None: # then plot contour
+
+        for i in range(num_subunits+1):
+            
+            color_min = 'black' if i == 0 else 'lightsteelblue'
+            color_max = 'black' if i == 0 else 'lightcoral'
+
+            ax_sRF_mins[i].contour(sRF_min.T, levels=[-contour], colors=[color_min], linestyles=['-'], alpha=1)
+            ax_sRF_maxs[i].contour(sRF_max.T, levels=[contour], colors=[color_max], linestyles=['-'], alpha=1)
+
+            for j in range(num_subunits):
+                if i-1 != j:
+                    color = 'grey'
+                    alpha = 0.5
+                    style = '--'                    
+                else:
+                    color = 'black'
+                    alpha = 1
+                    style = '--'
+                ax_sRF_mins[i].contour(sRFs_min[j].T, levels=[-contour], colors=[color], linestyles=[style], alpha=alpha)
+                ax_sRF_maxs[i].contour(sRFs_max[j].T, levels=[contour], colors=[color], linestyles=[style], alpha=alpha)
+            
+    
+    for counter, model in enumerate([lnp, lnln]):
+        color = 'C3' if counter ==0 else 'C0'
+        model_name = 'LNP' if counter ==0 else 'LNLN'
+        if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
+
+            dims_h = len(model.h_opt)
+            t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
+
+            ax_h_opt = fig.add_subplot(spec[nrows, -1])
+            ax_h_opt.plot(t_hRF, model.h_opt, color=color, label=model_name)
+            ax_h_opt.set_title('History Filter')
+            ax_h_opt.spines['top'].set_visible(False)
+            ax_h_opt.spines['right'].set_visible(False)
+
+            ax_pred = fig.add_subplot(spec[nrows, :-1])
+
+        elif not hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'): 
+
+            ax_nl = fig.add_subplot(spec[nrows, -1])
+            nl = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+            xrng = model.nl_xrange
+
+            ax_nl.plot(xrng, nl)
+            ax_nl.set_title('Fitted nonlinearity')
+            ax_nl.spines['top'].set_visible(False)
+            ax_nl.spines['right'].set_visible(False)    
+
+            ax_pred = fig.add_subplot(spec[nrows, :-1])
+
+        elif hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'):
+
+            dims_h = len(model.h_opt)
+            t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
+
+            ax_h_opt = fig.add_subplot(spec[nrows, -2])
+            ax_h_opt.plot(t_hRF, model.h_opt, color='black')
+            ax_h_opt.set_title('History Filter')
+            ax_h_opt.spines['top'].set_visible(False)
+            ax_h_opt.spines['right'].set_visible(False)    
+
+            ax_nl = fig.add_subplot(spec[nrows, -1])
+            xrng = model.nl_xrange
+            nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
+            ax_nl.plot(xrng, nl0)
+
+            if hasattr(model, 'nl_params_opt'):
+                nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+                ax_nl.plot(xrng, nl_opt)
+
+            ax_nl.set_title('Fitted nonlinearity')
+            ax_nl.spines['top'].set_visible(False)
+            ax_nl.spines['right'].set_visible(False)    
+
+            ax_pred = fig.add_subplot(spec[nrows, :-2])
+
+        else:
+            ax_pred = fig.add_subplot(spec[nrows, :])
+
+        y_pred = model.predict(X_test, y_test)
+
+        if len_time is not None: 
+            n = get_n_samples(len_time / 60, dt)
+        else:
+            n = y_test.shape[0]
+
+        t_pred = np.arange(n)
+
+        pred_score = model.score(X_test, y_test)
+        
+        ax_pred.plot(t_pred * dt, y_pred[t_pred], color=color, linewidth=3, label=f'{model_name}={pred_score:.3f}')
+
+    if response_type == 'spike':
+        markerline, stemlines, baseline = ax_pred.stem(t_pred * dt, y_test[t_pred], linefmt='black',
+                            markerfmt='none', use_line_collection=True, label=f'{response_type}')
+        markerline.set_markerfacecolor('none')
+        plt.setp(baseline,'color', 'none')
+    else:
+        ax_pred.plot(t_pred * dt, y_test[t_pred], color='black', label=f'{response_type}')    
+
+    ax_pred.spines['top'].set_visible(False)
+    ax_pred.spines['right'].set_visible(False)
+    ax_pred.legend(loc="upper left" , frameon=False)
+    ax_pred.set_title('Prediction performance')    
+        
+    ax_pred.set_xlabel('Time (s)', fontsize=12)
+    ax_pred.set_ylabel(f'{response_type}', fontsize=12, color='black')
+    ax_pred.tick_params(axis='y', colors='black')
+
+    if hasattr(model, 'h_opt'):
+        ax_h_opt.legend(loc="upper left" , frameon=False)
+        
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+    if title is not None:
+        fig.suptitle(f'{title}', fontsize=14) 
+    
+    return fig
+    

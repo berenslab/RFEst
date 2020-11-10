@@ -338,7 +338,7 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
 def znorm(x):
     return (x - x.mean()) / x.std()
 
-def upsample_data(stim, stimtime, trace, tracetime):
+def upsample_data(stim, stimtime, trace, tracetime, threshold=False):
 
     """
     Upsampling the stimulus into the calcium trace sampling rate.
@@ -390,9 +390,12 @@ def upsample_data(stim, stimtime, trace, tracetime):
 
     dt = np.mean(np.diff(tracetime))
     
-    return X[:cut], y[:cut], dt    
+    if threshold:
+        return X[:cut], np.maximum(y[:cut], 0), dt   
+    else:
+        return X[:cut], y[:cut], dt    
 
-def downsample_data(stim, stimtime, trace, tracetime):
+def downsample_data(stim, stimtime, trace, tracetime, threshold=False):
 
     """
     Downsampling the calcium trace to the stimulus refresh rate.
@@ -438,7 +441,10 @@ def downsample_data(stim, stimtime, trace, tracetime):
 
     dt = np.mean(np.diff(stimtime))
 
-    return X[:cut], y[:cut], dt
+    if threshold:
+        return X[:cut], np.maximum(y[:cut], 0), dt   
+    else:
+        return X[:cut], y[:cut], dt  
 
 def resample_spikes(stim, stimtime, spiketime):
 
