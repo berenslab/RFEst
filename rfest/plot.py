@@ -137,14 +137,14 @@ def plot2d(models, X_test=None, y_test=None, model_names=None, figsize=None, vma
     import warnings
     warnings.filterwarnings("ignore")
 
-    plot_w_spl = any([hasattr(model, 'w_spl') for model in models])
+    # plot_w_spl = any([hasattr(model, 'w_spl') for model in models])
     plot_w_opt = any([hasattr(model, 'w_opt') for model in models])
     plot_nl = any([hasattr(model, 'fnl_fitted') for model in models])
     plot_h_opt = any([hasattr(model, 'h_opt') for model in models])
 
     
     nrows = len(models) + 1 # add row for prediction
-    ncols = 1 + sum([plot_w_spl, plot_w_opt, plot_nl, plot_h_opt])
+    ncols = 1 + sum([1, plot_w_opt, plot_nl, plot_h_opt])
     figsize = figsize if figsize is not None else (2 * ncols, nrows + 2)
     fig = plt.figure(figsize=figsize)
     spec = gridspec.GridSpec(ncols=ncols, nrows=nrows, figure=fig)   
@@ -180,15 +180,17 @@ def plot2d(models, X_test=None, y_test=None, model_names=None, figsize=None, vma
         ax_w_sta.set_yticks([])
         ax_w_sta.set_ylabel(model_names[idx], fontsize=14)
         
-        ax_w_spl = fig.add_subplot(spec[idx, 1])
-        w_spl = uvec(model.w_spl.reshape(dims))
-        ax_w_spl.imshow(w_spl, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
-        ax_w_spl.set_xticks([])
-        ax_w_spl.set_yticks([])
+        if hasattr(model, 'w_spl'):
+            ax_w_spl = fig.add_subplot(spec[idx, 1])
+            w_spl = uvec(model.w_spl.reshape(dims))
+            ax_w_spl.imshow(w_spl, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+            ax_w_spl.set_xticks([])
+            ax_w_spl.set_yticks([])
         
         if idx == 0:
             ax_w_sta.set_title('STA', fontsize=14)
-            ax_w_spl.set_title('SPL', fontsize=14)    
+            if hasattr(model, 'w_spl'): 
+                ax_w_spl.set_title('SPL', fontsize=14)    
                 
         if hasattr(model, 'w_opt'):
             ax_w_opt = fig.add_subplot(spec[idx, 2])
