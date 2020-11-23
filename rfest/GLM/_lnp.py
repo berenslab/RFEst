@@ -90,6 +90,7 @@ class LNP(Base):
         """
         y = self.y if extra is None else extra['y']
         r = self.forward_pass(p, extra) if precomputed is None else precomputed
+        r = np.maximum(r, 1e-20) # remove zero to avoid nan in log.
         dt = self.dt
 
         term0 = - np.log(r / dt) @ y # spike term from poisson log-likelihood

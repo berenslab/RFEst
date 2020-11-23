@@ -237,7 +237,7 @@ class Base:
         if params_dict is None: 
            params_dict = {}
         xrange = params_dict['xrange'] if 'xrange' in params_dict else 5 
-        nx= params_dict['nx'] if 'nx' in params_dict else 1000
+        nx = params_dict['nx'] if 'nx' in params_dict else 1000
         x0 = np.linspace(-xrange, xrange, nx)
         if init_to == 'exponential':
             y0 = np.exp(x0)
@@ -268,6 +268,8 @@ class Base:
                 X = bs(x0, df, deg)
             
             opt_params = np.linalg.pinv(X.T @ X) @ X.T @ y0
+
+            self.nl_basis = X
             
             def _nl(opt_params, x_new):
                 return np.maximum(interp1d(x0, X @ opt_params)(x_new), 0)

@@ -108,6 +108,8 @@ def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
                 
             if idx == 0:
                 ax_nl.set_title('Fitted nonlinearity')
+
+            ax_nl.legend(frameon=False)
                 
         y_pred = model.predict(X_test, y_test)
         pred_score = model.score(X_test, y_test)
@@ -116,7 +118,7 @@ def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, res
             label=f'{model_names[idx]} = {pred_score:.3f}')
         ax_pred.legend(frameon=False)
         ax_w_rf.legend(frameon=False)
-        ax_nl.legend(frameon=False)
+        
 
     fig.tight_layout()   
 
@@ -249,7 +251,8 @@ def plot2d(models, X_test=None, y_test=None, model_names=None, figsize=None, vma
     fig.tight_layout()
     
 def plot3d(model, X_test=None, y_test=None, dt=None, 
-        shift=None, model_name=None, response_type='spike', len_time=None):
+        shift=None,  response_type='spike', len_time=None, figsize=None, 
+        plot_extra=False, model_name=None, title=None):
         
     import matplotlib.gridspec as gridspec
     import warnings
@@ -278,8 +281,14 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
     tRF = w[:,max_coord[0], max_coord[1]].flatten()
     t_tRF = np.linspace(-(dims[0]-shift)*dt, shift*dt, dims[0]+1)[1:]
 
-    fig = plt.figure(figsize=(8, 6))
-    spec = gridspec.GridSpec(ncols=8, nrows=3, figure=fig)
+    # fig = plt.figure(figsize=(8, 6))
+    
+    figsize = figsize if figsize is not None else (8, 6)
+    fig = plt.figure(figsize=figsize)
+    if plot_extra:
+        spec = gridspec.GridSpec(ncols=8, nrows=3, figure=fig)
+    else:
+        spec = gridspec.GridSpec(ncols=8, nrows=2, figure=fig)
     
     ax_sRF_min = fig.add_subplot(spec[0, 0:2])
     ax_sRF_max = fig.add_subplot(spec[0, 2:4])
@@ -293,28 +302,54 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
 
     ax_sRF_max.imshow(sRF_max.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
     ax_sRF_min.imshow(sRF_min.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
-    ax_sRF_min.set_title('Spatial (min)')
-    ax_sRF_max.set_title('Spatial (max)')
+    ax_sRF_min.set_title('Spatial filter (min)')
+    ax_sRF_max.set_title('Spatial filter (max)')
 
-    ax_tRF.plot(t_tRF, tRF, color='black')
+    ax_tRF.plot(t_tRF, tRF, color='black', lw=3, alpha=0.8)
     ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
     ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
-    ax_tRF.set_title('Temporal (center)')
+    ax_tRF.set_title('Temporal filter (center)')
     ax_tRF.spines['top'].set_visible(False)
     ax_tRF.spines['right'].set_visible(False)
+    ax_tRF.set_xlabel('Time (s)')
 
     if hasattr(model, 'h_opt'):
         dims_h = len(model.h_opt)
         t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
-        ax_hRF.plot(t_hRF, model.h_opt, color='black')
-        ax_hRF.set_title('post-spike filter')
+        ax_hRF.plot(t_hRF, model.h_opt, color='black', lw=3, alpha=0.8)
+        ax_hRF.plot(t_hRF, model.Sh * model.bh_opt, color='gray', alpha=0.5) 
+        ax_hRF.set_title('Response-history filter')
         ax_hRF.spines['top'].set_visible(False)
         ax_hRF.spines['right'].set_visible(False)
+        ax_hRF.set_xlabel('Time (s)')
     else:
         ax_hRF.axis('off')
     
     if X_test is not None:
-        ax_pred = fig.add_subplot(spec[1, :])
+
+        if hasattr(model, 'fnl_fitted') and not hasattr(model, 'nl_params_opt'):
+            ax_nl = fig.add_subplot(spec[1, -2:])
+            xrng = model.nl_xrange
+            nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
+            ax_nl.plot(xrng, nl0, lw=4, alpha=0.5)
+            ax_nl.plot(xrng, model.nl_basis * model.nl_params, color='grey', alpha=0.5) 
+
+            # if hasattr(model, 'nl_params_opt'):
+        elif hasattr(model, 'nl_params_opt'): 
+            ax_nl = fig.add_subplot(spec[1, -2:])
+            xrng = model.nl_xrange
+            nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+            ax_nl.plot(xrng, nl_opt, lw=4, alpha=0.5)
+            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt, color='grey', alpha=0.5) 
+            
+            ax_nl.set_title('Fitted nonlinearity')
+            ax_nl.spines['top'].set_visible(False)
+            ax_nl.spines['right'].set_visible(False) 
+            ax_nl.set_xlabel('Filter output')
+            ax_pred = fig.add_subplot(spec[1, :-2])
+
+        else:
+            ax_pred = fig.add_subplot(spec[1, :])
 
         y_pred = model.predict(X_test, y_test)
 
@@ -338,9 +373,12 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
         ax_pred.plot(t_pred * dt, y_pred[t_pred], color='C3', linewidth=3, label=f'{model_name}={pred_score:.3f}')
         ax_pred.spines['top'].set_visible(False)
         ax_pred.spines['right'].set_visible(False)
+        ax_pred.set_xlabel('Time (s)')
         ax_pred.legend(loc="upper left" , frameon=False)
         ax_pred.set_title('Prediction performance')
         
+    if plot_extra:
+
         ax_cost = fig.add_subplot(spec[2, :4])
         ax_metric = fig.add_subplot(spec[2, 4:])
         
@@ -369,7 +407,7 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
         ax.set_yticks([])
                 
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-    fig.suptitle(model_name, fontsize=14)
+    fig.suptitle(title, fontsize=14)
 
     return fig
 
@@ -699,7 +737,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
 
     vmax = np.max([np.abs(sRFs_max.max()), np.abs(sRFs_max.min()), np.abs(sRFs_min.max()), np.abs(sRFs_min.min())])
     
-    fig = plt.figure(figsize=(8, 4))
+    # fig = plt.figure(figsize=(8, 4))
     
     ncols = num_subunits if num_subunits > 5 else 5    
     nrows = 3
