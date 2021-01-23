@@ -445,11 +445,11 @@ class Base:
 
                 if metric is not None:
                     
-                    m_train = self._score(self.y, y_pred_train, metric)
+                    m_train = self._score(self.X, self.y, y_pred_train, metric)
                     metric_train[i] = m_train
 
                     if extra is not None:
-                        m_dev = self._score(extra['y'], y_pred_dev, metric)
+                        m_dev = self._score(extra['X'], extra['y'], y_pred_dev, metric)
                         metric_dev[i] = m_dev
 
                 time_elapsed = time.time() - time_start
@@ -495,10 +495,10 @@ class Base:
         else:    
             print('Total time elapsed: {0:.3f} s.'.format(total_time_elapsed))
             
-        self.cost_train = cost_train[:i+1]
-        self.cost_dev = cost_dev[:i+1]
-        self.metric_train = metric_train[:i+1]
-        self.metric_dev = metric_dev[:i+1]
+        self.cost_train = np.hstack(cost_train[:i+1])
+        self.cost_dev = np.hstack(cost_dev[:i+1])
+        self.metric_train = np.hstack(metric_train[:i+1])
+        self.metric_dev = np.hstack(metric_dev[:i+1])
 
         return params
 
@@ -576,11 +576,10 @@ class Base:
         if 'w' not in dict_keys:
             if initialize is None:
                 p0.update({'w': self.w_sta})
-            else:
-                if initialize == 'random':
-                    key = random.PRNGKey(random_seed)
-                    w0 = 0.01 * random.normal(key, shape=(self.w_sta.shape[0], )).flatten()
-                    p0.update({'w': w0})
+            elif initialize == 'random':
+                key = random.PRNGKey(random_seed)
+                w0 = 0.01 * random.normal(key, shape=(self.w_sta.shape[0], )).flatten()
+                p0.update({'w': w0})
 
         if 'intercept' not in dict_keys:
             p0.update({'intercept': np.array([0.])})
@@ -589,10 +588,15 @@ class Base:
             p0.update({'R': np.array([1.])})
 
         if 'h' not in dict_keys:
-            if hasattr(self, 'h_mle'):
+            if initialize is None and hasattr(self, 'h_mle'):
                 p0.update({'h': self.h_mle})            
+
+            elif initialize == 'random' and hasattr(self, 'h_mle'):
+                    key = random.PRNGKey(random_seed)
+                    h0 = 0.01 * random.normal(key, shape=(self.h_mle.shape[0], )).flatten()
+                    p0.update({'h': h0})
             else:
-                p0.update({'h': None})  
+                p0.update({'h': None}) 
 
         if 'nl_params' not in dict_keys:
             if hasattr(self, 'nl_params'):
@@ -658,7 +662,7 @@ class Base:
 
         return y_pred
 
-    def _score(self, y, y_pred, metric):
+    def _score(self, X, y, y_pred, metric):
 
         if metric == 'r2':
             return r2(y, y_pred)
@@ -675,7 +679,10 @@ class Base:
 
         y_pred = self.predict(X, y, p)
 
-        return self._score(y, y_pred, metric)
+        if metric == 'nll':
+            return self.cost(p=self.p_opt, extra={'X': X, 'y': y}, precomputed=y_pred)
+        else:
+            return self._score(X, y, y_pred, metric)
         
 
 class splineBase(Base):
@@ -863,10 +870,14 @@ class splineBase(Base):
             p0.update({'R': np.array([1.])})
 
         if 'bh' not in dict_keys:
-            if hasattr(self, 'bh_spl'):
+            if initialize is None and hasattr(self, 'bh_spl'):
                 p0.update({'bh': self.bh_spl})  
+            elif initialize == 'random' and hasattr(self, 'bh_spl'):
+                key = random.PRNGKey(random_seed)
+                bh0 = 0.01 * random.normal(key, shape=(len(self.bh_spl))).flatten()
+                p0.update({'b': bh0})
             else:
-                p0.update({'bh': None}) 
+                p0.update({'bh': None})  
 
         if 'nl_params' not in dict_keys:
             if hasattr(self, 'nl_params'):

@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 
 from .utils import get_n_samples, uvec, get_spatial_and_temporal_filters
 
+from scipy.ndimage import gaussian_filter
+
 def plot1d(models, X_test, y_test, model_names=None, figsize=None, vmax=0.5, response_type='spike', dt=None, len_time=None):
     
     if type(models) is not list:
@@ -302,8 +304,14 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
     tRF_min = np.argmin(tRF)
     sRF_min = w[tRF_min]
 
-    ax_sRF_max.imshow(sRF_max.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
-    ax_sRF_min.imshow(sRF_min.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+    if hasattr(model, 'w_spl'):
+        ax_sRF_max.imshow(sRF_max.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+        ax_sRF_min.imshow(sRF_min.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+    else:
+        
+        ax_sRF_max.imshow(gaussian_filter(sRF_max.T, sigma=1), cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+        ax_sRF_min.imshow(gaussian_filter(sRF_min.T, sigma=1), cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)        
+    
     ax_sRF_min.set_title('Spatial filter (min)')
     ax_sRF_max.set_title('Spatial filter (max)')
 
@@ -319,7 +327,8 @@ def plot3d(model, X_test=None, y_test=None, dt=None,
         dims_h = len(model.h_opt)
         t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
         ax_hRF.plot(t_hRF, model.h_opt, color='black', lw=3, alpha=0.8)
-        ax_hRF.plot(t_hRF, model.Sh * model.bh_opt, color='gray', alpha=0.5) 
+        if hasattr(model, 'Sh'): 
+            ax_hRF.plot(t_hRF, model.Sh * model.bh_opt, color='gray', alpha=0.5) 
         ax_hRF.set_title('Response-history filter')
         ax_hRF.spines['top'].set_visible(False)
         ax_hRF.spines['right'].set_visible(False)
@@ -751,14 +760,21 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     ax_sRF_mins= []
     ax_sRF_maxs = []
     for i in range(num_subunits):
-        ax_sRF_min = fig.add_subplot(spec[0, i])       
-        ax_sRF_min.imshow(sRFs_min[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        ax_sRF_min = fig.add_subplot(spec[0, i])
+        if hasattr(model, 'w_spl'):     
+            ax_sRF_min.imshow(sRFs_min[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        else:
+            ax_sRF_min.imshow(gaussian_filter(sRFs_min[i].T, sigma=1), cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
         ax_sRF_min.set_xticks([])
         ax_sRF_min.set_yticks([])
         ax_sRF_min.set_title(f'S{i}')
 
-        ax_sRF_max = fig.add_subplot(spec[1, i])       
-        ax_sRF_max.imshow(sRFs_max[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        ax_sRF_max = fig.add_subplot(spec[1, i])    
+        if hasattr(model, 'w_spl'):
+            ax_sRF_max.imshow(sRFs_max[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+        else:
+            ax_sRF_max.imshow(gaussian_filter(sRFs_max[i].T, sigma=1), cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
+
         ax_sRF_max.set_xticks([])
         ax_sRF_max.set_yticks([])
     
@@ -1164,11 +1180,11 @@ def compare_LNP_and_LNLN(lnp, lnln, X_test, y_test, dt=None, shift=None, title=N
     ax_sRF_max.set_yticks([])
 
     ax_tRF = fig.add_subplot(spec[2, 0])       
-    ax_tRF.plot(t_tRF, tRFs[i], color='black')
+    ax_tRF.plot(t_tRF, tRF_lnp, color='black')
     ax_tRF.spines['top'].set_visible(False)
     ax_tRF.spines['right'].set_visible(False)
-    tRF_max = np.argmax(tRFs[i])
-    tRF_min = np.argmin(tRFs[i])
+    tRF_max = np.argmax(tRF_lnp)
+    tRF_min = np.argmin(tRF_lnp)
     ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
     ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
 
@@ -1176,7 +1192,12 @@ def compare_LNP_and_LNLN(lnp, lnln, X_test, y_test, dt=None, shift=None, title=N
     ax_sRF_max.set_ylabel('Max Frame')   
     
     ax_sRF_mins.append(ax_sRF_min)
-    ax_sRF_maxs.append(ax_sRF_max)     
+    ax_sRF_maxs.append(ax_sRF_max)    
+     
+    tRFs_vmin = np.vstack([tRFs, tRF_lnp]).min()
+    tRFs_vmax = np.vstack([tRFs, tRF_lnp]).max()
+    
+    ax_tRF.set_ylim(tRFs_vmin-0.005, tRFs_vmax+0.005)
 
     # LNLN subunits
 
@@ -1200,6 +1221,8 @@ def compare_LNP_and_LNLN(lnp, lnln, X_test, y_test, dt=None, shift=None, title=N
         tRF_min = np.argmin(tRFs[i])
         ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
         ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
+
+        ax_tRF.set_ylim(tRFs_vmin-0.005, tRFs_vmax+0.005)
         
         ax_sRF_mins.append(ax_sRF_min)
         ax_sRF_maxs.append(ax_sRF_max)
