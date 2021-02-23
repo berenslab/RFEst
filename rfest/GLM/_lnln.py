@@ -59,16 +59,20 @@ class LNLN(Base):
                 R = 1.
 
         if self.fit_nonlinearity:
-            if np.ndim(p['bnl']) != 1:
-                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p['bnl'][i]) for i in range(self.n_s)]
+            nl_params = p['nl_params']
+        else:
+            if hasattr(self, 'nl_params'):
+                nl_params = self.nl_params
             else:
-                self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p['bnl']) 
+                nl_params = None 
 
         if self.fit_linear_filter:
-            filter_output = np.mean(self.fnl(X @ p['w'].reshape(self.n_features * self.n_c, self.n_s), nl=self.filter_nonlinearity), 1)
+            filter_output = np.mean(self.fnl(X @ p['w'].reshape(self.n_features * self.n_c, self.n_s), 
+                            nl=self.filter_nonlinearity, params=nl_params), 1)
         else:
-            filter_output = np.mean(self.fnl(X @ self.w_opt.reshape(self.n_features * self.n_c, self.n_s), nl=self.filter_nonlinearity), 1)
-        
+            filter_output = np.mean(self.fnl(X @ self.w_opt.reshape(self.n_features * self.n_c, self.n_s), 
+                            nl=self.filter_nonlinearity, params=nl_params), 1)
+
         if self.fit_history_filter:
             history_output = yh @ p['h']  
         else:

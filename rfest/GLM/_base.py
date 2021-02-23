@@ -874,8 +874,8 @@ class splineBase(Base):
                 p0.update({'bh': self.bh_spl})  
             elif initialize == 'random' and hasattr(self, 'bh_spl'):
                 key = random.PRNGKey(random_seed)
-                bh0 = 0.01 * random.normal(key, shape=(len(self.bh_spl))).flatten()
-                p0.update({'b': bh0})
+                bh0 = 0.01 * random.normal(key, shape=(len(self.bh_spl),)).flatten()
+                p0.update({'bh': bh0})
             else:
                 p0.update({'bh': None})  
 
