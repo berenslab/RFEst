@@ -65,6 +65,8 @@ def locality_kernel(params, ncoeff):
     nuf = np.array(params[3])
 
     (B, freq) = realfftbasis(ncoeff)
+    B = np.array(B)
+    freq = np.array(freq)
 
     CxSqrt = np.diag(np.exp(-0.25 * 1/taux**2 * (chi - nux)**2))
 
@@ -84,13 +86,13 @@ def realfftbasis(nx):
     https://github.com/leaduncker/SimpleEvidenceOpt/blob/master/util/realfftbasis.m
     
     """
-    
+    import numpy as np
     nn = nx
     
     ncos = np.ceil((nn + 1) / 2)
     nsin = np.floor((nn - 1) / 2)
     
-    wvec = np.hstack([np.arange(ncos), np.arange(-nsin, 0)])
+    wvec = np.hstack([np.arange(start=0., stop=ncos), np.arange(start=-nsin, stop=0.)])
     
     wcos = wvec[wvec >= 0]
     wsin = wvec[wvec < 0]

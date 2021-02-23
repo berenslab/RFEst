@@ -123,10 +123,6 @@ class LNLN(Base):
         self.n_s = num_subunits
         self.num_iters = num_iters   
         
-        if fit_nonlinearity:  
-            self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ self.bnl) for i in range(num_subunits)]
-            self.bnl = np.repeat(self.bnl[:, np.newaxis], num_subunits, axis=1).T
-            
         self.fit_R = fit_R
         self.fit_linear_filter = fit_linear_filter
         self.fit_history_filter = fit_history_filter
@@ -163,18 +159,13 @@ class LNLN(Base):
                 p0.update({'h': self.h_mle})            
             except:
                 p0.update({'h': None})  
-
-        if 'bnl' not in dict_keys:
-            try:
-                p0.update({'bnl': self.bnl})
-            except:
-                p0.update({'bnl': None})
-        else:
-            if np.ndim(p0['bnl']) != 1:
-                self.fitted_nonlinearity = [interp1d(self.bins, self.Snl @ p0['bnl'][i]) for i in range(num_subunits)]
+        
+        if 'nl_params' not in dict_keys:
+            if hasattr(self, 'nl_params'):
+                p0.update({'nl_params': self.nl_params})
             else:
-                self.fitted_nonlinearity = interp1d(self.bins, self.Snl @ p0['bnl'])
-
+                p0.update({'nl_params': None})
+        
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)   
         self.R = self.p_opt['R']
@@ -188,8 +179,8 @@ class LNLN(Base):
         if fit_history_filter:
             self.h_opt = self.p_opt['h']
         
+        if fit_nonlinearity:
+            self.nl_params_opt = self.p_opt['nl_params']
+       
         if fit_intercept:
             self.intercept = self.p_opt['intercept']
-
-        if fit_nonlinearity:
-            self.bnl_opt = self.p_opt['bnl']
