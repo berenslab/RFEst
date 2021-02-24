@@ -588,12 +588,15 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     
     ws = uvec(model.w_opt)
     dims = model.dims
+    dt = model.dt if dt is None else dt
     num_subunits = ws.shape[1]
     
     vmax = np.max([np.abs(ws.max()), np.abs(ws.min())])
     t_hRF = np.linspace(-(dims[0]+1)*dt, -1*dt, dims[0]+1)[1:]
     
     nrows = np.ceil(num_subunits/ncols).astype(int)
+    if hasattr(model, 'fnl_fitted'):
+       nrows += 1 
     if num_subunits % ncols != 0:
         num_left = ncols - num_subunits % ncols
     else:
@@ -614,6 +617,19 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         axs[i].imshow(w, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
         axs[i].set_xticks([])
         axs[i].set_yticks([])
+
+        if hasattr(model, 'nl_params_opt'):
+            ax_nl = fig.add_subplot(spec[1, i])
+            xrng = model.nl_xrange 
+            nl_opt = model.fnl_fitted(model.nl_params_opt[i], model.nl_xrange)
+            ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
+            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[i], color='grey', alpha=0.5) 
+
+            ax_nl.spines['top'].set_visible(False)
+            ax_nl.spines['right'].set_visible(False)
+            if i == 0:
+               ax_nl.set_ylabel('Fitted Nonlinearity') 
+
     else:
         if num_left > 0:
             for j in range(1, num_left+1):
@@ -664,10 +680,11 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_nl.plot(xrng, nl0)
 
         if hasattr(model, 'nl_params_opt'):
-            nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
-            ax_nl.plot(xrng, nl_opt)
+            nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
+            ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
+            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
 
-        ax_nl.set_title('Fitted nonlinearity')
+        ax_nl.set_title('Fitted output nonlinearity')
         ax_nl.spines['top'].set_visible(False)
         ax_nl.spines['right'].set_visible(False)    
         
@@ -752,6 +769,8 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     
     ncols = num_subunits if num_subunits > 5 else 5    
     nrows = 3
+    if hasattr(model, 'fnl_fitted'):
+       nrows += 1 
 
     figsize = figsize if figsize is not None else (3 * ncols, 2 * nrows + 2)
     fig = plt.figure(figsize=figsize)
@@ -782,6 +801,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_tRF.plot(t_tRF, tRFs[i], color='black')
         ax_tRF.spines['top'].set_visible(False)
         ax_tRF.spines['right'].set_visible(False)
+        
         tRF_max = np.argmax(tRFs[i])
         tRF_min = np.argmin(tRFs[i])
         ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
@@ -790,9 +810,22 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         if i == 0:
             ax_sRF_min.set_ylabel('Min Frame')
             ax_sRF_max.set_ylabel('Max Frame')
+            ax_tRF.set_ylabel('Temporal')
 
         ax_sRF_mins.append(ax_sRF_min)
         ax_sRF_maxs.append(ax_sRF_max)
+
+        if hasattr(model, 'nl_params_opt'):
+            ax_nl = fig.add_subplot(spec[3, i])
+            xrng = model.nl_xrange 
+            nl_opt = model.fnl_fitted(model.nl_params_opt[i], model.nl_xrange)
+            ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
+            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[i], color='grey', alpha=0.5) 
+
+            ax_nl.spines['top'].set_visible(False)
+            ax_nl.spines['right'].set_visible(False)
+            if i == 0:
+               ax_nl.set_ylabel('Fitted Nonlinearity') 
 
     if contour is not None: # then plot contour
        for i in range(num_subunits):
@@ -824,11 +857,13 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     elif not hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'): 
         
         ax_nl = fig.add_subplot(spec[nrows, -1])
-        nl = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
+        nl = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
         xrng = model.nl_xrange
         
         ax_nl.plot(xrng, nl)
-        ax_nl.set_title('Fitted nonlinearity')
+        ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+
+        ax_nl.set_title('Fitted output nonlinearity')
         ax_nl.spines['top'].set_visible(False)
         ax_nl.spines['right'].set_visible(False)    
         
@@ -840,7 +875,8 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         t_hRF = np.linspace(-(dims_h+1)*dt, -1*dt, dims_h+1)[1:]
 
         ax_h_opt = fig.add_subplot(spec[nrows, -2])
-        ax_h_opt.plot(t_hRF, model.h_opt, color='black')
+        ax_h_opt.plot(t_hRF, model.h_opt, color='black', linewidth=3)
+        ax_h_opt.plot(t_hRF, model.Sh * model.bh_opt, color='grey')
         ax_h_opt.set_title('History Filter')
         ax_h_opt.spines['top'].set_visible(False)
         ax_h_opt.spines['right'].set_visible(False)    
@@ -851,10 +887,11 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_nl.plot(xrng, nl0)
 
         if hasattr(model, 'nl_params_opt'):
-            nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
-            ax_nl.plot(xrng, nl_opt)
-
-        ax_nl.set_title('Fitted nonlinearity')
+            nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
+            ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
+            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+        
+        ax_nl.set_title('Fitted output nonlinearity')
         ax_nl.spines['top'].set_visible(False)
         ax_nl.spines['right'].set_visible(False)    
         

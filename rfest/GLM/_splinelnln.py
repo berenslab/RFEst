@@ -55,14 +55,16 @@ class splineLNLN(splineBase):
             if hasattr(self, 'nl_params'):
                 nl_params = self.nl_params
             else:
-                nl_params = None
+                nl_params = [None for i in range(self.n_s)]
 
         if self.fit_linear_filter:
-            filter_output = np.mean(self.fnl(XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s), 
-                                            nl=self.filter_nonlinearity, params=nl_params), 1) 
+            linear_output = XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s)
+            nonlin_output = np.array([self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in range(self.n_s)])
+            filter_output = np.mean(nonlin_output, 0) 
         else:
-            filter_output = np.mean(self.fnl(XS @ self.b_opt.reshape(self.n_b * self.n_c, self.n_s) , 
-                                                nl=self.filter_nonlinearity, params=nl_params), 1) 
+            linear_output = XS @ self.b_opt.reshape(self.n_b * self.n_c, self.n_s) 
+            nonlin_output = np.array([self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in range(self.n_s)])
+            filter_output = np.mean(nonlin_output, 0) 
   
         if self.fit_history_filter:
             history_output = yS @ p['bh']  
@@ -74,7 +76,7 @@ class splineLNLN(splineBase):
             else:
                 history_output = np.array([0.])
         
-        r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity).flatten()
+        r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity, params=nl_params[-1]).flatten()
 
         return r
 
@@ -148,9 +150,9 @@ class splineLNLN(splineBase):
                 
         if 'nl_params' not in dict_keys:
             if hasattr(self, 'nl_params'):
-                p0.update({'nl_params': self.nl_params})
+                p0.update({'nl_params': [self.nl_params for i in range(self.n_s+1)]})
             else:
-                p0.update({'nl_params': None})
+                p0.update({'nl_params': [None for i in range(self.n_s + 1)]})
 
         if extra is not None:
 
@@ -182,7 +184,8 @@ class splineLNLN(splineBase):
                 self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_s)
         
         if fit_history_filter:
-            self.h_opt = self.Sh @ self.p_opt['bh']
+            self.bh_opt = self.p_opt['bh'] 
+            self.h_opt = self.Sh @ self.bh_opt
         
         if fit_intercept:
             self.intercept = self.p_opt['intercept']

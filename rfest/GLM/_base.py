@@ -222,16 +222,19 @@ class Base:
 
     def initialize_parametric_nonlinearity(self, init_to='exponential', method=None, params_dict=None):
 
-        if method is None:
+        if method is None: # if no methods specified, use defaults.
+                           # this piece of code is quite redundant.
+                           # need to refactor. 
             if hasattr(self, 'nonlinearity'):
                 method = self.nonlinearity
             else:
                 method = self.filter_nonlinearity
-        else:
+        else: # overwrite the default nonlinearity
             if hasattr(self, 'nonlinearity'):
                 self.nonlinearity = method
             else:
-                self.filter_nonlinearity = method   
+                self.filter_nonlinearity = method
+                self.output_nonlinearity = method 
          
         # prepare data 
         if params_dict is None: 
