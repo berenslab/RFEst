@@ -652,13 +652,16 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         
         ax_nl = fig.add_subplot(spec[nrows, -1])
         xrng = model.nl_xrange
-        nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
-        ax_nl.plot(xrng, nl0)
+        # nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
+        # ax_nl.plot(xrng, nl0)
 
         if hasattr(model, 'nl_params_opt'):
-            nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)
-            ax_nl.plot(xrng, nl_opt)
-        
+            if model.output_nonlinearity == 'spline' or model.output_nonlinearity == 'nn':
+                nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
+                ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
+                ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+            else:
+                ax_nl.axis('off')
         ax_nl.set_title('Fitted nonlinearity')
         ax_nl.spines['top'].set_visible(False)
         ax_nl.spines['right'].set_visible(False)    
@@ -676,13 +679,17 @@ def plot_subunits2d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         
         ax_nl = fig.add_subplot(spec[nrows, -1])
         xrng = model.nl_xrange
-        nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
-        ax_nl.plot(xrng, nl0)
+        # nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
+        # ax_nl.plot(xrng, nl0)
 
         if hasattr(model, 'nl_params_opt'):
-            nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
-            ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
-            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+            
+            if model.output_nonlinearity == 'spline' or model.output_nonlinearity == 'nn':
+                nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
+                ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
+                ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+            else:
+                ax_nl.axis('off')
 
         ax_nl.set_title('Fitted output nonlinearity')
         ax_nl.spines['top'].set_visible(False)
@@ -856,16 +863,19 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         
     elif not hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'): 
         
-        ax_nl = fig.add_subplot(spec[nrows, -1])
-        nl = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
-        xrng = model.nl_xrange
-        
-        ax_nl.plot(xrng, nl)
-        ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+        if model.output_nonlinearity == 'spline' or model.output_nonlinearity == 'nn':
 
-        ax_nl.set_title('Fitted output nonlinearity')
-        ax_nl.spines['top'].set_visible(False)
-        ax_nl.spines['right'].set_visible(False)    
+            ax_nl = fig.add_subplot(spec[nrows, -1])
+            nl = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
+            xrng = model.nl_xrange
+            
+            ax_nl.plot(xrng, nl)
+            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+
+
+            ax_nl.set_title('Fitted output nonlinearity')
+            ax_nl.spines['top'].set_visible(False)
+            ax_nl.spines['right'].set_visible(False)    
         
         ax_pred = fig.add_subplot(spec[nrows, :-1])
         
@@ -887,9 +897,14 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_nl.plot(xrng, nl0)
 
         if hasattr(model, 'nl_params_opt'):
-            nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
-            ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
-            ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+
+            if model.output_nonlinearity == 'spline' or model.output_nonlinearity == 'nn':
+                nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)
+                ax_nl.plot(xrng, nl_opt, color='black', linewidth=3)
+                ax_nl.plot(xrng, model.nl_basis * model.nl_params_opt[-1], color='grey', alpha=0.5) 
+            else:
+                ax_nl.axis('off')
+
         
         ax_nl.set_title('Fitted output nonlinearity')
         ax_nl.spines['top'].set_visible(False)
@@ -1024,8 +1039,8 @@ def plot_multicolors3d(model, X_test, y_test, dt=None, shift=None, response_type
         
         xrng = model.nl_xrange
 
-        nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)     
-        ax_nl.plot(xrng, nl0)
+        # nl0 = model.fnl_fitted(model.nl_params[-1], model.nl_xrange)     
+        # ax_nl.plot(xrng, nl0)
 
         if hasattr(model, 'nl_params_opt'):
             nl_opt = model.fnl_fitted(model.nl_params_opt, model.nl_xrange)

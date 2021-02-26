@@ -62,16 +62,18 @@ class LNLN(Base):
             nl_params = p['nl_params']
         else:
             if hasattr(self, 'nl_params'):
-                nl_params = self.nl_params
+                nl_params = [self.nl_params for i in range(self.n_s)]
             else:
-                nl_params = None 
-
+                nl_params = [None for i in range(self.n_s)]
+        
         if self.fit_linear_filter:
-            filter_output = np.mean(self.fnl(X @ p['w'].reshape(self.n_features * self.n_c, self.n_s), 
-                            nl=self.filter_nonlinearity, params=nl_params), 1)
+            linear_output = X @ p['w'].reshape(self.n_features * self.n_c, self.n_s)
+            nonlin_output = np.array([self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in range(self.n_s)])
+            filter_output = np.mean(nonlin_output, 0) 
         else:
-            filter_output = np.mean(self.fnl(X @ self.w_opt.reshape(self.n_features * self.n_c, self.n_s), 
-                            nl=self.filter_nonlinearity, params=nl_params), 1)
+            linear_output = X @ self.w_opt.reshape(self.n_features * self.n_c, self.n_s)
+            nonlin_output = np.array([self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in range(self.n_s)])
+            filter_output = np.mean(nonlin_output, 0)
 
         if self.fit_history_filter:
             history_output = yh @ p['h']  
@@ -162,9 +164,9 @@ class LNLN(Base):
         
         if 'nl_params' not in dict_keys:
             if hasattr(self, 'nl_params'):
-                p0.update({'nl_params': self.nl_params})
+                p0.update({'nl_params': [self.nl_params for i in range(self.n_s+1)]})
             else:
-                p0.update({'nl_params': None})
+                p0.update({'nl_params': [None for i in range(self.n_s + 1)]})
         
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)   

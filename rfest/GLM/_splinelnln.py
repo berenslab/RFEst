@@ -53,7 +53,7 @@ class splineLNLN(splineBase):
             nl_params = p['nl_params']
         else:
             if hasattr(self, 'nl_params'):
-                nl_params = self.nl_params
+                nl_params = [self.nl_params for i in range(self.n_s)]
             else:
                 nl_params = [None for i in range(self.n_s)]
 
