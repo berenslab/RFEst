@@ -85,7 +85,7 @@ Tutorial notebooks can be found here: [https://github.com/huangziwei/notebooks_R
 
 ## Reference
 
-[1] Huang, Z., &  Berens, P. (2020). Efficient high dimensional receptive field inference using a flexible spline basis. Cosyne Abstracts 2020, Denver, CO. [[abstract]](./misc/Huang_et_al_Cosyne_abstract.pdf) [[poster]](./misc/Huang_et_al_Cosyne_poster.pdf)
+[1] Huang, Z., Ran, Y., Euler, T., & Berens, P. (2021). [Estimating smooth and sparse neural receptive fields with a flexible spline basis](https://www.biorxiv.org/content/10.1101/2021.03.31.437831v1). bioRxiv.
 
 [2] MacKay, D. J. (1994). Bayesian nonlinear modeling for the prediction competition. ASHRAE transactions, 100(2), 1053-1062.
 
