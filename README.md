@@ -1,20 +1,42 @@
 ![showcase](./misc/showcase.png)
 
-RFEst is a Python3 toolbox for neural receptive field estimation, featuring methods such as spline-based GLMs, Empirical Bayes with various Gaussian priors, and a few matrix factorization methods. 
+RFEst v2 is a Python3 toolbox for neural receptive field estimation, featuring methods such as spline-based GLMs, Empirical Bayes with various Gaussian priors, and a few matrix factorization methods. 
 
 ## Supported Methods
 
 **Spline-based GLMs** [1]
 
-`splineLG`, `splineLNP` and `splineLNLN` use *natural cubic regression splines* and others to approximate spatio-temporal RFs. 
-
-Given a stimulus design matrix (X) and the corresponding response (y), an optimized RF is calculated with respect to the dimension of the RF `dims=[nT, nX, nY]` :
+The new GLM module unified both vanilla and spline GLMs.
 
 ```python
-from rfest import splineLG
+from rfest import GLM
 
-spl = splineLG(X, y, dims=[5, 20, 15], df=[4, 9, 7], smooth='cr') 
-spl.fit(num_iters=500, alpha=1, beta=0.025, verbose=100)
+spl = GLM(X, y, dims=[5, 20, 15], df=[4, 9, 7], smooth='cr') 
+
+lnp = GLM(distr='poisson', 
+         filter_nonlinearity='exponential', 
+         output_nonlinearity='softplus', random_seed=2046)
+
+# add training data
+lnp.add_design_matrix(X_train, dims=[25,], dims=[25,], df=[8,], smooth='cr', name='stimulus')
+lnp.add_design_matrix(y_train, dims=[20,], dims=[20,], df=[8,], smooth='cr', shift=1, shift=1, name='history')
+lnp.add_design_matrix(y_train_c_1, dims=[20,], shift=1, name='couple1')
+lnp.add_design_matrix(y_train_c_2[:, np.newaxis], dims=[20,], shift=1, name='couple2')
+lnp.add_design_matrix(y_train_c_3[:, np.newaxis], dims=[20,], shift=1, name='couple3')
+
+# add validation data
+lnp.add_design_matrix(X_train, dims=[25,], name='stimulus')
+lnp.add_design_matrix(y_train, dims=[20,], shift=1, name='history')
+lnp.add_design_matrix(y_train_c_1, dims=[20,], shift=1, name='couple1')
+lnp.add_design_matrix(y_train_c_2[:, np.newaxis], dims=[20,], shift=1, name='couple2')
+lnp.add_design_matrix(y_train_c_3[:, np.newaxis], dims=[20,], shift=1, name='couple3')
+
+# intialize model parameters
+lnp.initialize(num_subunits=1, dt=dt, kind='random')
+
+# fit model
+lnp.fit(num_iters=1000, verbose=100, step_size=0.1, beta=0.01, 
+       y={'train': y_train, 'dev': y_dev})
 ```
 
 **Evidence Optimization**
