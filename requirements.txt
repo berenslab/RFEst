@@ -4,3 +4,4 @@ sklearn
 matplotlib
 jax
 jaxlib
+opencv-python

@@ -22,7 +22,7 @@ __all__ = ['GLM']
 
 class GLM:
     
-    def __init__(self, distr='poisson', filter_nonlinearity='none', output_nonlinearity='relu', random_seed=2046):
+    def __init__(self, distr='poisson', output_nonlinearity='relu'):
         
         # initilize variables
         self.X = {} # design matrix
@@ -36,14 +36,15 @@ class GLM:
         self.w = {} # filter
         self.w_mle = {} # mle filter 
 
-        self.filter_names = []
+        self.df = {}
+        self.dims = {}
+        self.filter_names = {}
         self.n_features = {}
-        
-        self.key = random.PRNGKey(random_seed)
         
         self.distr = distr # noise distribution, either gaussian or poisson
         
-        self.filter_nonlinearity = filter_nonlinearity
+        self.shift = {}
+        self.filter_nonlinearity = {}
         self.output_nonlinearity = output_nonlinearity
         
     def fnl(self, x, kind, params=None):
@@ -90,40 +91,62 @@ class GLM:
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-    def add_design_matrix(self, X, dims, df=None, smooth=None, 
-                          kind='train', name='stimulus', shift=0, n_c=1):
+    def add_design_matrix(self, X, dims, df=None, smooth=None, filter_nonlinearity='none',
+                          kind='train', name='stimulus', shift=0):
         
+        # check X shape
+        if len(X.shape) == 1:
+            X = X[:, np.newaxis]
+
         if kind not in self.X:
             self.X.update({kind: {}})
+            self.filter_names.update({kind: []})
         
-        self.filter_names.append(name)
-        self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift, n_c=n_c)
+        self.filter_nonlinearity[name] = filter_nonlinearity 
+        self.shift[name] = shift
+        self.dims[name] = dims if type(dims) is not int else [dims, ]
+
+        self.filter_names[kind].append(name)
+        self.X[kind][name] = build_design_matrix(X, self.dims[name][0], shift=shift)
         
-        if smooth is not None:
+        if smooth is None:
+
+            if name in self.S:
+                
+                if kind not in self.XS:
+                    self.XS.update({kind: {}})
+                
+                S = self.S[name]
+                self.XS[kind][name] = self.X[kind][name] @ S 
+        else:
+
             if kind not in self.XS:
                 self.XS.update({kind: {}})
-            S = build_spline_matrix(dims, df, smooth)
+            
+            self.df[name] = df if type(df) is not int else [df, ]
+            S = build_spline_matrix(self.dims[name], self.df[name], smooth)
             self.S[name] = S
             self.XS[kind][name] = self.X[kind][name] @ S
                 
-    def initialize(self, num_subunits=1, dt=0.033, kind='random'):
+    def initialize(self, num_subunits=1, dt=0.033, kind='random', random_seed=2046):
         
+        self.key = random.PRNGKey(random_seed)
         self.num_subunits = num_subunits
         self.dt = dt
         self.init_kind = kind
         
         if kind =='random':
             
-            for name in self.filter_names:
+            for name in self.filter_names['train']:
                 if 'train' in self.XS and name in self.XS['train']:
-                    if name == 'stimulus':
+                    if 'stimulus' in name:
                         self.b[name] = random.normal(self.key, shape=(self.XS['train'][name].shape[1], num_subunits))
                         self.n_features[name] = len(self.b[name])
                     else:
                         self.b[name] = random.normal(self.key, shape=(self.XS['train'][name].shape[1], 1))
                         self.n_features[name] = len(self.b[name])                        
                 else:
-                    if name == 'stimulus':
+                    if 'stimulus' in name:
                         self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], num_subunits))
                         self.n_features[name] = len(self.w[name])
                     else:
@@ -143,7 +166,7 @@ class GLM:
         l = np.cumsum(np.hstack([0, [self.n_features[name] for name in self.n_features]]))
         idx = [np.array((l[i], l[i+1])) for i in range(len(l)-1)]
         self.idx = idx
-        for i, name in enumerate(self.filter_names):
+        for i, name in enumerate(self.filter_names['train']):
             if name in self.XS:
                 self.b_mle[name] = mle[idx[i][0]:idx[i][1]]
                 self.w_mle[name] = self.S[name] @ self.b_mle[name]
@@ -153,17 +176,19 @@ class GLM:
     def forwardpass(self, p, kind):
         
         intercept = p['intercept'] if 'intercept' in p else self.intercept
-        gain = p['gain'] if 'gain' in p else self.gain
         output = np.array([self.fnl(np.sum(self.XS[kind][name] @ p[name], axis=1), 
-                                   kind=self.filter_nonlinearity) if 'train' in self.XS and name in self.XS[kind] 
-                           else np.sum(self.X[kind][name] @ p[name], axis=1) for name in self.filter_names]).sum(0)
+                                    kind=self.filter_nonlinearity[name]) 
+                            if 
+                                'train' in self.XS and name in self.XS[kind] 
+                            else 
+                                np.sum(self.X[kind][name] @ p[name], axis=1) for name in self.filter_names[kind]]).sum(0)
         
-        
-        return self.dt * gain * self.fnl(output + intercept, kind=self.output_nonlinearity)
-        
+        return self.fnl(output + intercept, kind=self.output_nonlinearity)
+                
     def cost(self, p, kind='train', precomputed=None):
         
         distr = self.distr
+        dt = self.dt
         y = self.y[kind]
         r = self.forwardpass(p, kind) if precomputed is None else precomputed
         
@@ -171,15 +196,18 @@ class GLM:
             loss = np.nanmean((y - r)**2)
         
         elif distr == 'poisson':
-            dt = self.dt
+            
             r = np.maximum(r, 1e-20) # remove zero to avoid nan in log.
-            term0 = - np.log(r / dt) @ y # spike term from poisson log-likelihood
+            term0 = - np.log(r) @ y # spike term from poisson log-likelihood
             term1 = np.sum(r) # non-spike term            
             loss = term0 + term1
             
         if self.beta and kind =='train':
-            l1 = np.linalg.norm(p['stimulus'], 1)
-            l2 = np.linalg.norm(p['stimulus'], 2)
+
+            w = np.array([p[name] for name in self.filter_names['train'] if 'stimulus' in name]).flatten()
+
+            l1 = np.linalg.norm(w, 1)
+            l2 = np.linalg.norm(w, 2)
             loss += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
         
         return loss
@@ -289,17 +317,6 @@ class GLM:
         else:
             print(f'Metric `{metric}` is not supported.')
             
-    def score(self, X, y, p=None, metric='corrcoef'):
-
-        # Performance measure.
-
-        y_pred = self.predict(X, y, p)
-
-        if metric == 'cost':
-            return self.cost(p=self.p_opt, precomputed=y_pred)
-        else:
-            return self._score(X, y, y_pred, metric)
-        
     def fit(self, y, metric='corrcoef', num_iters=3, alpha=1, beta=0.01, intercept=1., gain=1.,
             step_size=1e-3, tolerance=10, verbose=True, init='random', var_names=None):
         
@@ -315,12 +332,12 @@ class GLM:
         p0 = {} # parameters to be optimized
         
         if var_names is None:
-            var_names = self.filter_names.copy()
+            var_names = self.filter_names['train'].copy()
             var_names.append('intercept')
             var_names.append('gain')
         
         for name in var_names:
-            if name in self.filter_names:
+            if name in self.filter_names['train']:
                 if 'train' in self.XS and name in self.XS['train']:
                     p0.update({name: self.b[name]})
                 else:
@@ -331,18 +348,18 @@ class GLM:
         else:
             self.intercept = 1
         
-        if 'gain' in var_names:
-            p0.update({'gain': gain})
-        else:
-            self.gain = 1
+        # if 'gain' in var_names:
+        #     p0.update({'gain': gain})
+        # else:
+        #     self.gain = 1
 
         self.p0 = p0
         self.p_opt = self.optimize(p0, num_iters, metric, step_size, tolerance, verbose)
         
         self.b_opt = {}
         self.w_opt = {}
-        for name in self.filter_names:
-            if name in self.XS:
+        for name in self.filter_names['train']:
+            if 'train' in self.XS and name in self.XS['train']:
                 self.b_opt[name] = self.p_opt[name]
                 self.w_opt[name] = self.S[name] @ self.b_opt[name]
             else:
@@ -350,5 +367,31 @@ class GLM:
         
         if 'intercept' in self.p_opt:
             self.interecept = self.p_opt['intercept']
-        if 'gain' in self.p_opt:
-            self.gain = self.p_opt['gain'] 
+        # if 'gain' in self.p_opt:
+        #     self.gain = self.p_opt['gain'] 
+
+    def predict(self, X):
+        
+        '''
+        Parameters
+        ----------
+        
+        X: np.array or dict
+            Stimulus. 
+        '''
+        
+        ws = self.w_opt
+
+        self.X['test'] = {}
+        self.XS['test'] = {}
+        self.filter_names['test'] = []
+        
+        if type(X) is dict:
+            for name in X:
+                self.add_design_matrix(X[name], dims=self.dims[name], shift=self.shift[name], name=name, kind='test')
+        else:
+            self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
+        
+        ypred = self.forwardpass(self.p_opt, kind='test')
+        
+        return ypred
