@@ -210,7 +210,9 @@ def plot3d(model, X_test=None, y_test=None, window=None,
                 ax_pred = fig.add_subplot(spec[-1, :])
                 y_pred = model.predict({'stimulus': X_test})
 
-        corrcoef = model._score(y_pred, y_test, 'corrcoef')
+        y_pred = y_pred[dims[name][0]:]
+        y_test = y_test[dims[name][0]:]
+        corrcoef = model._score(y_test, y_pred, 'corrcoef')
 
         if window is not None: 
             n = get_n_samples(window / 60, dt)

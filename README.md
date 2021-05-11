@@ -11,30 +11,24 @@ The new GLM module unified both vanilla and spline GLMs.
 ```python
 from rfest import GLM
 
-lnp = GLM(distr='poisson', 
-         filter_nonlinearity='exponential', 
-         output_nonlinearity='softplus', random_seed=2046)
+lnp = GLM(distr='poisson', output_nonlinearity='softplus')
 
 # add training data
-lnp.add_design_matrix(X_train, dims=[25,], dims=[25,], df=[8,], smooth='cr', name='stimulus') # use spline for stimulus filter
-lnp.add_design_matrix(y_train, dims=[20,], dims=[20,], df=[8,], smooth='cr', shift=1, name='history') # use spline for history filter
-lnp.add_design_matrix(y_train_c_1, dims=[20,], shift=1, name='couple1') # fit coupling filters without spline
-lnp.add_design_matrix(y_train_c_2[:, np.newaxis], dims=[20,], shift=1, name='couple2')
-lnp.add_design_matrix(y_train_c_3[:, np.newaxis], dims=[20,], shift=1, name='couple3')
+lnp.add_design_matrix(X_train, dims=[25,], df=[8,], smooth='cr', name='stimulus') # use spline for stimulus filter
+lnp.add_design_matrix(y_train, dims=[20,], df=[8,], smooth='cr', shift=1, name='history') # use spline for history filter
+lnp.add_design_matrix(y_train_c, dims=[20,], shift=1, name='couple') # fit coupling filters without spline
 
 # add validation data
-lnp.add_design_matrix(X_train, dims=[25,], name='stimulus')
-lnp.add_design_matrix(y_train, dims=[20,], dims=[20,], df=[8,], smooth='cr', shift=1, shift=1, name='history')
-lnp.add_design_matrix(y_train_c_1, dims=[20,], shift=1, name='couple1')
-lnp.add_design_matrix(y_train_c_2[:, np.newaxis], dims=[20,], shift=1, name='couple2')
-lnp.add_design_matrix(y_train_c_3[:, np.newaxis], dims=[20,], shift=1, name='couple3')
+lnp.add_design_matrix(X_train, dims=[25,], name='stimulus') # basis will automatically apply to dev set
+lnp.add_design_matrix(y_train, dims=[20,], shift=1, name='history') 
+lnp.add_design_matrix(y_train_c, dims=[20,], shift=1, name='couple')
 
 # intialize model parameters
-lnp.initialize(num_subunits=1, dt=dt, kind='random')
+lnp.initialize(num_subunits=1, dt=dt, kind='random', random_seed=2046)
 
 # fit model
-lnp.fit(num_iters=1000, verbose=100, step_size=0.1, beta=0.01, 
-       y={'train': y_train, 'dev': y_dev})
+lnp.fit(y={'train': y_train, 'dev': y_dev},
+    num_iters=1000, verbose=100, step_size=0.1, beta=0.01)
 ```
 
 **Evidence Optimization**

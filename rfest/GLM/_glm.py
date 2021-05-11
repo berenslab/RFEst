@@ -393,5 +393,5 @@ class GLM:
             self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
         
         ypred = self.forwardpass(self.p_opt, kind='test')
-        
+         
         return ypred
