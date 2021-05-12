@@ -379,10 +379,7 @@ def upsample_data(stim, stimtime, trace, tracetime, threshold=False):
     
     frames = np.vstack([stimtime[:-1], stimtime[1:]]).T
 
-    num_repeats = []
-    for i in range(len(frames)):
-        num_repeats.append(sum((tracetime > frames[i][0]).astype(int) * (tracetime <= frames[i][1]).astype(int)))
-    num_repeats = np.hstack(num_repeats)
+    num_repeats = np.array([np.sum((tracetime > frame[0]) & (tracetime <= frame[1])) for i, frame in enumerate(frames)])
 
     X = np.repeat(stim[:len(frames)], num_repeats, axis=0)
    

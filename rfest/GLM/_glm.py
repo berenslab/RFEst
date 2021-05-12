@@ -3,21 +3,15 @@ import jax.random as random
 from jax import value_and_grad
 from jax import jit
 from jax.experimental import optimizers
-from jax.experimental import stax
-from jax.experimental.stax import Dense, BatchNorm, Relu
 from jax.config import config
-from numpy.lib.utils import safe_eval
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
 import time
-import itertools
 
-from ..utils import build_design_matrix, uvec
-from ..splines import build_spline_matrix, cr, cc, bs
-from ..metrics import accuracy, r2, mse, corrcoef
-
-from scipy.optimize import minimize
+from ..utils import build_design_matrix
+from ..splines import build_spline_matrix
+from ..metrics import r2, mse, corrcoef
 
 __all__ = ['GLM']
 
