@@ -5,7 +5,7 @@ from scipy.ndimage import gaussian_filter
 
 from .utils import get_n_samples, uvec, get_spatial_and_temporal_filters
 
-def plot3d(model, X_test=None, y_test=None, window=None, 
+def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None, 
            contour=0.1, pixel_size=30, figsize=None):
     
     import matplotlib.gridspec as gridspec
@@ -190,37 +190,21 @@ def plot3d(model, X_test=None, y_test=None, window=None,
                         axes_sRF_max[i].contour(sRFs_max[j].T, levels=[ contour], colors=['gray'], linestyles=['--'], alpha=0.4)
                 
     if X_test is not None:
-        if type(X_test) is dict:
-            test_data = {}
-            test_data.update(X_test)
-            if 'history' in model.w_opt:
-                test_data.update({'history': y_test})
-                ax_pred = fig.add_subplot(spec[-1, :2])
-                y_pred = model.predict(test_data)                
-            else:
-                ax_pred = fig.add_subplot(spec[-1, :])
-                y_pred = model.predict(test_data)            
-            
+        if 'history' in model.w_opt:
+            ax_pred = fig.add_subplot(spec[-1, :2])
         else:
+            ax_pred = fig.add_subplot(spec[-1, :])
         
-            if 'history' in model.w_opt:
-                ax_pred = fig.add_subplot(spec[-1, :2])
-                y_pred = model.predict({'stimulus': X_test, 'history': y_test})                
-            else:
-                ax_pred = fig.add_subplot(spec[-1, :])
-                y_pred = model.predict({'stimulus': X_test})
-
-        y_pred = y_pred[dims[name][0]:]
-        y_test = y_test[dims[name][0]:]
-        corrcoef = model._score(y_test, y_pred, 'corrcoef')
-
+        stats[metric], y_pred =  model.score(X_test, y_test, metric, return_prediction=True)
+        
         if window is not None: 
             n = get_n_samples(window / 60, dt)
         else:
             n = y_test.shape[0]
+
         t_pred = np.arange(n)
-        ax_pred.plot(t_pred * dt, y_test[:n], color='black')
-        ax_pred.plot(t_pred * dt, y_pred[:n], color='C3', label=f'Predict (cc={corrcoef:.02f})')
+        ax_pred.plot(t_pred * dt, y_test[model.burn_in:][:n], color='black')
+        ax_pred.plot(t_pred * dt, y_pred[:n], color='C3', label=f'Predict (cc={stats[metric]:.02f})')
         ax_pred.legend(frameon=False)
         ax_pred.spines['top'].set_visible(False)
         ax_pred.spines['right'].set_visible(False)

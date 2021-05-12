@@ -22,8 +22,21 @@ __all__ = ['GLM']
 
 class GLM:
     
-    def __init__(self, distr='poisson', output_nonlinearity='relu'):
-        
+    def __init__(self, distr='poisson', output_nonlinearity='none'):
+
+        '''
+        Initialize the GLM class with empty variables.
+
+        Parameters
+        ----------
+
+        distr: str
+            Noise distribution. Either `gaussian` or `poisson`.
+
+        output_nonlinearity: str
+            Nonlinearity for the output layer. 
+        ''' 
+
         # initilize variables
         self.X = {} # design matrix
         self.S = {} # spline matrix
@@ -51,6 +64,22 @@ class GLM:
 
         '''
         Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
+
+        Parameters
+        ----------
+
+        x: np.array, (n_samples, )
+            Sum of filter outputs.
+
+        kind: str
+            Choice of nonlinearity.
+            
+        params: None or np.array.
+            For flexible nonlinearity. To be implemented.
+
+        Return 
+        ------
+            Transformed sum of filter outputs.
         '''
 
         if  kind == 'softplus':
@@ -92,7 +121,48 @@ class GLM:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
     def add_design_matrix(self, X, dims, df=None, smooth=None, filter_nonlinearity='none',
-                          kind='train', name='stimulus', shift=0):
+                          kind='train', name='stimulus', shift=0, burn_in=None):
+
+        '''
+        Add input desgin matrix to the model.
+
+        Parameters
+        ----------
+
+        X: np.array, shape=(n_samples, ) or (n_samples, n_pixels)
+            Original input. 
+        
+        dims: int, or list / np.array, shape=dim_t, or (dim_t, dim_x, dim_y)
+            Filter shape.
+
+        df: None, int, or list / np.array
+            Number of spline bases. Should be the same shape as dims.
+        
+        smooth: None, or str
+            Type of spline bases. If None, no basis is used.
+
+        filter_nonlinearity: str
+            Nonlinearity for the stimulus filter.
+
+        kind: str
+            Datset type, should be one of `train` (training set), 
+            `dev` (validation set) or `test` (testing set).
+
+        name: str
+            Name of the corresponding filter. 
+            A receptive field (stimulus) filter should have `stimulus` in the name. 
+            A response-history filter should have `history` in the name.
+
+        shift: int
+            Time offset for the design matrix, positive number will shift the design 
+            matrix to the past, negative number will shift it to the future.
+
+        burn_in: int or None
+            Number of samples / frames to be ignore for prediction.
+            (Because the first few frames in the design matrix are full of zero, which 
+            tend to predict poorly.)
+
+        '''
         
         # check X shape
         if len(X.shape) == 1:
@@ -101,11 +171,12 @@ class GLM:
         if kind not in self.X:
             self.X.update({kind: {}})
             self.filter_names.update({kind: []})
-        
+
         self.filter_nonlinearity[name] = filter_nonlinearity 
         self.shift[name] = shift
         self.dims[name] = dims if type(dims) is not int else [dims, ]
-
+        if not hasattr(self, 'burn_in'): # if exists, ignore
+            self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore 
         self.filter_names[kind].append(name)
         self.X[kind][name] = build_design_matrix(X, self.dims[name][0], shift=shift)
         
@@ -128,14 +199,32 @@ class GLM:
             self.S[name] = S
             self.XS[kind][name] = self.X[kind][name] @ S
                 
-    def initialize(self, num_subunits=1, dt=0.033, kind='random', random_seed=2046):
+    def initialize(self, num_subunits=1, dt=0.033, method='random', random_seed=2046):
+
+        '''Initialize all model paraemters
+        
+        Parameters
+        ----------
+        num_subunits: int
+            Number of RF subunits. Default is 1.
+
+        dt: float
+            Refresh rate.
+
+        method: str.
+            initialization method. Default is 'random'.
+            'mle' is to be implementd.
+
+        random_seed: int
+            Random seed.
+        '''
         
         self.key = random.PRNGKey(random_seed)
         self.num_subunits = num_subunits
         self.dt = dt
-        self.init_kind = kind
+        self.init_method = method
         
-        if kind =='random':
+        if method =='random':
             
             for name in self.filter_names['train']:
                 if 'train' in self.XS and name in self.XS['train']:
@@ -153,9 +242,18 @@ class GLM:
                         self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], 1))
                         self.n_features[name] = len(self.w[name])                        
         else:
-            raise ValueError(f'`{kind}` is not supported.')
+            raise ValueError(f'`{method}` is not supported.')
                     
     def compute_mle(self, y):
+
+        '''Compute maximum likelihood estimates.
+        
+        Parameter
+        ---------
+        
+        y: np.array, (n_samples)
+            Response.
+        '''
         
         X = np.hstack([self.XS['train'][name] if name in self.XS else self.X['train'][name] for name in self.filter_names])   
         
@@ -174,18 +272,50 @@ class GLM:
                 self.w_mle[name] = mle[idx[i][0]:idx[i][1]]          
         
     def forwardpass(self, p, kind):
+
+        '''Forward pass of the model.
         
+        Parameters
+        ----------
+
+        p: dict
+            A dictionary of the model parameters to be optimized.
+
+        kind: str
+            Dataset type, can be `train`, `dev` or `test`.
+        
+        '''
+    
         intercept = p['intercept'] if 'intercept' in p else self.intercept
-        output = np.array([self.fnl(np.sum(self.XS[kind][name] @ p[name], axis=1), 
-                                    kind=self.filter_nonlinearity[name]) 
-                            if 
-                                'train' in self.XS and name in self.XS[kind] 
-                            else 
-                                np.sum(self.X[kind][name] @ p[name], axis=1) for name in self.filter_names[kind]]).sum(0)
+        output = np.array(
+            [self.fnl(
+                np.sum(self.XS[kind][name] @ p[name], axis=1), kind=self.filter_nonlinearity[name]
+            ) 
+            if 
+                'train' in self.XS and name in self.XS[kind] 
+            else 
+             self.fnl(
+                np.sum(self.X[kind][name] @ p[name], axis=1), kind=self.filter_nonlinearity[name] 
+            ) for name in self.filter_names[kind]]).sum(0)
         
         return self.fnl(output + intercept, kind=self.output_nonlinearity)
                 
     def cost(self, p, kind='train', precomputed=None):
+
+        '''Cost function.
+        
+        Parameters
+        ----------
+
+        p: dict
+            A dictionary of the model parameters to be optimized.
+
+        kind: str
+            Dataset type, can be `train`, `dev` or `test`.
+
+        precomputed: None or np.array
+            Precomputed forward pass output. For avoding duplicate computation. 
+        '''
         
         distr = self.distr
         dt = self.dt
@@ -213,6 +343,30 @@ class GLM:
         return loss
     
     def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose):
+
+        '''Workhorse of optimization.
+
+        p0: dict
+            A dictionary of the initial model parameters to be optimized.  
+
+        num_iters: int
+            Maximum number of iteration.
+
+        metric: str
+            Method of model evaluation. Can be
+            `mse`, `corrcoeff`, `r2`
+
+
+        step_size: float or jax scheduler
+            Learning rate.
+        
+        tolerance: int
+            Tolerance for early stop. If the training cost doesn't change more than 1e-5
+            in the last (tolerance) steps, or the dev cost monotonically increase, stop.
+
+        verbose: int
+            Print progress. If verbose=0, no progress will be print.
+        '''
         
         @jit
         def step(i, opt_state):
@@ -249,12 +403,12 @@ class GLM:
             params_list[i] = get_params(opt_state)
             
             y_pred_train = self.forwardpass(p=params_list[i], kind='train')
-            metric_train[i] = self._score(self.y['train'], y_pred_train, metric)
+            metric_train[i] = self._score(self.y['train'][self.burn_in:], y_pred_train[self.burn_in:], metric)
                      
             if 'dev' in self.y:
                 y_pred_dev = self.forwardpass(p=params_list[i], kind='dev')
                 cost_dev[i] = self.cost(p=params_list[i], kind='dev', precomputed=y_pred_dev)
-                metric_dev[i] = self._score(self.y['dev'], y_pred_dev, metric)      
+                metric_dev[i] = self._score(self.y['dev'][self.burn_in:], y_pred_dev[self.burn_in:], metric)      
                 
             time_elapsed = time.time() - time_start
             if verbose:
@@ -278,7 +432,7 @@ class GLM:
                 cost_train_slice = np.array(cost_train[i-tolerance:i])
                 cost_dev_slice = np.array(cost_dev[i-tolerance:i])
 
-                if np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
+                if 'dev' in self.y and np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
                     params = params_list[i-tolerance]
                     if verbose:
                         print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(i, tolerance))
@@ -305,27 +459,54 @@ class GLM:
         params = params_list[i]
         
         return params
-            
-    def _score(self, y, y_pred, metric):
-
-        if metric == 'r2':
-            return r2(y, y_pred)
-        elif metric == 'mse':
-            return mse(y, y_pred)
-        elif metric == 'corrcoef':
-            return corrcoef(y, y_pred)
-        else:
-            print(f'Metric `{metric}` is not supported.')
-            
-    def fit(self, y, metric='corrcoef', num_iters=3, alpha=1, beta=0.01, intercept=1., gain=1.,
-            step_size=1e-3, tolerance=10, verbose=True, init='random', var_names=None):
+                       
+    def fit(self, y, num_iters=3, alpha=1, beta=0.01, metric='corrcoef', step_size=1e-3, 
+        tolerance=10, verbose=True, var_names=None):
         
+        '''Fit model.
+        
+        Parameters
+        ----------
+        
+        y: np.array, (n_samples)
+            Response. 
+        
+        num_iters: int
+            Maximum number of iteration.
+        
+        alpha: float
+            Balance weight for L1 and L2 regularization. 
+            If alpha=1, only L1 applys. Otherwise, only L2 apply.
+        
+        beta: float
+            Overall weight for L1 and L2 regularization.
+
+        metric: str
+            Method of model evaluation. Can be
+            `mse`, `corrcoeff`, `r2`
+
+        step_size: float or jax scheduler
+            Learning rate.
+        
+        tolerance: int
+            Tolerance for early stop. If the training cost doesn't change more than 1e-5
+            in the last (tolerance) steps, or the dev cost monotonically increase, stop.
+
+        verbose: int
+            Print progress. If verbose=0, no progress will be print.
+
+        var_names: list of str
+            Name of variables to be fitted.
+        
+        '''
+
         self.alpha = alpha
         self.beta = beta
         
         if type(y) is dict:
             self.y['train'] = y['train']
-            self.y['dev'] = y['dev']
+            if 'dev' in y:
+                self.y['dev'] = y['dev']
         else:
             self.y['train'] = y
         
@@ -334,7 +515,6 @@ class GLM:
         if var_names is None:
             var_names = self.filter_names['train'].copy()
             var_names.append('intercept')
-            var_names.append('gain')
         
         for name in var_names:
             if name in self.filter_names['train']:
@@ -344,15 +524,10 @@ class GLM:
                     p0.update({name: self.w[name]})
                 
         if 'intercept' in var_names:
-            p0.update({'intercept': intercept})
+            p0.update({'intercept': 0.})
         else:
-            self.intercept = 1
-        
-        # if 'gain' in var_names:
-        #     p0.update({'gain': gain})
-        # else:
-        #     self.gain = 1
-
+            self.intercept = 0.
+    
         self.p0 = p0
         self.p_opt = self.optimize(p0, num_iters, metric, step_size, tolerance, verbose)
         
@@ -367,8 +542,6 @@ class GLM:
         
         if 'intercept' in self.p_opt:
             self.interecept = self.p_opt['intercept']
-        # if 'gain' in self.p_opt:
-        #     self.gain = self.p_opt['gain'] 
 
     def predict(self, X):
         
@@ -377,7 +550,8 @@ class GLM:
         ----------
         
         X: np.array or dict
-            Stimulus. 
+            Stimulus. Only the named filters in the dict will be used for prediction.
+            Other filters, even trained, will be ignored if no test set provided.
         '''
         
         ws = self.w_opt
@@ -390,8 +564,38 @@ class GLM:
             for name in X:
                 self.add_design_matrix(X[name], dims=self.dims[name], shift=self.shift[name], name=name, kind='test')
         else:
+            # if X is np.array, assumed it's the stimulus.
             self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
         
         ypred = self.forwardpass(self.p_opt, kind='test')
          
         return ypred
+
+    def _score(self, y, y_pred, metric):
+
+        if metric == 'r2':
+            return r2(y, y_pred)
+        elif metric == 'mse':
+            return mse(y, y_pred)
+        elif metric == 'corrcoef':
+            return corrcoef(y, y_pred)
+        else:
+            print(f'Metric `{metric}` is not supported.')
+ 
+    def score(self, X_test, y_test, metric, return_prediction=False):
+
+        if type(X_test) is dict:
+            test_data = {}
+            test_data.update(X_test)
+            y_pred = self.predict(X_test)
+        else:
+            y_pred = self.predict({'stimulus': X_test})
+
+        y_pred = y_pred[self.burn_in:]
+        y_test = y_test[self.burn_in:]
+        corrcoef = self._score(y_test, y_pred, metric)
+
+        if return_prediction:
+            return corrcoef, y_pred 
+        else:
+            return corrcoef 
