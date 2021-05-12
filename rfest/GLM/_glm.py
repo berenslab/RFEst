@@ -6,6 +6,7 @@ from jax.experimental import optimizers
 from jax.experimental import stax
 from jax.experimental.stax import Dense, BatchNorm, Relu
 from jax.config import config
+from numpy.lib.utils import safe_eval
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
@@ -49,14 +50,14 @@ class GLM:
         self.w = {} # filter
         self.w_mle = {} # mle filter 
 
-        self.df = {}
-        self.dims = {}
-        self.filter_names = {}
-        self.n_features = {}
+        self.df = {} # number of bases for each filter
+        self.dims = {} # filter shapes
+        self.filter_names = {} # filter names
+        self.n_features = {} # number of features for each filter
         
         self.distr = distr # noise distribution, either gaussian or poisson
         
-        self.shift = {}
+        self.shift = {} # time shift of the design matrix
         self.filter_nonlinearity = {}
         self.output_nonlinearity = output_nonlinearity
         
@@ -573,6 +574,10 @@ class GLM:
 
     def _score(self, y, y_pred, metric):
 
+        '''
+        Metric score for evaluating model prediction.
+        '''
+
         if metric == 'r2':
             return r2(y, y_pred)
         elif metric == 'mse':
@@ -582,7 +587,33 @@ class GLM:
         else:
             print(f'Metric `{metric}` is not supported.')
  
-    def score(self, X_test, y_test, metric, return_prediction=False):
+    def score(self, X_test, y_test, metric='corrcoef', return_prediction=False):
+
+        '''Metric score for evaluating model prediction.
+        
+        X_test: np.array or dict
+            Stimulus. Only the named filters in the dict will be used for prediction.
+            Other filters, even trained, will be ignored if no test set provided. 
+
+        y_test: np.array
+            Response.
+
+        metric: str
+            Method of model evaluation. Can be
+            `mse`, `corrcoeff`, `r2`
+
+        return_prediction: bool
+            If true, will also return the predicted response `y_pred`.
+
+        Returns
+        -------
+        s: float
+            Metric score.
+
+        y_pred: np.array.
+            The predicted response. Optional. 
+
+        '''
 
         if type(X_test) is dict:
             test_data = {}
@@ -593,9 +624,9 @@ class GLM:
 
         y_pred = y_pred[self.burn_in:]
         y_test = y_test[self.burn_in:]
-        corrcoef = self._score(y_test, y_pred, metric)
+        s = self._score(y_test, y_pred, metric)
 
         if return_prediction:
-            return corrcoef, y_pred 
+            return s, y_pred 
         else:
-            return corrcoef 
+            return s 
