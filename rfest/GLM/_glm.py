@@ -173,7 +173,7 @@ class GLM:
         if not hasattr(self, 'burn_in'): # if exists, ignore
             self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore 
         self.filter_names[kind].append(name)
-        self.X[kind][name] = build_design_matrix(X, self.dims[name][0], shift=shift)
+        self.X[kind][name] = build_design_matrix(X, self.dims[name][0], shift=shift)[self.burn_in:]
         
         if smooth is None:
 
@@ -499,11 +499,11 @@ class GLM:
         self.beta = beta
         
         if type(y) is dict:
-            self.y['train'] = y['train']
+            self.y['train'] = y['train'][self.burn_in:]
             if 'dev' in y:
-                self.y['dev'] = y['dev']
+                self.y['dev'] = y['dev'][self.burn_in:]
         else:
-            self.y['train'] = y
+            self.y['train'] = y[self.burn_in:]
         
         p0 = {} # parameters to be optimized
         
@@ -616,7 +616,7 @@ class GLM:
         else:
             y_pred = self.predict({'stimulus': X_test})
 
-        y_pred = y_pred[self.burn_in:]
+        y_pred = y_pred
         y_test = y_test[self.burn_in:]
         s = self._score(y_test, y_pred, metric)
 
