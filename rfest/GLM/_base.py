@@ -188,8 +188,10 @@ class Base:
         """
         y = self.y
         yh = np.array(build_design_matrix(y[:, np.newaxis], dims, shift=shift))
+        self.shift_h = shift
         self.yh = np.array(yh)
         self.h_mle = np.linalg.solve(yh.T @ yh, yh.T @ y)
+
 
     def fit_nonparametric_nonlinearity(self, nbins=50, w=None):
 
@@ -657,7 +659,7 @@ class Base:
             if y is None:
                 raise ValueError('`y` is needed for calculating response history.')
             
-            yh = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.yh.shape[1], shift=1))
+            yh = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.yh.shape[1], shift=self.shift_h))
             extra.update({'yh': yh}) 
 
         params = self.p_opt if p is None else p
@@ -959,7 +961,7 @@ class splineBase(Base):
             if y is None:
                 raise ValueError('`y` is needed for calculating response history.')
             
-            yh = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.Sh.shape[0], shift=1))
+            yh = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.Sh.shape[0], shift=self.shift_h))
             yS = yh @ self.Sh
             extra.update({'yS': yS}) 
 

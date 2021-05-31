@@ -174,17 +174,20 @@ class GLM:
             self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore 
         self.filter_names[kind].append(name)
         self.X[kind][name] = build_design_matrix(X, self.dims[name][0], shift=shift)[self.burn_in:]
-        
+         
         if smooth is None:
-
+            # if train set exists and used spline as basis
+            # automatically apply the same basis for dev/test set
             if name in self.S:
-                
                 if kind not in self.XS:
                     self.XS.update({kind: {}})
-                
                 S = self.S[name]
                 self.XS[kind][name] = self.X[kind][name] @ S 
-        else:
+            else:
+                if kind == 'train':
+                    self.n_features[name] = self.X['train'][name].shape[1]
+        
+        else: # use spline
 
             if kind not in self.XS:
                 self.XS.update({kind: {}})
@@ -193,7 +196,9 @@ class GLM:
             S = build_spline_matrix(self.dims[name], self.df[name], smooth)
             self.S[name] = S
             self.XS[kind][name] = self.X[kind][name] @ S
-                
+            if kind =='train': 
+                self.n_features[name] = self.XS['train'][name].shape[1]
+
     def initialize(self, num_subunits=1, dt=0.033, method='random', random_seed=2046):
 
         '''Initialize all model paraemters
@@ -224,18 +229,31 @@ class GLM:
             for name in self.filter_names['train']:
                 if 'train' in self.XS and name in self.XS['train']:
                     if 'stimulus' in name:
+                        # There could be subunits for RF / stimulus filter
                         self.b[name] = random.normal(self.key, shape=(self.XS['train'][name].shape[1], num_subunits))
-                        self.n_features[name] = len(self.b[name])
                     else:
+                        # Assume only one filter for other inputs.
                         self.b[name] = random.normal(self.key, shape=(self.XS['train'][name].shape[1], 1))
-                        self.n_features[name] = len(self.b[name])                        
                 else:
                     if 'stimulus' in name:
                         self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], num_subunits))
-                        self.n_features[name] = len(self.w[name])
                     else:
                         self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], 1))
-                        self.n_features[name] = len(self.w[name])                        
+
+        elif method == 'mle':
+
+            for name in self.filter_names['train']:
+                if 'train' in self.XS and name in self.XS['train']:
+                    if 'stimulus' in name:
+                        self.b[name] = np.repeat(self.b_mle[name], num_subunits).reshape(self.XS['train'][name].shape[1], num_subunits)
+                    else:
+                        self.b[name] = self.b_mle[name].reshape(self.XS['train'][name].shape[1], 1)
+                else:
+                    if 'stimulus' in name:
+                        self.w[name] = np.repeat(self.w_mle[name], num_subunits).reshape(self.X['train'][name].shape[1], num_subunits) 
+                    else:
+                        self.w[name] = self.w_mle[name].reshape(self.X['train'][name].shape[1], 1)
+
         else:
             raise ValueError(f'`{method}` is not supported.')
                     
@@ -250,17 +268,17 @@ class GLM:
             Response.
         '''
         
-        X = np.hstack([self.XS['train'][name] if name in self.XS else self.X['train'][name] for name in self.filter_names])   
+        X = np.hstack([self.XS['train'][name] if name in self.XS else self.X['train'][name] for name in self.filter_names['train']])   
         
         XtX = X.T @ X
-        Xty = X.T @ y
+        Xty = X.T @ y[self.burn_in:]
         mle = np.linalg.solve(XtX, Xty).T
         
         l = np.cumsum(np.hstack([0, [self.n_features[name] for name in self.n_features]]))
         idx = [np.array((l[i], l[i+1])) for i in range(len(l)-1)]
         self.idx = idx
         for i, name in enumerate(self.filter_names['train']):
-            if name in self.XS:
+            if name in self.XS['train']:
                 self.b_mle[name] = mle[idx[i][0]:idx[i][1]]
                 self.w_mle[name] = self.S[name] @ self.b_mle[name]
             else:
