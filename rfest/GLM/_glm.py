@@ -211,9 +211,9 @@ class GLM:
         dt: float
             Refresh rate.
 
-        method: str.
-            initialization method. Default is 'random'.
-            'mle' is to be implementd.
+        method: str
+            Initialization method, either 'random' or 'mle'. 
+            Call `GLM.compute_mle()` first if 'mle' is used.
 
         random_seed: int
             Random seed.
@@ -241,6 +241,10 @@ class GLM:
                         self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], 1))
 
         elif method == 'mle':
+
+            # check if mle has been computed
+            if self.b_mle == {} and self.w_mle == {}: 
+                raise ValueError(f'`MLE is not computed yet. Please call `GLM.computed_mle(y_train)` first.')
 
             for name in self.filter_names['train']:
                 if 'train' in self.XS and name in self.XS['train']:
