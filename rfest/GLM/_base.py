@@ -784,6 +784,7 @@ class splineBase(Base):
         yh = np.array(build_design_matrix(self.y[:, np.newaxis], Sh.shape[0], shift=shift))
         yS = yh @ Sh
 
+        self.shift_h = shift
         self.yh = np.array(yh)
         self.Sh = Sh # spline basis for spike-history
         self.yS = yS

@@ -167,7 +167,8 @@ class GLM:
             self.X.update({kind: {}})
             self.filter_names.update({kind: []})
 
-        self.filter_nonlinearity[name] = filter_nonlinearity 
+        if kind == 'train':
+            self.filter_nonlinearity[name] = filter_nonlinearity 
         self.shift[name] = shift
         self.dims[name] = dims if type(dims) is not int else [dims, ]
         if not hasattr(self, 'burn_in'): # if exists, ignore
@@ -420,12 +421,12 @@ class GLM:
             params_list[i] = get_params(opt_state)
             
             y_pred_train = self.forwardpass(p=params_list[i], kind='train')
-            metric_train[i] = self._score(self.y['train'][self.burn_in:], y_pred_train[self.burn_in:], metric)
+            metric_train[i] = self._score(self.y['train'], y_pred_train, metric)
                      
             if 'dev' in self.y:
                 y_pred_dev = self.forwardpass(p=params_list[i], kind='dev')
                 cost_dev[i] = self.cost(p=params_list[i], kind='dev', precomputed=y_pred_dev)
-                metric_dev[i] = self._score(self.y['dev'][self.burn_in:], y_pred_dev[self.burn_in:], metric)      
+                metric_dev[i] = self._score(self.y['dev'], y_pred_dev, metric)      
                 
             time_elapsed = time.time() - time_start
             if verbose:
@@ -632,8 +633,6 @@ class GLM:
         '''
 
         if type(X_test) is dict:
-            test_data = {}
-            test_data.update(X_test)
             y_pred = self.predict(X_test)
         else:
             y_pred = self.predict({'stimulus': X_test})
