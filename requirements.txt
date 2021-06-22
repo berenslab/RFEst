@@ -3,5 +3,5 @@ scipy
 sklearn
 matplotlib
 jax
-#jaxlib
+jaxlib
 opencv-python
