@@ -16,6 +16,7 @@ from ..utils import build_design_matrix, uvec
 from ..splines import build_spline_matrix, cr, cc, bs
 from ..metrics import accuracy, r2, mse, corrcoef
 from ..nonlinearities import *
+from ..priors import smoothness_kernel
 
 from scipy.optimize import minimize
 
@@ -753,7 +754,20 @@ class splineBase(Base):
         else:
             self.w_spl = S @ self.b_spl 
         
-
+    def initialize_Cinv(self, params):
+        
+        df = self.df
+        Cinvs = [smoothness_kernel([params[i], ], df[i])[1] for i in range(len(df))]
+        
+        if len(Cinvs) == 1:
+            self.Cinv = Cinvs[0]
+        
+        elif len(Cinvs) == 2:
+            self.Cinv = np.kron(*Cinvs)
+        
+        else:
+            self.Cinv = np.kron(Cinvs[0], np.kron(Cinvs[1], Cinvs[2]))
+        
     def cost(self, b, extra):
         pass
 

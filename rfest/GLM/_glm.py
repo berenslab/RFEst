@@ -452,18 +452,21 @@ class GLM:
 
                 if 'dev' in self.y and np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
                     params = params_list[i-tolerance]
+                    metric_dev_opt = metric_dev[i-tolerance]
                     if verbose:
                         print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(i, tolerance))
                     break
 
                 if np.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
                     params = params_list[i]
+                    metric_dev_opt = metric_dev[i]
                     if verbose:
                         print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.\n'.format(i, tolerance))
                     break
                     
         else:
             params = params_list[i]
+            metric_dev_opt = metric_dev[i]
             total_time_elapsed = time.time() - time_start
 
             if verbose:
@@ -473,6 +476,7 @@ class GLM:
         self.cost_dev = np.hstack(cost_dev[:i+1])
         self.metric_train = np.hstack(metric_train[:i+1])
         self.metric_dev = np.hstack(metric_dev[:i+1])
+        self.metric_dev_opt = metric_dev_opt
         
         params = params_list[i]
         

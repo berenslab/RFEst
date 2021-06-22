@@ -85,6 +85,9 @@ class splineLG(splineBase):
             
             l1 = np.linalg.norm(p['b'], 1)
             l2 = np.linalg.norm(p['b'], 2)
-            mse += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1) 
+            mse += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
+
+        if hasattr(self, 'Cinv'):
+            mse += 0.5 * p['b'] @ self.Cinv @ p['b']
 
         return mse       
