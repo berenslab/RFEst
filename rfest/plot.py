@@ -57,7 +57,48 @@ def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
 
 
 def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
-           contour=0.1, pixel_size=30, figsize=None):
+           contour=0.1, pixel_size=30, dropout=None, repeat=20, figsize=None):
+
+    '''
+    Parameters
+    ----------
+
+    model: object
+        Model object
+
+    X_test: np.array, dict or None
+        Stimulus. Only the named filters in the dict will be used for prediction.
+        Other filters, even trained, will be ignored if no test set provided. 
+
+    y_test: np.array
+        Response.   
+
+    metric: str
+        Method of model evaluation. Can be
+        `mse`, `corrcoeff`, `r2`
+
+    window: float or None
+        Length of prediction to be plotted. If None, the whole `y_test`
+        is used. If the window is longer than y_test, the length of `y_test`
+        is used.
+
+    contour: float
+        > 0. The contour level. Default is 0.015.
+
+    pixel_size: 
+        The size of pixel for calculating the contour size.
+
+    dropout: float or None
+        Dropout probability
+
+    repeat: int
+        Number of repetition for dropout prediction.
+
+    figsize: tuple
+        Figure size.
+
+    '''
+    
     import matplotlib.gridspec as gridspec
     import warnings
     warnings.filterwarnings("ignore")
@@ -243,24 +284,36 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
                                                 alpha=0.4)
 
     if X_test is not None:
+
         if 'history' in model.w_opt:
             ax_pred = fig.add_subplot(spec[-1, :2])
         else:
             ax_pred = fig.add_subplot(spec[-1, :])
 
-        stats[metric], y_pred = model.score(X_test, y_test, metric, return_prediction=True)
-
-        if window is not None:
-            n = get_n_samples(window / 60, dt)
+        stats[metric], res = model.score(X_test, y_test, metric, dropout, repeat, return_prediction=True)
+        
+        if type(res) is tuple:
+            y_pred_mean = res[0]
+            y_pred_std = res[1]
         else:
-            n = y_test.shape[0]
+            y_pred_mean = res
+        
+        y_test = y_test[model.burn_in:]
+        n = y_test.shape[0] 
+        if window is not None:
+            w = get_n_samples(window / 60, dt)
+            n = w if w < n else n
 
         t_pred = np.arange(n)
-        ax_pred.plot(t_pred * dt, y_test[model.burn_in:][:n], color='black')
-        ax_pred.plot(t_pred * dt, y_pred[:n], color='C3', label=f'Predict (cc={stats[metric]:.02f})')
+        ax_pred.plot(t_pred * dt, y_test[:n], color='black')
+        ax_pred.plot(t_pred * dt, y_pred_mean[:n], color='C3', label=f'Predict (cc={stats[metric]:.02f})')
+        if type(res) is tuple:
+            ax_pred.fill_between(t_pred * dt, y_pred_mean[:n]-y_pred_std[:n], y_pred_mean[:n]+y_pred_std[:n], color='C3', alpha=0.5)
+
         ax_pred.legend(frameon=False)
         ax_pred.spines['top'].set_visible(False)
         ax_pred.spines['right'].set_visible(False)
+        ax_pred.set_xlabel('Time (s)')
 
     fig.tight_layout()
 
