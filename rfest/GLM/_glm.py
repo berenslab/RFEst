@@ -296,13 +296,13 @@ class GLM:
         
         XtX = X.T @ X
         Xty = X.T @ y[self.burn_in:]
-        mle = np.linalg.solve(XtX, Xty).T
+        mle = np.linalg.solve(XtX, Xty)
         
         l = np.cumsum(np.hstack([0, [self.n_features[name] for name in self.n_features]]))
         idx = [np.array((l[i], l[i+1])) for i in range(len(l)-1)]
         self.idx = idx
         for i, name in enumerate(self.filter_names['train']):
-            if name in self.XS['train']:
+            if 'train' in self.XS and name in self.XS['train']:
                 self.b_mle[name] = mle[idx[i][0]:idx[i][1]]
                 self.w_mle[name] = self.S[name] @ self.b_mle[name]
             else:
@@ -331,6 +331,7 @@ class GLM:
         intercept = p['intercept'] if 'intercept' in p else self.intercept
                 
         filters_output = []
+        droput_terms = {} 
         for name in self.filter_names[kind]:
             if 'train' in self.XS and name in self.XS[kind]:
                 input_term = self.XS[kind][name]
@@ -343,16 +344,20 @@ class GLM:
                 rate = 1. - self.dropout
                 key = random.PRNGKey(onp.random.randint(0, 10000))
                 dropout_term = random.bernoulli(key, rate, input_term.shape)
-                input_term *= dropout_term
+                input_term *= dropout_term / rate
+                droput_terms[name] = dropout_term 
 
             output = self.fnl(np.sum( input_term @ p[name], axis=1), kind=self.filter_nonlinearity[name]) 
             filters_output.append(output)
 
         filters_output = np.array(filters_output).sum(0)
+        final_output = self.fnl(filters_output + intercept, kind=self.output_nonlinearity)
         
-        return self.fnl(filters_output + intercept, kind=self.output_nonlinearity)
-                
-
+        if kind == 'test' and self.dropout is not None:
+            return final_output, droput_terms 
+        else:
+            return final_output
+            
     # def forwardpass(self, p, kind):
 
     #     '''Forward pass of the model.
@@ -418,10 +423,12 @@ class GLM:
             term0 = - np.log(r) @ y # spike term from poisson log-likelihood
             term1 = np.sum(r) # non-spike term            
             loss = term0 + term1
-            
-        w = np.array([p[name] for name in self.filter_names['train'] if 'stimulus' in name]).flatten()
+
 
         if self.beta and kind == 'train':
+
+            # regularized all filters parameters
+            w = np.hstack([p[name].flatten() for name in self.filter_names['train']])
 
             l1 = np.linalg.norm(w, 1)
             l2 = np.linalg.norm(w, 2)
@@ -666,15 +673,44 @@ class GLM:
             # if X is np.array, assumed it's the stimulus.
             self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
         
+        def _forward():
+            
+            intercept = self.intercept
+                    
+            filters_output = []
+            droput_terms = {} 
+            for name in self.filter_names[kind]:
+                input_term = self.X[kind][name]
+
+                if self.dropout is not None:
+                    rate = 1. - self.dropout
+                    key = random.PRNGKey(onp.random.randint(0, 10000))
+                    dropout_term = random.bernoulli(key, rate, input_term.shape)
+                    input_term *= dropout_term / rate
+                    droput_terms[name] = dropout_term 
+
+                output = self.fnl(np.sum( input_term @ self.w_opt[name], axis=1), kind=self.filter_nonlinearity[name]) 
+                filters_output.append(output)
+
+            filters_output = np.array(filters_output).sum(0)
+            final_output = self.fnl(filters_output + intercept, kind=self.output_nonlinearity)
+            
+            return final_output, droput_terms 
+
         if dropout is not None:
-            y_pred = np.array([self.forwardpass(self.p_opt, kind='test') for i in range(repeat)])
-            ypred_mean = y_pred.mean(0)
-            ypred_std = y_pred.std(0)
-            return ypred_mean, ypred_std
+            y_pred_dropout = []
+            dropout_terms = [] 
+            for i in range(repeat):
+                res = _forward() 
+                y_pred_dropout.append(res[0])
+                dropout_terms.append(res[1]) 
+
+            ypred_mean = np.array(y_pred_dropout).mean(0)
+            ypred_std = np.array(y_pred_dropout).std(0)
+            return ypred_mean, ypred_std, y_pred_dropout
         else:
-            ypred_mean = self.forwardpass(self.p_opt, kind='test')
-         
-            return ypred_mean
+            y_pred = self.forwardpass(self.p_opt, kind='test')
+            return y_pred
 
     def _score(self, y, y_pred, metric):
 
