@@ -39,7 +39,7 @@ def bs(x, df, degree=3):
     coeff = np.eye(n_bases)
     basis = np.vstack([BSpline(knots, coeff[i], degree)(x) for i in range(n_bases)]).T
     
-    return uvec(basis), P
+    return uvec(basis)
 
 def cr(x, df):
     
@@ -214,7 +214,7 @@ def te(*args):
     return columnwise_product(te(*As[:-1]), As[-1])
 
 
-def build_spline_matrix(dims, df, smooth, lam):
+def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
     
     """
     
@@ -261,7 +261,7 @@ def build_spline_matrix(dims, df, smooth, lam):
         raise ValueError("`df` must have the same length as `dims`")
 
     if type(lam) is not list:
-        lam = [lam]
+        lam = [lam] * len(df) 
             
     if smooth == 'cr':
         basis = cr  # Natural cubic regression spline
@@ -289,7 +289,6 @@ def build_spline_matrix(dims, df, smooth, lam):
         Pt = lam[0] * np.kron(Pt, np.kron(np.eye(df[1]), np.eye(df[2])))
         Px = lam[1] * np.kron(np.kron(np.eye(df[0]), Px, np.eye(df[2])))
         P = Pt + Px
-        # P = np.kron(Pt, np.kron(Px, Py))
 
     elif ndim == 3:
 
@@ -307,9 +306,8 @@ def build_spline_matrix(dims, df, smooth, lam):
         Px = lam[1] * np.kron(np.eye(df[0]), np.kron(Px, np.eye(df[2])))
         Py = lam[2] * np.kron(np.eye(df[0]), np.kron(np.eye(df[1]), Py))
         P = Pt + Px + Py 
-        #P = np.kron(Pt, np.kron(Px, Py)) # this construction would undersmooth
-                                         # thus require a large lam
-                                         # can constructed with marginal penalty along each dimension
-                                         # but it also require three lams for each dimension 
         
-    return uvec(S), P
+    if return_P:
+        return uvec(S), P
+    else:
+        return uvec(S)

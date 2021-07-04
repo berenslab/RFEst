@@ -207,9 +207,9 @@ class GLM:
                 self.XS.update({kind: {}})
             
             self.df[name] = df if type(df) is not int else [df, ]
-            S, P = build_spline_matrix(self.dims[name], self.df[name], smooth, lam)
+            S, P = build_spline_matrix(self.dims[name], self.df[name], smooth, lam, return_P=True)
             self.S[name] = S
-            self.P[name] = P # penalty matrix
+            self.P[name] = P # penalty matrix, which absolved lamda already
             self.XS[kind][name] = self.X[kind][name] @ S
             if kind =='train': 
                 self.n_features[name] = self.XS['train'][name].shape[1]
