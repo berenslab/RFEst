@@ -1,3 +1,4 @@
+from jax.interpreters.ad import defjvp2
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg
@@ -38,7 +39,7 @@ def bs(x, df, degree=3):
     coeff = np.eye(n_bases)
     basis = np.vstack([BSpline(knots, coeff[i], degree)(x) for i in range(n_bases)]).T
     
-    return uvec(basis)
+    return uvec(basis), P
 
 def cr(x, df):
     
@@ -83,7 +84,9 @@ def cr(x, df):
     
     basis = ajm * i[j,:].T + ajp * i[j+1,:].T + cjm * f[j,:].T + cjp * f[j+1,:].T
     
-    return uvec(basis.T)
+    P = (D.T @ np.linalg.inv(B) @ D)
+    
+    return uvec(basis.T), P
 
 def cc(x, df):
 
@@ -165,8 +168,10 @@ def cc(x, df):
     
     basis = ajm * i[j, :].T + ajp * i[j1, :].T + \
         cjm * f[j, :].T + cjp * f[j1, :].T
+
+    P = (D.T @ np.linalg.inv(B) @ D)
     
-    return uvec(basis.T)
+    return uvec(basis.T), P
 
 
 def tp(x, df):
@@ -209,7 +214,7 @@ def te(*args):
     return columnwise_product(te(*As[:-1]), As[-1])
 
 
-def build_spline_matrix(dims, df, smooth):
+def build_spline_matrix(dims, df, smooth, lam):
     
     """
     
@@ -238,6 +243,9 @@ def build_spline_matrix(dims, df, smooth):
         * `cr`: Cubic Regression spline
         * `tp`: (Simplified) Thin Plate regression spline 
     
+    lam: list
+        Weight for penalty matrix
+
     Return
     ======
     
@@ -251,15 +259,14 @@ def build_spline_matrix(dims, df, smooth):
     # initialize list of degree of freedom for each dimension
     if len(df) != ndim:
         raise ValueError("`df` must have the same length as `dims`")
-    
-    if smooth =='bs': 
-        basis = bs # B-spline (order=3)
-    elif smooth == 'cr':
+
+    if type(lam) is not list:
+        lam = [lam]
+            
+    if smooth == 'cr':
         basis = cr  # Natural cubic regression spline
     elif smooth == 'cc':
-        basis = cc
-    elif smooth == 'tp':
-        basis = tp  # Thin plate regression spline
+        basis = cc # cyclic cubic regression spline
     else:
         raise ValueError("Input method `{}` is not supported.".format(smooth))
 
@@ -267,22 +274,42 @@ def build_spline_matrix(dims, df, smooth):
     if ndim == 1:
         
         g0 = np.arange(dims[0])
-        S = basis(g0.ravel(), df[0])
+        S, P = basis(g0.ravel(), df[0])
+        P *= lam[0]
 
     elif ndim == 2:
 
         g0, g1 = np.meshgrid(np.arange(dims[0]), 
                              np.arange(dims[1]), indexing='ij')
-        S = te(basis(g0.ravel(), df[0]), 
-               basis(g1.ravel(), df[1]))
+        
+        St, Pt = basis(g0.ravel(), df[0])
+        Sx, Px = basis(g1.ravel(), df[1])
+        S = te(St, Sx)
+
+        Pt = lam[0] * np.kron(Pt, np.kron(np.eye(df[1]), np.eye(df[2])))
+        Px = lam[1] * np.kron(np.kron(np.eye(df[0]), Px, np.eye(df[2])))
+        P = Pt + Px
+        # P = np.kron(Pt, np.kron(Px, Py))
 
     elif ndim == 3:
 
         g0, g1, g2 = np.meshgrid(np.arange(dims[0]), 
                                  np.arange(dims[1]), 
                                  np.arange(dims[2]), indexing='ij')
-        S = te(basis(g0.ravel(), df[0]), 
-               basis(g1.ravel(), df[1]), 
-               basis(g2.ravel(), df[2]))
+        
+        St, Pt = basis(g0.ravel(), df[0])
+        Sx, Px = basis(g1.ravel(), df[1])
+        Sy, Py = basis(g2.ravel(), df[2])
 
-    return uvec(S)
+        S = te(St, Sx, Sy)
+        
+        Pt = lam[0] * np.kron(Pt, np.kron(np.eye(df[1]), np.eye(df[2])))
+        Px = lam[1] * np.kron(np.eye(df[0]), np.kron(Px, np.eye(df[2])))
+        Py = lam[2] * np.kron(np.eye(df[0]), np.kron(np.eye(df[1]), Py))
+        P = Pt + Px + Py 
+        #P = np.kron(Pt, np.kron(Px, Py)) # this construction would undersmooth
+                                         # thus require a large lam
+                                         # can constructed with marginal penalty along each dimension
+                                         # but it also require three lams for each dimension 
+        
+    return uvec(S), P

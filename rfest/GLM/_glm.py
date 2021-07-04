@@ -1,3 +1,4 @@
+from jaxlib.xla_client import PaddingType
 import numpy as onp
 import jax.numpy as np
 import jax.random as random
@@ -13,6 +14,7 @@ import time
 from ..utils import build_design_matrix
 from ..splines import build_spline_matrix
 from ..metrics import r2, mse, corrcoef
+from ..priors import smoothness_kernel
 
 __all__ = ['GLM']
 
@@ -38,8 +40,10 @@ class GLM:
         ## Data
         self.X = {} # design matrix
         self.S = {} # spline matrix
+        self.P = {} # penalty matrix
         self.XS = {} # dot product of X and S
         self.y = {} # response
+        self.y = {}
         
         ## Model parameters
         self.b = {} # spline weights
@@ -89,7 +93,7 @@ class GLM:
         if  kind == 'softplus':
             def softplus(x):
                 return np.log(1 + np.exp(x))
-            return softplus(x)
+            return softplus(x) + 1e-7
 
         elif kind == 'exponential':
             return np.exp(x)
@@ -110,7 +114,7 @@ class GLM:
 
         elif kind == 'relu':
             def relu(x):
-                return np.where(x > 0., x, 0.)
+                return np.where(x > 0., x, 1e-7)
             return relu(x)
 
         elif kind == 'leaky_relu':
@@ -124,7 +128,7 @@ class GLM:
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-    def add_design_matrix(self, X, dims, df=None, smooth=None, filter_nonlinearity='none',
+    def add_design_matrix(self, X, dims, df=None, smooth=None, lam=0., filter_nonlinearity='none',
                           kind='train', name='stimulus', shift=0, burn_in=None):
 
         '''
@@ -203,13 +207,14 @@ class GLM:
                 self.XS.update({kind: {}})
             
             self.df[name] = df if type(df) is not int else [df, ]
-            S = build_spline_matrix(self.dims[name], self.df[name], smooth)
+            S, P = build_spline_matrix(self.dims[name], self.df[name], smooth, lam)
             self.S[name] = S
+            self.P[name] = P # penalty matrix
             self.XS[kind][name] = self.X[kind][name] @ S
             if kind =='train': 
                 self.n_features[name] = self.XS['train'][name].shape[1]
 
-    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', random_seed=2046):
+    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', random_seed=2046, var_names=None, verbose=0):
 
         '''Initialize all model paraemters
         
@@ -239,7 +244,8 @@ class GLM:
         self.init_method = method
         
         if method =='random':
-            print('Initializing model paraemters randomly...')
+            if verbose:
+                print('Initializing model paraemters randomly...')
             for name in self.filter_names['train']:
                 if 'train' in self.XS and name in self.XS['train']:
                     if 'stimulus' in name:
@@ -248,20 +254,23 @@ class GLM:
                     else:
                         # Assume only one filter for other inputs.
                         self.b[name] = random.normal(self.key, shape=(self.XS['train'][name].shape[1], 1))
+                    self.w[name] = self.S[name] @ self.b[name] 
                 else:
                     if 'stimulus' in name:
                         self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], num_subunits))
                     else:
                         self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], 1))
-            print('Finished.')
+            if verbose:
+                print('Finished.')
 
         elif method == 'mle':
-            print('Initializing model paraemters with maximum likelihood...')
+            if verbose:
+                print('Initializing model paraemters with maximum likelihood...')
 
             # compute maximum likelihood estimates
             if not self.mle_computed:
                 self.compute_mle(y) 
-
+            self.y['train'] = y[self.burn_in:]
             # # check if mle has been computed
             # if self.b_mle == {} and self.w_mle == {}: 
             #     raise ValueError(f'`MLE is not computed yet. Please call `GLM.computed_mle(y_train)` first.')
@@ -272,14 +281,36 @@ class GLM:
                         self.b[name] = np.repeat(self.b_mle[name], num_subunits).reshape(self.XS['train'][name].shape[1], num_subunits)
                     else:
                         self.b[name] = self.b_mle[name].reshape(self.XS['train'][name].shape[1], 1)
+                    self.w[name] = self.S[name] @ self.b[name]
                 else:
                     if 'stimulus' in name:
                         self.w[name] = np.repeat(self.w_mle[name], num_subunits).reshape(self.X['train'][name].shape[1], num_subunits) 
                     else:
                         self.w[name] = self.w_mle[name].reshape(self.X['train'][name].shape[1], 1)
-            print('Finished.')
+            if verbose:
+                print('Finished.')
         else:
             raise ValueError(f'`{method}` is not supported.')
+
+        p0 = {} # parameters to be optimized
+        
+        if var_names is None:
+            var_names = self.filter_names['train'].copy()
+            var_names.append('intercept')
+        
+        for name in var_names:
+            if name in self.filter_names['train']:
+                if 'train' in self.XS and name in self.XS['train']:
+                    p0.update({name: self.b[name]})
+                else:
+                    p0.update({name: self.w[name]})
+                
+        if 'intercept' in var_names:
+            p0.update({'intercept': 0.})
+        else:
+            self.intercept = 0.
+
+        self.p0 = p0
                     
     def compute_mle(self, y):
 
@@ -303,10 +334,10 @@ class GLM:
         self.idx = idx
         for i, name in enumerate(self.filter_names['train']):
             if 'train' in self.XS and name in self.XS['train']:
-                self.b_mle[name] = mle[idx[i][0]:idx[i][1]]
+                self.b_mle[name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]
                 self.w_mle[name] = self.S[name] @ self.b_mle[name]
             else:
-                self.w_mle[name] = mle[idx[i][0]:idx[i][1]]          
+                self.w_mle[name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]          
         
         # save sufficient statistics
         self.XtX = XtX # stimulus covariance
@@ -331,21 +362,11 @@ class GLM:
         intercept = p['intercept'] if 'intercept' in p else self.intercept
                 
         filters_output = []
-        droput_terms = {} 
         for name in self.filter_names[kind]:
             if 'train' in self.XS and name in self.XS[kind]:
                 input_term = self.XS[kind][name]
             else:
                 input_term = self.X[kind][name]
-
-            # Dropout for prediction uncertainty only
-            # Not sure if it makes sense.
-            if kind == 'test' and self.dropout is not None:
-                rate = 1. - self.dropout
-                key = random.PRNGKey(onp.random.randint(0, 10000))
-                dropout_term = random.bernoulli(key, rate, input_term.shape)
-                input_term *= dropout_term / rate
-                droput_terms[name] = dropout_term 
 
             output = self.fnl(np.sum( input_term @ p[name], axis=1), kind=self.filter_nonlinearity[name]) 
             filters_output.append(output)
@@ -353,45 +374,8 @@ class GLM:
         filters_output = np.array(filters_output).sum(0)
         final_output = self.fnl(filters_output + intercept, kind=self.output_nonlinearity)
         
-        if kind == 'test' and self.dropout is not None:
-            return final_output, droput_terms 
-        else:
-            return final_output
-            
-    # def forwardpass(self, p, kind):
-
-    #     '''Forward pass of the model.
-        
-    #     Parameters
-    #     ----------
-
-    #     p: dict
-    #         A dictionary of the model parameters to be optimized.
-
-    #     kind: str
-    #         Dataset type, can be `train`, `dev` or `test`.
-        
-    #     '''
-        
-    #     intercept = p['intercept'] if 'intercept' in p else self.intercept
-        
-    #     rate = self.dropout if kind == 'train' else 1.
-        
-    #     filters_output = []
-    #     for name in self.filter_names[kind]:
-    #         if 'train' in self.XS and name in self.XS[kind]:
-    #             input_term = self.XS[kind][name]
-    #         else:
-    #             input_term = self.X[kind][name]
-            
-    #         key = random.PRNGKey(onp.random.randint(0, 10000))
-    #         dropout_term = random.bernoulli(key, rate, input_term.shape)
-    #         output = self.fnl(np.sum( dropout_term * input_term @ p[name], axis=1), kind=self.filter_nonlinearity[name]) 
-    #         filters_output.append(output)
-    #     filters_output = np.array(filters_output).sum(0)
-        
-    #     return self.fnl(filters_output + intercept, kind=self.output_nonlinearity)
-                
+        return final_output
+                          
     def cost(self, p, kind='train', precomputed=None):
 
         '''Cost function.
@@ -413,7 +397,8 @@ class GLM:
         dt = self.dt
         y = self.y[kind]
         r = self.forwardpass(p, kind) if precomputed is None else precomputed
-        
+
+        # cost functions 
         if distr == 'gaussian':
             loss = np.nanmean((y - r)**2)
         
@@ -424,8 +409,8 @@ class GLM:
             term1 = np.sum(r) # non-spike term            
             loss = term0 + term1
 
-
-        if self.beta and kind == 'train':
+        # regularization: elasticnet
+        if (hasattr(self, 'beta') or self.beta != 0) and kind == 'train':
 
             # regularized all filters parameters
             w = np.hstack([p[name].flatten() for name in self.filter_names['train']])
@@ -433,8 +418,15 @@ class GLM:
             l1 = np.linalg.norm(w, 1)
             l2 = np.linalg.norm(w, 2)
             loss += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
+        
+        # regularization: spline wiggliness
+        if kind == 'train':
+            
+            energy = np.array([p[name].T @ self.P[name] @ p[name] for name in self.filter_names['train']]).sum()
 
-        return loss
+            loss += energy 
+
+        return np.squeeze(loss)
     
     def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose):
 
@@ -553,10 +545,14 @@ class GLM:
         self.metric_train = np.hstack(metric_train[:i+1])
         self.metric_dev = np.hstack(metric_dev[:i+1])
         self.metric_dev_opt = metric_dev_opt
+        self.total_time_elapsed = total_time_elapsed 
+
+        self.y_pred.update({'train': y_pred_train, 
+                              'dev': y_pred_dev})
                 
         return params
                        
-    def fit(self, y, num_iters=3, alpha=1, beta=0.01, metric='corrcoef', step_size=1e-3, 
+    def fit(self, y, num_iters=3, alpha=1, beta=0.01, lam=0., metric='corrcoef', step_size=1e-3, 
         tolerance=10, verbose=True, var_names=None):
         
         '''Fit model.
@@ -576,6 +572,9 @@ class GLM:
         
         beta: float
             Overall weight for L1 and L2 regularization.
+
+        lam: float
+            Weight for controlling spline wiggliness.
 
         droput: float
             Droput probability.
@@ -599,9 +598,19 @@ class GLM:
         
         '''
 
+        
         self.alpha = alpha
         self.beta = beta
-        
+        if type(lam) is dict: 
+            self.lam = lam
+            if len(lam) != len(self.filter_names['train']):
+                leftover = set(m[0].filter_names['train']) - set(lam.keys())
+                for key in add:
+                    self.lam.update({name: 1e-7 for name in leftover})
+        else:
+            self.lam = {'stimulus': lam}
+            self.lam.update({name: 1e-7 for name in self.filter_names['train']})
+                    
         if type(y) is dict:
             self.y['train'] = y['train'][self.burn_in:]
             if 'dev' in y:
@@ -609,26 +618,7 @@ class GLM:
         else:
             self.y['train'] = y[self.burn_in:]
         
-        p0 = {} # parameters to be optimized
-        
-        if var_names is None:
-            var_names = self.filter_names['train'].copy()
-            var_names.append('intercept')
-        
-        for name in var_names:
-            if name in self.filter_names['train']:
-                if 'train' in self.XS and name in self.XS['train']:
-                    p0.update({name: self.b[name]})
-                else:
-                    p0.update({name: self.w[name]})
-                
-        if 'intercept' in var_names:
-            p0.update({'intercept': 0.})
-        else:
-            self.intercept = 0.
-    
-        self.p0 = p0
-        self.p_opt = self.optimize(p0, num_iters, metric, step_size, tolerance, verbose)
+        self.p_opt = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose)
         
         self.b_opt = {}
         self.w_opt = {}
@@ -640,9 +630,9 @@ class GLM:
                 self.w_opt[name] = self.p_opt[name]
         
         if 'intercept' in self.p_opt:
-            self.interecept = self.p_opt['intercept']
+            self.intercept = self.p_opt['intercept']
 
-    def predict(self, X, dropout=None, repeat=100):
+    def predict(self, X, w_type='opt'):
         
         '''
         Parameters
@@ -659,12 +649,14 @@ class GLM:
             Number of repetition for dropout prediction.
         '''
         
-        ws = self.w_opt
-
+        if w_type == 'opt':
+            p = self.p_opt
+        elif w_type == 'mle':
+            p = self.p0 # assumed the p0 is initialized with mle
+        
         self.X['test'] = {}
         self.XS['test'] = {}
         self.filter_names['test'] = []
-        self.dropout = dropout
 
         if type(X) is dict:
             for name in X:
@@ -672,45 +664,9 @@ class GLM:
         else:
             # if X is np.array, assumed it's the stimulus.
             self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
-        
-        def _forward():
-            
-            intercept = self.intercept
-                    
-            filters_output = []
-            droput_terms = {} 
-            for name in self.filter_names[kind]:
-                input_term = self.X[kind][name]
 
-                if self.dropout is not None:
-                    rate = 1. - self.dropout
-                    key = random.PRNGKey(onp.random.randint(0, 10000))
-                    dropout_term = random.bernoulli(key, rate, input_term.shape)
-                    input_term *= dropout_term / rate
-                    droput_terms[name] = dropout_term 
-
-                output = self.fnl(np.sum( input_term @ self.w_opt[name], axis=1), kind=self.filter_nonlinearity[name]) 
-                filters_output.append(output)
-
-            filters_output = np.array(filters_output).sum(0)
-            final_output = self.fnl(filters_output + intercept, kind=self.output_nonlinearity)
-            
-            return final_output, droput_terms 
-
-        if dropout is not None:
-            y_pred_dropout = []
-            dropout_terms = [] 
-            for i in range(repeat):
-                res = _forward() 
-                y_pred_dropout.append(res[0])
-                dropout_terms.append(res[1]) 
-
-            ypred_mean = np.array(y_pred_dropout).mean(0)
-            ypred_std = np.array(y_pred_dropout).std(0)
-            return ypred_mean, ypred_std, y_pred_dropout
-        else:
-            y_pred = self.forwardpass(self.p_opt, kind='test')
-            return y_pred
+        y_pred = self.forwardpass(p, kind='test')
+        return y_pred
 
     def _score(self, y, y_pred, metric):
 
@@ -727,7 +683,7 @@ class GLM:
         else:
             print(f'Metric `{metric}` is not supported.')
  
-    def score(self, X_test, y_test, metric='corrcoef', dropout=None, repeat=100, return_prediction=False):
+    def score(self, X_test, y_test, metric='corrcoef', w_type='opt', return_prediction=False):
 
         '''Metric score for evaluating model prediction.
         
@@ -741,12 +697,6 @@ class GLM:
         metric: str
             Method of model evaluation. Can be
             `mse`, `corrcoeff`, `r2`
-
-        dropout: float or None
-            Dropout probability
-
-        repeat: int
-            Number of repetition for dropout prediction.
 
         return_prediction: bool
             If true, will also return the predicted response `y_pred`.
@@ -764,25 +714,14 @@ class GLM:
         y_test = y_test[self.burn_in:]
 
         if type(X_test) is dict:
-            res = self.predict(X_test, dropout, repeat)
+            y_pred = self.predict(X_test, w_type)
         else:
-            res = self.predict({'stimulus': X_test}, dropout, repeat)
+            y_pred = self.predict({'stimulus': X_test}, w_type)
 
-        if type(res) is tuple:
-            y_pred_mean = res[0]
-            y_pred_std = res[1]
-            s = self._score(y_test, y_pred_mean, metric) 
-            
-            if return_prediction:
-                return s, (y_pred_mean, y_pred_std)
-            else:
-                return s 
+        s = self._score(y_test, y_pred, metric)
+
+        if return_prediction:
+            return s, y_pred 
         else:
-            y_pred = res
-            s = self._score(y_test, y_pred, metric)
-
-            if return_prediction:
-                return s, y_pred 
-            else:
-                return s 
+            return s 
 

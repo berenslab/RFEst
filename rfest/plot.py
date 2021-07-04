@@ -56,8 +56,8 @@ def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
     return ax
 
 
-def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
-           contour=0.1, pixel_size=30, dropout=None, repeat=20, figsize=None):
+def plot3d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', window=None,
+           contour=0.1, pixel_size=30, figsize=None):
 
     '''
     Parameters
@@ -72,6 +72,9 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
 
     y_test: np.array
         Response.   
+
+    w_type: str
+        weight types. 'opt', 'mle' or 'init'.
 
     metric: str
         Method of model evaluation. Can be
@@ -88,12 +91,6 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
     pixel_size: 
         The size of pixel for calculating the contour size.
 
-    dropout: float or None
-        Dropout probability
-
-    repeat: int
-        Number of repetition for dropout prediction.
-
     figsize: tuple
         Figure size.
 
@@ -108,12 +105,21 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
     shift = model.shift
 
     # rf
-    ws = [model.w_opt[name] for name in model.w_opt if 'stimulus' in name]
-    n_stimulus_filter = len(ws)
-    n_subunits = [w.shape[1] for w in ws]
-
+    if w_type == 'opt':
+        ws = model.w_opt 
+    elif w_type == 'mle':
+        ws = model.w_mle
+    elif w_type == 'init':
+        ws = model.w
+    
+    # n_stimulus_filter = len(ws)
+    if hasattr(model, 'w_opt'):
+        w_subunits = [model.w_opt[name] for name in model.w_opt if 'stimulus' in name]
+        n_subunits = [w.shape[1] for w in w_subunits]
+    else:
+        n_subunits = 1
     ncols = 3
-    nrows = sum(n_subunits) + 1
+    nrows = np.sum(n_subunits) + 1
     figsize = figsize if figsize is not None else (8, 8 * nrows / ncols)
     fig = plt.figure(figsize=figsize)
 
@@ -123,7 +129,7 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
     stats = {}
     RF_data = {}
     ax_data = {}
-    for i, name in enumerate(model.w_opt):
+    for i, name in enumerate(ws):
 
         if 'stimulus' in name:
 
@@ -155,7 +161,7 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
 
             t_tRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
 
-            w = uvec(model.w_opt[name])
+            w = uvec(ws[name])
             vmax = max([w.max(), abs(w.min())])
             n_subunits = w.shape[1]
 
@@ -220,7 +226,7 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
                     ax_sRF_min.set_ylabel(f'{name}', fontsize=14)
 
         elif 'history' in name:
-            h = uvec(model.w_opt[name])
+            h = uvec(ws[name])
             t_hRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
             ax_hRF = fig.add_subplot(spec[-1, 2])
             ax_hRF.plot(t_hRF, h, color='black')
@@ -232,7 +238,7 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
 
     # contour and more stats
 
-    for name in model.w_opt:
+    for name in ws:
 
         if 'stimulus' in name:
             sRFs_min = RF_data[name]["sRFs_min"]
@@ -285,12 +291,12 @@ def plot3d(model, X_test=None, y_test=None, metric='corrcoef', window=None,
 
     if X_test is not None:
 
-        if 'history' in model.w_opt:
+        if 'history' in ws:
             ax_pred = fig.add_subplot(spec[-1, :2])
         else:
             ax_pred = fig.add_subplot(spec[-1, :])
 
-        stats[metric], res = model.score(X_test, y_test, metric, dropout, repeat, return_prediction=True)
+        stats[metric], res = model.score(X_test, y_test, metric, w_type, return_prediction=True)
         
         if type(res) is tuple:
             y_pred_mean = res[0]
