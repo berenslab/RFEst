@@ -43,7 +43,7 @@ class GLM:
         self.P = {} # penalty matrix
         self.XS = {} # dot product of X and S
         self.y = {} # response
-        self.y = {}
+        self.y_pred = {} # predicted response
         
         ## Model parameters
         self.b = {} # spline weights
