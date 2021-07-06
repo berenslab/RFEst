@@ -3,13 +3,14 @@ import numpy as onp
 import jax.numpy as np
 import jax.random as random
 from jax import value_and_grad
-from jax import jit
+from jax import jit, jacfwd, jacrev
 from jax.experimental import optimizers
 from jax.config import config
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
 import time
+import scipy.linalg
 
 from ..utils import build_design_matrix
 from ..splines import build_spline_matrix
@@ -42,6 +43,8 @@ class GLM:
         self.S = {} # spline matrix
         self.P = {} # penalty matrix
         self.XS = {} # dot product of X and S
+        self.XtX = {} # input covariance
+        self.Xty = {} # cross-covariance
         self.y = {} # response
         self.y_pred = {} # predicted response
         
@@ -67,6 +70,7 @@ class GLM:
         
         # others
         self.mle_computed = False
+        self.lam = {}
         
     def fnl(self, x, kind, params=None):
 
@@ -128,7 +132,7 @@ class GLM:
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-    def add_design_matrix(self, X, dims, df=None, smooth=None, lam=0., filter_nonlinearity='none',
+    def add_design_matrix(self, X, dims=None, df=None, smooth=None, lam=0., filter_nonlinearity='none',
                           kind='train', name='stimulus', shift=0, burn_in=None):
 
         '''
@@ -182,12 +186,18 @@ class GLM:
 
         if kind == 'train':
             self.filter_nonlinearity[name] = filter_nonlinearity 
-        self.shift[name] = shift
-        self.dims[name] = dims if type(dims) is not int else [dims, ]
+            dims = dims if type(dims) is not int else [dims, ]  
+            self.dims[name] = dims 
+            self.shift[name] = shift
+        else:
+            dims = self.dims[name]
+            shift = self.shift[name] 
+            
         if not hasattr(self, 'burn_in'): # if exists, ignore
             self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore 
+        
         self.filter_names[kind].append(name)
-        self.X[kind][name] = build_design_matrix(X, self.dims[name][0], shift=shift)[self.burn_in:]
+        self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift)[self.burn_in:]
          
         if smooth is None:
             # if train set exists and used spline as basis
@@ -207,9 +217,11 @@ class GLM:
                 self.XS.update({kind: {}})
             
             self.df[name] = df if type(df) is not int else [df, ]
-            S, P = build_spline_matrix(self.dims[name], self.df[name], smooth, lam, return_P=True)
+            self.lam[name] = lam if type(lam) is list else [lam,] * len(self.df[name])
+            S, P = build_spline_matrix(dims, self.df[name], smooth, self.lam[name], return_P=True)
             self.S[name] = S
             self.P[name] = P # penalty matrix, which absolved lamda already
+            
             self.XS[kind][name] = self.X[kind][name] @ S
             if kind =='train': 
                 self.n_features[name] = self.XS['train'][name].shape[1]
@@ -279,6 +291,8 @@ class GLM:
                 if 'train' in self.XS and name in self.XS['train']:
                     if 'stimulus' in name:
                         self.b[name] = np.repeat(self.b_mle[name], num_subunits).reshape(self.XS['train'][name].shape[1], num_subunits)
+                        # add a little noise to the initial values
+                        self.b[name] += 0.1 * random.normal(self.key, shape=(self.b[name].shape[0], self.b[name].shape[1]))
                     else:
                         self.b[name] = self.b_mle[name].reshape(self.XS['train'][name].shape[1], 1)
                     self.w[name] = self.S[name] @ self.b[name]
@@ -323,10 +337,11 @@ class GLM:
             Response.
         '''
         
-        X = np.hstack([self.XS['train'][name] if name in self.XS else self.X['train'][name] for name in self.filter_names['train']])   
+        X = np.hstack([self.XS['train'][name] if name in self.XS['train'] else self.X['train'][name] for name in self.filter_names['train']])   
         
         XtX = X.T @ X
         Xty = X.T @ y[self.burn_in:]
+
         mle = np.linalg.solve(XtX, Xty)
         
         l = np.cumsum(np.hstack([0, [self.n_features[name] for name in self.n_features]]))
@@ -337,11 +352,8 @@ class GLM:
                 self.b_mle[name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]
                 self.w_mle[name] = self.S[name] @ self.b_mle[name]
             else:
-                self.w_mle[name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]          
-        
-        # save sufficient statistics
-        self.XtX = XtX # stimulus covariance
-        self.w_sta = Xty / len(y) if (y == y.astype(int)).all() else Xty / sum(y)
+                self.w_mle[name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]   
+    
         self.mle_computed = True
 
     def forwardpass(self, p, kind):
@@ -422,12 +434,18 @@ class GLM:
         # regularization: spline wiggliness
         if kind == 'train':
             
-            energy = np.array([p[name].T @ self.P[name] @ p[name] for name in self.filter_names['train']]).sum()
+            energy = np.array([np.sum(p[name].T @ self.P[name] @ p[name]) for name in self.filter_names['train']]).sum()
+            # lam = self.lam
+            # energy = 0
+            # for name in self.XS['train']:
+            #     P = self.P[name]
+            #     Plam = elementwise_add([np.maximum(1e-7, lam[i]) * P for i, P in enumerate(P)]) 
+            #     energy += np.sum(p[name].T @ Plam @ p[name])
 
-            loss += energy 
-
+            loss += energy
+ 
         return np.squeeze(loss)
-    
+ 
     def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose):
 
         '''Workhorse of optimization.
@@ -459,17 +477,15 @@ class GLM:
             p = get_params(opt_state)
             l, g = value_and_grad(self.cost)(p)
             return l, opt_update(i, g, opt_state)
-        
+
         opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
         opt_state = opt_init(p0)
-        
-        # preallocation
+
         cost_train = [0] * num_iters 
         cost_dev = [0] * num_iters
         metric_train = [0] * num_iters
         metric_dev = [0] * num_iters    
         params_list = [0] * num_iters
-        
         if verbose:
             if 'dev' not in self.y:
                 if metric is None:
@@ -487,7 +503,6 @@ class GLM:
         for i in range(num_iters):
             cost_train[i], opt_state = step(i, opt_state)
             params_list[i] = get_params(opt_state)
-            
             y_pred_train = self.forwardpass(p=params_list[i], kind='train')
             metric_train[i] = self._score(self.y['train'], y_pred_train, metric)
                      
@@ -601,16 +616,7 @@ class GLM:
         
         self.alpha = alpha
         self.beta = beta
-        if type(lam) is dict: 
-            self.lam = lam
-            if len(lam) != len(self.filter_names['train']):
-                leftover = set(m[0].filter_names['train']) - set(lam.keys())
-                for key in add:
-                    self.lam.update({name: 1e-7 for name in leftover})
-        else:
-            self.lam = {'stimulus': lam}
-            self.lam.update({name: 1e-7 for name in self.filter_names['train']})
-                    
+
         if type(y) is dict:
             self.y['train'] = y['train'][self.burn_in:]
             if 'dev' in y:
@@ -725,3 +731,14 @@ class GLM:
         else:
             return s 
 
+def elementwise_add(A):
+    
+    if len(A) == 1:
+        return A[0]
+    elif len(A) == 2:
+        return np.add(*A)
+    elif len(A) == 3:
+        return np.add(*[np.add(*A[:2]), A[-1]])
+
+def hessian(f):
+    return jacfwd(jacrev(f))

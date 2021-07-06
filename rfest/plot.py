@@ -204,7 +204,7 @@ def plot3d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', win
                 ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
                 ax_tRF.spines['top'].set_visible(False)
                 ax_tRF.spines['right'].set_visible(False)
-                ax_tRF.set_yticks([0])
+                ax_tRF.set_yticks([tRF.min(), 0, tRF.max()])
                 ax_tRF.set_ylim(-vmax - 0.01, vmax + 0.01)
 
                 stats[name]['tRF_time_min'].append(t_tRF[tRF_min])
@@ -232,7 +232,7 @@ def plot3d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', win
             ax_hRF.plot(t_hRF, h, color='black')
             ax_hRF.spines['top'].set_visible(False)
             ax_hRF.spines['right'].set_visible(False)
-            ax_hRF.set_yticks([0])
+            ax_hRF.set_yticks([h.min(), 0, h.max()])
             ax_hRF.set_title('History', fontsize=14)
     #             ax_hRF.set_ylim(-vmax-0.01, vmax+0.01)
 

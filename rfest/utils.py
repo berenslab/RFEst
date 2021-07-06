@@ -458,3 +458,12 @@ def resample_spikes(stim, stimtime, spiketime):
     cut = np.min([X.shape[0], y.shape[0]]) 
     
     return X[:cut], y[:cut], dt
+
+def elementwise_add(A):
+    
+    if len(A) == 1:
+        return A[0]
+    elif len(A) == 2:
+        return np.add(*A)
+    elif len(A) == 3:
+        return np.add(*[np.add(*A[:2]), A[-1]])

@@ -220,14 +220,6 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
     
     Building spline matrix for n-dimensional RF (n=[1,2,3]) with tensor product smooth.
     
-    A mesh-free (actually simpler) way to do this is to get the spline bases for each dimension, 
-    then calculate the kronecker product of them, for example:
-    
-    >>> St, Sy, Sx = [basis(np.arange(d), f), for (d, f) in enumerate(dims, df)]
-    >>> S = np.kron(St, np.kron(Sy, Sx)) 
-    
-    Here we use a mesh-based `te` approach to keep consistent with the Patsy inplementation / Wood, S. (2017).
-    
     Parameters
     ==========
     
@@ -251,6 +243,21 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
     
     S : array_like, shape (n_features, n_spline_coef)
         Spline matrix. Each column is one basis. 
+
+    Note
+    ====
+
+    ---outdated
+    A mesh-free (actually simpler) way to do this is to get the spline bases for each dimension, 
+    then calculate the kronecker product of them, for example:
+    
+    >>> St, Sy, Sx = [basis(np.arange(d), f), for (d, f) in enumerate(dims, df)]
+    >>> S = np.kron(St, np.kron(Sy, Sx)) 
+    
+    Here we use a mesh-based `te` approach to keep consistent with the Patsy inplementation / Wood, S. (2017).
+    ----
+
+    Now we switched to the mesh-free inmplemtation.
         
     """
 
@@ -259,9 +266,6 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
     # initialize list of degree of freedom for each dimension
     if len(df) != ndim:
         raise ValueError("`df` must have the same length as `dims`")
-
-    if type(lam) is not list:
-        lam = [lam] * len(df) 
             
     if smooth == 'cr':
         basis = cr  # Natural cubic regression spline
@@ -276,38 +280,45 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
         g0 = np.arange(dims[0])
         S, P = basis(g0.ravel(), df[0])
         P *= lam[0]
+        # P = (P,)
 
     elif ndim == 2:
+       
+        g0 = np.arange(dims[0])
+        g1 = np.arange(dims[1])
 
-        g0, g1 = np.meshgrid(np.arange(dims[0]), 
-                             np.arange(dims[1]), indexing='ij')
-        
         St, Pt = basis(g0.ravel(), df[0])
         Sx, Px = basis(g1.ravel(), df[1])
-        S = te(St, Sx)
 
-        Pt = lam[0] * np.kron(Pt, np.kron(np.eye(df[1]), np.eye(df[2])))
-        Px = lam[1] * np.kron(np.kron(np.eye(df[0]), Px, np.eye(df[2])))
+        S = np.kron(St, Sx)
+
+        Pt = lam[0] * np.kron(Pt, np.eye(df[1]))
+        Px = lam[1] * np.kron(np.eye(df[0]), Px)
+
+        # P = (Pt, Px)
         P = Pt + Px
 
     elif ndim == 3:
 
-        g0, g1, g2 = np.meshgrid(np.arange(dims[0]), 
-                                 np.arange(dims[1]), 
-                                 np.arange(dims[2]), indexing='ij')
-        
+        g0 = np.arange(dims[0])
+        g1 = np.arange(dims[1])
+        g2 = np.arange(dims[2])
+
         St, Pt = basis(g0.ravel(), df[0])
         Sx, Px = basis(g1.ravel(), df[1])
         Sy, Py = basis(g2.ravel(), df[2])
 
-        S = te(St, Sx, Sy)
-        
+        S = np.kron(St, np.kron(Sx, Sy)) # 
+
         Pt = lam[0] * np.kron(Pt, np.kron(np.eye(df[1]), np.eye(df[2])))
         Px = lam[1] * np.kron(np.eye(df[0]), np.kron(Px, np.eye(df[2])))
         Py = lam[2] * np.kron(np.eye(df[0]), np.kron(np.eye(df[1]), Py))
-        P = Pt + Px + Py 
-        
+
+        P = Pt + Px + Py
+        # P = (Pt, Px, Py)
+
     if return_P:
         return uvec(S), P
     else:
         return uvec(S)
+
