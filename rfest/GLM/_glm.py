@@ -14,8 +14,7 @@ import scipy.linalg
 
 from ..utils import build_design_matrix
 from ..splines import build_spline_matrix
-from ..metrics import r2, mse, corrcoef
-from ..priors import smoothness_kernel
+from ..metrics import r2, r2adj, mse, corrcoef, gcv
 
 __all__ = ['GLM']
 
@@ -47,20 +46,26 @@ class GLM:
         self.Xty = {} # cross-covariance
         self.y = {} # response
         self.y_pred = {} # predicted response
+        self.y_pred_upper = {} # predicted response upper limit
+        self.y_pred_lower = {} # predicted response lower limit 
         
         ## Model parameters
-        self.b = {} # spline weights
-        self.b_mle = {} # mle spline weights
-        
-        self.w = {} # filter
-        self.w_mle = {} # mle filter 
+        self.p = {} # all model paremeters
+        self.b = {} # spline weights        
+        self.b_se = {} # spline weights standard error
+        self.w = {} # filter weights
+        self.w_se = {} # filter weights standard error
+        self.V = {} # weights covariance
+        self.intercept = {} # intercept
+
 
         ## Model hypterparameters
         self.df = {} # number of bases for each filter
+        self.edf = {} # effective degree of freedom given lam 
         self.dims = {} # filter shapes
-        self.filter_names = {} # filter names
         self.n_features = {} # number of features for each filter
-
+        self.filter_names = [] # filter names
+        
         self.shift = {} # time shift of the design matrix
         self.filter_nonlinearity = {}
         self.output_nonlinearity = output_nonlinearity
@@ -70,7 +75,10 @@ class GLM:
         
         # others
         self.mle_computed = False
-        self.lam = {}
+        self.lam = {} # smoothness regularization weight
+        self.scores = {} # prediction error metric scores
+        self.r2pseudo = {}
+        self.corrcoef = {}
         
     def fnl(self, x, kind, params=None):
 
@@ -182,10 +190,11 @@ class GLM:
 
         if kind not in self.X:
             self.X.update({kind: {}})
-            self.filter_names.update({kind: []})
 
         if kind == 'train':
             self.filter_nonlinearity[name] = filter_nonlinearity 
+            self.filter_names.append(name)
+
             dims = dims if type(dims) is not int else [dims, ]  
             self.dims[name] = dims 
             self.shift[name] = shift
@@ -196,7 +205,6 @@ class GLM:
         if not hasattr(self, 'burn_in'): # if exists, ignore
             self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore 
         
-        self.filter_names[kind].append(name)
         self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift)[self.burn_in:]
          
         if smooth is None:
@@ -221,12 +229,16 @@ class GLM:
             S, P = build_spline_matrix(dims, self.df[name], smooth, self.lam[name], return_P=True)
             self.S[name] = S
             self.P[name] = P # penalty matrix, which absolved lamda already
-            
-            self.XS[kind][name] = self.X[kind][name] @ S
+
+            XS = self.X[kind][name] @ S
+            edf =(XS.T * (np.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
+            self.edf[name] = edf
+            self.XS[kind][name] = XS
+
             if kind =='train': 
                 self.n_features[name] = self.XS['train'][name].shape[1]
 
-    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', random_seed=2046, var_names=None, verbose=0):
+    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', random_seed=2046, verbose=0):
 
         '''Initialize all model paraemters
         
@@ -250,30 +262,48 @@ class GLM:
             Random seed.
         '''
         
-        self.key = random.PRNGKey(random_seed)
+        
         self.num_subunits = num_subunits
         self.dt = dt
         self.init_method = method
-        
+ 
         if method =='random':
+
+            self.b['random'] = {}
+            self.w['random'] = {}
             if verbose:
                 print('Initializing model paraemters randomly...')
-            for name in self.filter_names['train']:
-                if 'train' in self.XS and name in self.XS['train']:
+            
+            for i, name in enumerate(self.filter_names):
+                
+                key = random.PRNGKey(random_seed + i) # change random seed for each filter
+                
+                if name in self.S:
                     if 'stimulus' in name:
                         # There could be subunits for RF / stimulus filter
-                        self.b[name] = random.normal(self.key, shape=(self.XS['train'][name].shape[1], num_subunits))
+                        self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], num_subunits))
                     else:
                         # Assume only one filter for other inputs.
-                        self.b[name] = random.normal(self.key, shape=(self.XS['train'][name].shape[1], 1))
+                        self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1))
                     self.w[name] = self.S[name] @ self.b[name] 
                 else:
                     if 'stimulus' in name:
-                        self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], num_subunits))
+                        self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], num_subunits))
                     else:
-                        self.w[name] = random.normal(self.key, shape=(self.X['train'][name].shape[1], 1))
+                        self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1))
+            
+            self.intercept['random'] = 0.
+            
             if verbose:
                 print('Finished.')
+
+            for name in self.filter_names:
+                if name in self.S:
+                    p0.update({name: self.b['random'][name]})
+                else:
+                    p0.update({name: self.w['random'][name]})
+                    
+                p0.update({'intercept': self.intercept['random']})
 
         elif method == 'mle':
             if verbose:
@@ -282,50 +312,18 @@ class GLM:
             # compute maximum likelihood estimates
             if not self.mle_computed:
                 self.compute_mle(y) 
-            self.y['train'] = y[self.burn_in:]
-            # # check if mle has been computed
-            # if self.b_mle == {} and self.w_mle == {}: 
-            #     raise ValueError(f'`MLE is not computed yet. Please call `GLM.computed_mle(y_train)` first.')
 
-            for name in self.filter_names['train']:
-                if 'train' in self.XS and name in self.XS['train']:
-                    if 'stimulus' in name:
-                        self.b[name] = np.repeat(self.b_mle[name], num_subunits).reshape(self.XS['train'][name].shape[1], num_subunits)
-                        # add a little noise to the initial values
-                        self.b[name] += 0.1 * random.normal(self.key, shape=(self.b[name].shape[0], self.b[name].shape[1]))
-                    else:
-                        self.b[name] = self.b_mle[name].reshape(self.XS['train'][name].shape[1], 1)
-                    self.w[name] = self.S[name] @ self.b[name]
-                else:
-                    if 'stimulus' in name:
-                        self.w[name] = np.repeat(self.w_mle[name], num_subunits).reshape(self.X['train'][name].shape[1], num_subunits) 
-                    else:
-                        self.w[name] = self.w_mle[name].reshape(self.X['train'][name].shape[1], 1)
+            p0 = self.p['mle']        
+
             if verbose:
                 print('Finished.')
         else:
             raise ValueError(f'`{method}` is not supported.')
 
-        p0 = {} # parameters to be optimized
-        
-        if var_names is None:
-            var_names = self.filter_names['train'].copy()
-            var_names.append('intercept')
-        
-        for name in var_names:
-            if name in self.filter_names['train']:
-                if 'train' in self.XS and name in self.XS['train']:
-                    p0.update({name: self.b[name]})
-                else:
-                    p0.update({name: self.w[name]})
-                
-        if 'intercept' in var_names:
-            p0.update({'intercept': 0.})
-        else:
-            self.intercept = 0.
-
         self.p0 = p0
-                    
+        if hasattr(self, 'edf_tot'): # it is also computed in mle
+            self.edf_tot = np.array([self.edf[name] if name in self.edf else self.n_features[name] for name in self.filter_names]).sum()
+                
     def compute_mle(self, y):
 
         '''Compute maximum likelihood estimates.
@@ -333,27 +331,102 @@ class GLM:
         Parameter
         ---------
         
-        y: np.array, (n_samples)
-            Response.
+        y: np.array or dict, (n_samples)
+            Response. if dict is 
         '''
         
-        X = np.hstack([self.XS['train'][name] if name in self.XS['train'] else self.X['train'][name] for name in self.filter_names['train']])   
-        
-        XtX = X.T @ X
-        Xty = X.T @ y[self.burn_in:]
+        if type(y) is dict:
+            y_train = y['train']
+            y_dev = y['dev']
+        else:
+            y_train = y
 
-        mle = np.linalg.solve(XtX, Xty)
+        X = np.hstack([self.XS['train'][name] if name in self.XS['train'] else self.X['train'][name] for name in self.filter_names])   
+        X = np.hstack([np.ones(X.shape[0])[:, np.newaxis], X])
+
+        P = scipy.linalg.block_diag(*([0] + [self.P[name] if name in self.P else np.zeros([self.X['train'][name].shape[1], self.X['train'][name].shape[1]]) 
+                                                    for name in self.filter_names]))
+
+        XtX = X.T @ X
+        Xty = X.T @ y_train[self.burn_in:]
+
+        mle = np.linalg.solve(XtX + P, Xty)
+
+        self.b['mle'] = {}
+        self.w['mle'] = {}
         
+        # slicing the mle matrix into each filter
         l = np.cumsum(np.hstack([0, [self.n_features[name] for name in self.n_features]]))
         idx = [np.array((l[i], l[i+1])) for i in range(len(l)-1)]
         self.idx = idx
-        for i, name in enumerate(self.filter_names['train']):
-            if 'train' in self.XS and name in self.XS['train']:
-                self.b_mle[name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]
-                self.w_mle[name] = self.S[name] @ self.b_mle[name]
+
+        for i, name in enumerate(self.filter_names):
+            if name in self.S:
+                self.b['mle'][name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]
+                self.w['mle'][name] = self.S[name] @ self.b['mle'][name]
             else:
-                self.w_mle[name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]   
+                self.w['mle'][name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]   
     
+        self.intercept['mle'] = mle[0]
+
+        self.p['mle'] = {}
+        self.y_pred['mle'] = {}
+
+        for name in self.filter_names:
+            if name in self.S:
+                self.p['mle'].update({name: self.b['mle'][name]})
+            else:
+                self.p['mle'].update({name: self.w['mle'][name]})
+
+        self.p['mle']['intercept'] = self.intercept['mle']
+        self.edf_tot = np.array([self.edf[name] if name in self.edf else self.n_features[name] for name in self.filter_names]).sum()
+        self.n_params = XtX.shape[1] # total number of model parameters
+ 
+        self.y['train'] = y_train[self.burn_in:]
+        self.y_pred['mle']['train'] = self.forwardpass(self.p['mle'], kind='train')
+        # get filter confidence interval
+        self._get_filter_variance(w_type='mle')
+        self._get_response_variance(w_type='mle', kind='train')
+        
+        if type(y) is dict and 'dev' in y:
+            self.y['dev'] = y_dev[self.burn_in:]
+            self.y_pred['mle']['dev'] = self.forwardpass(self.p['mle'], kind='dev') 
+            # get filter confidence interval
+            self._get_filter_variance(w_type='mle')
+            self._get_response_variance(w_type='mle', kind='dev')
+
+
+        # performance stats
+        self.p['null'] = {name: np.zeros_like(self.p['mle'][name]) for name in self.p['mle']}
+        
+        for method in ['corrcoef', 'r2', 'mse', 'r2adj', 'r2pseudo', 'gcv']:
+            self.scores[method] = {}
+            if method == 'r2pseudo':
+                self.p['null']['intercept'] = self.y['train'].mean()      
+                self.scores[method]['train'] = np.asarray(1 - self.cost(self.p['mle'], 'train', penalize=False) / self.cost(self.p['null'], 'train', penalize=False) )
+            
+            elif method == 'gcv':
+                self.scores[method]['train'] = gcv(self.y['train'], self.y_pred['mle']['train'], self.edf_tot)
+            else:
+                self.scores[method]['train'] = self._score(self.y['train'], self.y_pred['mle']['train'], method)
+             
+            if type(y) is dict and 'dev' in y:
+                if method == 'r2pseudo':
+                    self.p['null']['intercept'] = self.y['train'].mean()      
+                    self.scores[method]['dev'] = np.asarray(1 - self.cost(self.p['mle'], 'dev', penalize=False) / self.cost(self.p['null'], 'dev', penalize=False) )
+                elif method == 'gcv':
+                    self.scores[method]['dev'] = gcv(self.y['dev'], self.y_pred['mle']['dev'], self.edf_tot)
+                else:
+                    self.scores[method]['dev'] = self._score(self.y['dev'], self.y_pred['mle']['dev'], method)
+                
+        # null model with mean firing rate as intercept 
+ 
+        # self.r2pseudo['mle'] = {}
+        # self.r2pseudo['mle']['train'] = 1 - self.cost(self.p['mle'], 'train', penalize=False) / self.cost(self.p['null'], 'train', penalize=False)
+        # if 'dev' in y:
+        #     self.p['null']['intercept'] = self.y['dev'].mean()
+        #     self.r2pseudo['mle']['dev'] = 1 - self.cost(self.p['mle'], 'dev', penalize=False) / self.cost(self.p['null'], 'dev', penalize=False)
+
         self.mle_computed = True
 
     def forwardpass(self, p, kind):
@@ -374,7 +447,7 @@ class GLM:
         intercept = p['intercept'] if 'intercept' in p else self.intercept
                 
         filters_output = []
-        for name in self.filter_names[kind]:
+        for name in self.filter_names:
             if 'train' in self.XS and name in self.XS[kind]:
                 input_term = self.XS[kind][name]
             else:
@@ -388,7 +461,7 @@ class GLM:
         
         return final_output
                           
-    def cost(self, p, kind='train', precomputed=None):
+    def cost(self, p, kind='train', precomputed=None, penalize=True):
 
         '''Cost function.
         
@@ -406,13 +479,12 @@ class GLM:
         '''
         
         distr = self.distr
-        dt = self.dt
         y = self.y[kind]
         r = self.forwardpass(p, kind) if precomputed is None else precomputed
 
         # cost functions 
         if distr == 'gaussian':
-            loss = np.nanmean((y - r)**2)
+            loss = 0.5 * np.sum((y - r)**2)
         
         elif distr == 'poisson':
             
@@ -422,19 +494,19 @@ class GLM:
             loss = term0 + term1
 
         # regularization: elasticnet
-        if (hasattr(self, 'beta') or self.beta != 0) and kind == 'train':
+        if penalize and (hasattr(self, 'beta') or self.beta != 0) and kind == 'train':
 
             # regularized all filters parameters
-            w = np.hstack([p[name].flatten() for name in self.filter_names['train']])
+            w = np.hstack([p[name].flatten() for name in self.filter_names])
 
             l1 = np.linalg.norm(w, 1)
             l2 = np.linalg.norm(w, 2)
             loss += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
         
         # regularization: spline wiggliness
-        if kind == 'train':
+        if penalize and kind == 'train':
             
-            energy = np.array([np.sum(p[name].T @ self.P[name] @ p[name]) for name in self.filter_names['train']]).sum()
+            energy = np.array([np.sum(p[name].T @ self.P[name] @ p[name]) for name in self.P]).sum()
             # lam = self.lam
             # energy = 0
             # for name in self.XS['train']:
@@ -446,7 +518,7 @@ class GLM:
  
         return np.squeeze(loss)
  
-    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose):
+    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model):
 
         '''Workhorse of optimization.
 
@@ -470,6 +542,9 @@ class GLM:
 
         verbose: int
             Print progress. If verbose=0, no progress will be print.
+
+        return_model: str
+            Return the 'best' model on dev set metrics or the 'last' model.
         '''
         
         @jit
@@ -508,7 +583,7 @@ class GLM:
                      
             if 'dev' in self.y:
                 y_pred_dev = self.forwardpass(p=params_list[i], kind='dev')
-                cost_dev[i] = self.cost(p=params_list[i], kind='dev', precomputed=y_pred_dev)
+                cost_dev[i] = self.cost(p=params_list[i], kind='dev', precomputed=y_pred_dev, penalize=False)
                 metric_dev[i] = self._score(self.y['dev'], y_pred_dev, metric)      
                 
             time_elapsed = time.time() - time_start
@@ -534,27 +609,56 @@ class GLM:
                 cost_dev_slice = np.array(cost_dev[i-tolerance:i])
 
                 if 'dev' in self.y and np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
-                    params = params_list[i-tolerance]
-                    metric_dev_opt = metric_dev[i-tolerance]
+                    # params = params_list[i-tolerance]
+                    # metric_dev_opt = metric_dev[i-tolerance]
                     if verbose:
                         print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(i, tolerance))
+                    stop = 'dev_stop'
                     break
 
                 if np.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
-                    params = params_list[i]
-                    metric_dev_opt = metric_dev[i]
+                    # params = params_list[i]
+                    # metric_dev_opt = metric_dev[i]
                     if verbose:
                         print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.\n'.format(i, tolerance))
+                    stop = 'train_stop'
                     break
                     
         else:
-            params = params_list[i]
-            metric_dev_opt = metric_dev[i]
+            # params = params_list[i]
+            # metric_dev_opt = metric_dev[i]
             total_time_elapsed = time.time() - time_start
-
+            stop = 'maxiter_stop'
             if verbose:
                 print('Stop: reached {0} steps.\n'.format(num_iters))
                 
+        if return_model == 'best_dev_cost':
+            best = np.argmin(np.asarray(cost_dev))     
+
+        elif return_model == 'best_train_cost':
+            best = np.argmin(np.asarray(cost_train))  
+
+        elif return_model == 'best_dev_metric':
+            if metric in ['mse', 'gcv']:
+                best = np.argmin(np.asarray(metric_dev))
+            else:
+                best = np.argmax(np.asarray(metric_dev))
+
+        elif return_model == 'best_train_metric':
+            if metric in ['mse', 'gcv']: 
+                best = np.argmin(np.asarray(metric_train))
+            else:
+                best = np.argmax(np.asarray(metric_train)) 
+
+        elif return_model == 'last':
+            if stop == 'dev_stop':
+                best = i-tolerance
+            else:
+                best = -1
+
+        params = params_list[best]
+        metric_dev_opt = metric_dev[best]                
+
         self.cost_train = np.hstack(cost_train[:i+1])
         self.cost_dev = np.hstack(cost_dev[:i+1])
         self.metric_train = np.hstack(metric_train[:i+1])
@@ -562,13 +666,14 @@ class GLM:
         self.metric_dev_opt = metric_dev_opt
         self.total_time_elapsed = total_time_elapsed 
 
-        self.y_pred.update({'train': y_pred_train, 
+        self.all_params = params_list # not sure if this will occupy a lot of RAM.
+        self.y_pred['opt'].update({'train': y_pred_train, 
                               'dev': y_pred_dev})
                 
         return params
                        
-    def fit(self, y, num_iters=3, alpha=1, beta=0.01, lam=0., metric='corrcoef', step_size=1e-3, 
-        tolerance=10, verbose=True, var_names=None):
+    def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, lam=0., metric='corrcoef', step_size=1e-3, 
+        tolerance=10, verbose=True, var_names=None, return_model='best'):
         
         '''Fit model.
         
@@ -617,30 +722,45 @@ class GLM:
         self.alpha = alpha
         self.beta = beta
 
-        if type(y) is dict:
-            self.y['train'] = y['train'][self.burn_in:]
-            if 'dev' in y:
-                self.y['dev'] = y['dev'][self.burn_in:]
+        if y is None:
+            if not 'train' in self.y:
+               raise ValueError(f'No `y` is provided.') 
         else:
-            self.y['train'] = y[self.burn_in:]
-        
-        self.p_opt = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose)
-        
-        self.b_opt = {}
-        self.w_opt = {}
-        for name in self.filter_names['train']:
-            if 'train' in self.XS and name in self.XS['train']:
-                self.b_opt[name] = self.p_opt[name]
-                self.w_opt[name] = self.S[name] @ self.b_opt[name]
+            if type(y) is dict:
+                self.y['train'] = y['train'][self.burn_in:]
+                if 'dev' in y:
+                    self.y['dev'] = y['dev'][self.burn_in:]
             else:
-                self.w_opt[name] = self.p_opt[name]
+                self.y['train'] = y[self.burn_in:]
+
+        self.y_pred['opt'] = {}
+            
+        self.p['opt'] = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose, return_model)
+        self._extract_opt_params() 
+
+    def _extract_opt_params(self):
+        self.b['opt'] = {}
+        self.w['opt'] = {}         
+        for name in self.filter_names:
+            if name in self.S:
+                self.b['opt'][name] = self.p['opt'][name]
+                self.w['opt'][name] = self.S[name] @ self.b['opt'][name]
+            else:
+                self.w['opt'][name] = self.p['opt'][name]
         
-        if 'intercept' in self.p_opt:
-            self.intercept = self.p_opt['intercept']
+        self.intercept['opt'] = self.p['opt']['intercept']
+        # get filter confidence interval
+        self._get_filter_variance(w_type='opt')
+        # get prediction confidence interval
+        self._get_response_variance(w_type='opt', kind='train')
+        if 'dev' in self.y: 
+            self._get_response_variance(w_type='opt', kind='dev')
 
     def predict(self, X, w_type='opt'):
         
         '''
+        Prediction on Test set. 
+
         Parameters
         ----------
         
@@ -651,15 +771,16 @@ class GLM:
         dropout: float or None
             Dropout probability
 
-        repeat: int
-            Number of repetition for dropout prediction.
+        w_type: str
+            either `opt` or `mle`
+
+        Note
+        ----
+        Use self.forwardpass() for prediction on Training / Dev set.
         '''
         
-        if w_type == 'opt':
-            p = self.p_opt
-        elif w_type == 'mle':
-            p = self.p0 # assumed the p0 is initialized with mle
-        
+        p = self.p[w_type]
+
         self.X['test'] = {}
         self.XS['test'] = {}
         self.filter_names['test'] = []
@@ -672,6 +793,9 @@ class GLM:
             self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
 
         y_pred = self.forwardpass(p, kind='test')
+
+        self.y_pred['test'] = y_pred
+        
         return y_pred
 
     def _score(self, y, y_pred, metric):
@@ -686,6 +810,10 @@ class GLM:
             return mse(y, y_pred)
         elif metric == 'corrcoef':
             return corrcoef(y, y_pred)
+        elif metric == 'r2adj':
+            return r2adj(y, y_pred, p=self.edf_tot)
+        elif metric == 'gcv':
+            return gcv(y, y_pred, edf=self.edf_tot)
         else:
             print(f'Metric `{metric}` is not supported.')
  
@@ -731,6 +859,110 @@ class GLM:
         else:
             return s 
 
+    def _get_filter_variance(self, w_type='opt'):
+
+        """
+        Compute the variance and standard error of the weight of each filters.
+        """
+        
+        P = self.P
+        S = self.S
+        XS = self.XS['train']
+        
+        # trA = {name: (XS[name].T * (np.linalg.inv(XS[name].T @ XS[name] + P[name]) @ XS[name].T)).sum(0) for name in self.P}
+        edf = self.edf
+
+        if self.distr == 'gaussian':
+            
+            y = self.y['train']
+            y_pred = self.y_pred['train']
+            rsd = y - y_pred# residuals    
+            rss = np.sum(rsd ** 2) # residul sum of squares
+            rss_var = {name: rss / (len(y) - edf[name]) for name in self.filter_names}
+
+            V = {}
+            b_se = {}
+            w_se = {}
+            for name in self.filter_names:
+                if name in S:
+                    V[name] = np.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
+                    b_se[name] = np.sqrt(np.diag(V[name]))
+                    w_se[name] = S[name] @ b_se[name]
+                else:
+                    V[name] = np.linalg.inv(X[name].T @ X[name]) * rss_var[name]
+                    w_se[name] = np.sqrt(np.diag(V[name])) 
+
+        else:
+            
+            b = {}
+            w = {}
+            u = {}
+            U = {}
+            V = {}
+            w_se = {}
+            b_se = {}
+            for name in self.filter_names:
+                if name in S:
+                    b[name] = self.b[w_type][name]
+                    u[name] = XS[name] @ b[name]
+                    U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten()
+                    V[name] = np.linalg.inv(XS[name].T * U[name] @ XS[name] + P[name])
+                    b_se[name] = np.sqrt(np.diag(V[name]))
+                    w_se[name] = S[name] @ b_se[name]
+                    
+                else:
+                    w[name] = self.w[w_type][name]
+                    u[name] = X[name] @ w[name]
+                    U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten()
+                    V[name] = np.linalg.inv(X[name].T * U[name] @ X[name])
+                    w_se[name] = np.sqrt(np.diag(V[name])) 
+        
+        self.V[w_type] = V
+        self.b_se[w_type] = b_se
+        self.w_se[w_type] = w_se
+
+
+    def _get_response_variance(self, w_type='opt', kind='train'):
+
+        """
+        Compute the variance and standard error of the predicted response.
+        """ 
+        
+        P = self.P
+        X = self.X[kind]
+        S = self.S
+        XS = self.XS[kind]
+        w = self.w[w_type]
+        V = self.V[w_type]
+
+        y_se = {}
+        y_pred_filters = {}
+        y_pred_filters_upper = {}
+        y_pred_filters_lower = {}
+        for name in self.filter_names:
+            if name in S:
+                y_se[name] = np.sqrt(np.sum(XS[name] @ V[name] * XS[name], 1))
+
+            else:
+                y_se[name] = np.sqrt(np.sum(self.X[kind][name] @ V[name] * self.X[kind][name], 1))   
+            
+            y_pred_filters[name] = self.fnl((X[name] @ w[name]).flatten(), kind=self.filter_nonlinearity[name])
+            y_pred_filters_upper[name] = self.fnl((X[name] @ w[name]).flatten() + 2 * y_se[name], kind=self.filter_nonlinearity[name])
+            y_pred_filters_lower[name] = self.fnl((X[name] @ w[name]).flatten() - 2 * y_se[name], kind=self.filter_nonlinearity[name])
+
+        y_pred = self.fnl(np.array([y_pred_filters[name] for name in self.filter_names]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
+        y_pred_upper = self.fnl(np.array([y_pred_filters_upper[name] for name in self.filter_names]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
+        y_pred_lower = self.fnl(np.array([y_pred_filters_lower[name] for name in self.filter_names]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
+        
+        self.y_pred_lower[w_type] = {}
+        self.y_pred_upper[w_type] = {}
+        
+        self.y_pred[w_type][kind] = y_pred
+        self.y_pred_upper[w_type][kind] = y_pred_upper
+        self.y_pred_lower[w_type][kind] = y_pred_lower
+
+
+        
 def elementwise_add(A):
     
     if len(A) == 1:
@@ -739,6 +971,3 @@ def elementwise_add(A):
         return np.add(*A)
     elif len(A) == 3:
         return np.add(*[np.add(*A[:2]), A[-1]])
-
-def hessian(f):
-    return jacfwd(jacrev(f))
