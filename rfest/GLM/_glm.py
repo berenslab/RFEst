@@ -285,7 +285,7 @@ class GLM:
                     else:
                         # Assume only one filter for other inputs.
                         self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1))
-                    self.w[name] = self.S[name] @ self.b[name] 
+                    self.w['random'][name] = self.S[name] @ self.b['random'][name] 
                 else:
                     if 'stimulus' in name:
                         self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], num_subunits))
@@ -296,7 +296,8 @@ class GLM:
             
             if verbose:
                 print('Finished.')
-
+            
+            p0 = {}
             for name in self.filter_names:
                 if name in self.S:
                     p0.update({name: self.b['random'][name]})
@@ -447,7 +448,7 @@ class GLM:
         intercept = p['intercept'] if 'intercept' in p else self.intercept
                 
         filters_output = []
-        for name in self.filter_names:
+        for name in self.X[kind]: # 
             if 'train' in self.XS and name in self.XS[kind]:
                 input_term = self.XS[kind][name]
             else:
@@ -673,7 +674,7 @@ class GLM:
         return params
                        
     def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, lam=0., metric='corrcoef', step_size=1e-3, 
-        tolerance=10, verbose=True, var_names=None, return_model='best'):
+        tolerance=10, verbose=True, var_names=None, return_model='best_dev_cost'):
         
         '''Fit model.
         
@@ -783,7 +784,6 @@ class GLM:
 
         self.X['test'] = {}
         self.XS['test'] = {}
-        self.filter_names['test'] = []
 
         if type(X) is dict:
             for name in X:
@@ -795,7 +795,7 @@ class GLM:
         y_pred = self.forwardpass(p, kind='test')
 
         self.y_pred['test'] = y_pred
-        
+
         return y_pred
 
     def _score(self, y, y_pred, metric):
@@ -806,14 +806,18 @@ class GLM:
 
         if metric == 'r2':
             return r2(y, y_pred)
-        elif metric == 'mse':
-            return mse(y, y_pred)
-        elif metric == 'corrcoef':
-            return corrcoef(y, y_pred)
         elif metric == 'r2adj':
             return r2adj(y, y_pred, p=self.edf_tot)
+
+        elif metric == 'mse':
+            return mse(y, y_pred)
+
+        elif metric == 'corrcoef':
+            return corrcoef(y, y_pred)
+
         elif metric == 'gcv':
             return gcv(y, y_pred, edf=self.edf_tot)
+
         else:
             print(f'Metric `{metric}` is not supported.')
  
@@ -875,7 +879,7 @@ class GLM:
         if self.distr == 'gaussian':
             
             y = self.y['train']
-            y_pred = self.y_pred['train']
+            y_pred = self.y_pred[w_type]['train']
             rsd = y - y_pred# residuals    
             rss = np.sum(rsd ** 2) # residul sum of squares
             rss_var = {name: rss / (len(y) - edf[name]) for name in self.filter_names}
@@ -963,11 +967,11 @@ class GLM:
 
 
         
-def elementwise_add(A):
+# def elementwise_add(A):
     
-    if len(A) == 1:
-        return A[0]
-    elif len(A) == 2:
-        return np.add(*A)
-    elif len(A) == 3:
-        return np.add(*[np.add(*A[:2]), A[-1]])
+#     if len(A) == 1:
+#         return A[0]
+#     elif len(A) == 2:
+#         return np.add(*A)
+#     elif len(A) == 3:
+#         return np.add(*[np.add(*A[:2]), A[-1]])

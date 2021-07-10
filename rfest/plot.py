@@ -105,19 +105,12 @@ def plot3d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', win
     shift = model.shift
 
     # rf
-    if w_type == 'opt':
-        ws = model.w_opt 
-    elif w_type == 'mle':
-        ws = model.w_mle
-    elif w_type == 'init':
-        ws = model.w
+    ws = model.w[w_type]
     
     # n_stimulus_filter = len(ws)
-    if hasattr(model, 'w_opt'):
-        w_subunits = [model.w_opt[name] for name in model.w_opt if 'stimulus' in name]
-        n_subunits = [w.shape[1] for w in w_subunits]
-    else:
-        n_subunits = 1
+    w_subunits = [ws[name] for name in ws if 'stimulus' in name]
+    n_subunits = [w.shape[1] for w in w_subunits]
+    
     ncols = 3
     nrows = np.sum(n_subunits) + 1
     figsize = figsize if figsize is not None else (8, 8 * nrows / ncols)
