@@ -216,6 +216,16 @@ class GLM:
                     self.XS.update({kind: {}})
                 S = self.S[name]
                 self.XS[kind][name] = self.X[kind][name] @ S 
+
+            elif kind == 'test':                                        
+                if kind not in self.XS:
+                   self.XS.update({kind: {}})
+                if hasattr(self, 'num_subunits') and self.num_subunits > 1:
+                    S = self.S['stimulus_s0']
+                else:
+                    S = self.S[name]
+                self.XS[kind][name] = self.X[kind][name] @ S
+
             else:
                 if kind == 'train':
                     self.n_features[name] = self.X['train'][name].shape[1]
@@ -243,6 +253,9 @@ class GLM:
     
     def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', random_seed=2046, verbose=0):
     
+        self.init_method = method # store meta            
+        self.num_subunits = num_subunits
+
         if method =='random':
 
             self.b['random'] = {}
@@ -258,7 +271,6 @@ class GLM:
                 else:
                     self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1))
             self.intercept['random'] = 0.
-            self._get_filter_variance(w_type='random')
         
             if verbose:
                 print('Finished.')
@@ -340,6 +352,7 @@ class GLM:
 
             p0.update({'intercept': self.intercept[method]}) 
         
+        # get random variance
         if method == 'random':
             self.y['train'] = y_train[self.burn_in:]
             self.y_pred['random']['train'] = self.forwardpass(self.p0, kind='train')
@@ -750,6 +763,7 @@ class GLM:
         
         self.alpha = alpha
         self.beta = beta
+        self.metric = metric
 
         if y is None:
             if not 'train' in self.y:
@@ -819,10 +833,20 @@ class GLM:
         else:
             # if X is np.array, assumed it's the stimulus.
             self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
+        
+        # rename and repmat for test set
+        if self.num_subunits != 1:
+            for name in self.filter_names:
+                if 'stimulus' in name:
+                    self.X['test'][name] = self.X['test']['stimulus']
+                    self.XS['test'][name] = self.XS['test']['stimulus']
+            self.X['test'].pop('stimulus')
+            self.XS['test'].pop('stimulus')
 
         y_pred = self.forwardpass(p, kind='test')
 
         self.y_pred['test'] = y_pred
+        self._get_response_variance(w_type=w_type, kind='test')
 
         return y_pred
 
@@ -916,7 +940,7 @@ class GLM:
             b_se = {}
             w_se = {}
             for name in self.filter_names:
-                if name in S:
+                if name in XS:
                     V[name] = np.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
                     b_se[name] = np.sqrt(np.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
@@ -934,7 +958,7 @@ class GLM:
             w_se = {}
             b_se = {}
             for name in self.filter_names:
-                if name in S:
+                if name in XS:
                     b[name] = self.b[w_type][name]
                     u[name] = self.fnl(XS[name] @ b[name], self.filter_nonlinearity[name])
                     U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten()
@@ -960,8 +984,8 @@ class GLM:
         """ 
         
         P = self.P
-        X = self.X[kind]
         S = self.S
+        X = self.X[kind]
         XS = self.XS[kind]
         w = self.w[w_type]
         V = self.V[w_type]
@@ -970,10 +994,9 @@ class GLM:
         y_pred_filters = {}
         y_pred_filters_upper = {}
         y_pred_filters_lower = {}
-        for name in self.filter_names:
-            if name in S:
+        for name in X:
+            if name in XS:
                 y_se[name] = np.sqrt(np.sum(XS[name] @ V[name] * XS[name], 1))
-
             else:
                 y_se[name] = np.sqrt(np.sum(self.X[kind][name] @ V[name] * self.X[kind][name], 1))   
             
@@ -981,12 +1004,13 @@ class GLM:
             y_pred_filters_upper[name] = self.fnl((X[name] @ w[name]).flatten() + 2 * y_se[name], kind=self.filter_nonlinearity[name])
             y_pred_filters_lower[name] = self.fnl((X[name] @ w[name]).flatten() - 2 * y_se[name], kind=self.filter_nonlinearity[name])
 
-        y_pred = self.fnl(np.array([y_pred_filters[name] for name in self.filter_names]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
-        y_pred_upper = self.fnl(np.array([y_pred_filters_upper[name] for name in self.filter_names]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
-        y_pred_lower = self.fnl(np.array([y_pred_filters_lower[name] for name in self.filter_names]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
+        y_pred = self.fnl(np.array([y_pred_filters[name] for name in X]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
+        y_pred_upper = self.fnl(np.array([y_pred_filters_upper[name] for name in X]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
+        y_pred_lower = self.fnl(np.array([y_pred_filters_lower[name] for name in X]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
         
-        self.y_pred_lower[w_type] = {}
-        self.y_pred_upper[w_type] = {}
+        if not w_type in self.y_pred_lower:
+            self.y_pred_lower[w_type] = {}
+            self.y_pred_upper[w_type] = {}
         
         self.y_pred[w_type][kind] = y_pred
         self.y_pred_upper[w_type][kind] = y_pred_upper
