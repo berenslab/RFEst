@@ -6,7 +6,7 @@ from scipy.ndimage import gaussian_filter
 from .utils import get_n_samples, uvec, get_spatial_and_temporal_filters
 
 
-def eval_model_score(model, X, y, stim=True, history=True, metric='corrcoef'):
+def eval_model_score(model, X, y, stim=True, history=True, metric='corrcoef', w_type='opt'):
     """Evaluate model score for given X and y"""
     if stim and history:
         X_dict = {'stimulus': X, 'history': y}
@@ -16,28 +16,28 @@ def eval_model_score(model, X, y, stim=True, history=True, metric='corrcoef'):
         X_dict = {'history': y}
     else:
         raise ValueError()
-    return model.score(X_test=X_dict, y_test=y, metric=metric)
+    return model.score(X_test=X_dict, y_test=y, metric=metric, w_type=w_type)
 
 
-def compute_permutation_test(model, X_test, y_test, n_perm=100, history=True, metric='corrcoef'):
+def compute_permutation_test(model, X_test, y_test, n_perm=100, history=True, metric='corrcoef', w_type='opt'):
     """Compare model performace to performance for permuted stimuli.
     If permuting the stimulus does not decrease the model performance, the fit imight be pure autoregression.
     """
-    score_trueX = eval_model_score(model=model, X=X_test, y=y_test, stim=True, history=history, metric=metric)
+    score_trueX = eval_model_score(model=model, X=X_test, y=y_test, stim=True, history=history, metric=metric, w_type=w_type)
 
     score_permX = np.full(n_perm, np.nan)
     for i in range(n_perm):
-        permX = X_test[np.random.permutation(np.arange(X_test.shape[0])), :, :]
-        score_permX[i] = eval_model_score(model=model, X=permX, y=y_test, stim=True, history=history, metric=metric)
+        # permX = X_test[np.random.permutation(np.arange(X_test.shape[0])), :, :]
+        permX = X_test[np.random.permutation(np.arange(X_test.shape[0]))]
+        score_permX[i] = eval_model_score(model=model, X=permX, y=y_test, stim=True, history=history, metric=metric, w_type=w_type)
 
     return score_trueX, score_permX
 
-
 def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
-                          n_perm=100, q=99, history=True, ax=None, figsize=None):
+                          n_perm=100, q=99, history=True, ax=None, figsize=None, w_type='opt'):
     """Plot test results"""
     score_trueX, score_permX = compute_permutation_test(
-        model, X_test, y_test, n_perm=n_perm, history=history, metric=metric)
+        model, X_test, y_test, n_perm=n_perm, history=history, metric=metric, w_type=w_type)
 
     q = int(q)
     perc = np.percentile(score_permX, q=q)
@@ -55,6 +55,336 @@ def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
     ax.plot(-0.3, score_trueX, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
     return ax
 
+def residuals_pearson(y, y_pred):
+    rsd = y - y_pred
+    ri = rsd / np.sqrt(y_pred)
+    return ri
+
+def residuals_deviance(y, y_pred):
+    quo = y / y_pred 
+    rsd = y - y_pred
+    ri = np.sign(rsd) * np.sqrt(2 * (y * np.log( quo, out=np.zeros_like(quo), where=(quo!=0)) - rsd))
+    
+    return ri
+
+def plot_residuals(y, y_pred, ax=None):
+    
+    if ax is None:
+        _, ax = plt.subplots()
+        
+    ax.scatter(y_pred_train, y_train - y_pred_train, s=1, color='black')
+    ax.set_title('Residuals')        
+
+    ax.axhline(0, color='black', linestyle='--')
+    ax.set_ylabel('Residuals')
+    ax.set_xlabel('Fitted') 
+
+def plot_residuals_pearson(y, y_pred, ax=None):
+    
+    if ax is None:
+        _, ax = plt.subplots()
+        
+    ax.scatter(y_pred, residuals_pearson(y, y_pred), s=1, color='black')
+    ax.set_title('Perason residuals')
+    ax.axhline(0, color='black', linestyle='--')
+    ax.set_ylabel('Residuals')
+    ax.set_xlabel('Fitted') 
+    
+def plot_residuals_deviance(y, y_pred, ax=None):
+    
+    if ax is None:
+        _, ax = plt.subplots()
+        
+    ax.scatter(y_pred, residuals_deviance(y, y_pred), s=1, color='black')
+    ax.set_title('Deviance residuals')
+    ax.axhline(0, color='black', linestyle='--')
+    ax.set_ylabel('Residuals')
+    ax.set_xlabel('Fitted') 
+
+def plot_prediction_test(model, X_test, y_test, display_window, w_type, ax=None):
+    
+    if ax is None:
+        _, ax = plt.subplots()
+    
+    dt = model.dt
+    length = get_n_samples(display_window / 60, dt)
+    y = y_test
+    _ = model.predict(X_test, w_type)
+    y_pred = model.y_pred[w_type]['test'] 
+    y_pred_lower = model.y_pred_lower[w_type]['test']
+    y_pred_upper = model.y_pred_upper[w_type]['test']
+
+    # there's a bug, y_pred from _get_response_variance and forwardpass differed a bit.
+    # not sure why yet. here I use forwardpass for keeping everywhere else consistent.
+    s = model._score(y[model.burn_in:], model.forwardpass(model.p[w_type], 'test'), model.metric)
+
+    tt = np.arange(len(y[:length])) * dt
+    ax.plot(tt, y[model.burn_in:model.burn_in+length], color='black')
+    ax.plot(tt, y_pred[:length], color='red')  
+    # ax.plot(tt, y_pred_upper[:length], color='green', alpha=1)  
+    # ax.plot(tt, y_pred_lower[:length], color='yellow', alpha=1)  
+
+    ax.fill_between(tt, y_pred_upper[:length], y_pred_lower[:length], color='red', alpha=0.5)
+
+    ax.set_xlabel('Time (second)', fontsize=12)
+    ax.set_ylabel('spikes counts')
+    ax.set_title(f'{model.metric}(test) = {s:.2f}')
+
+def plot_permutate(model, kind='train', w_type='opt', num_repeat=100, ax=None):
+    
+    if ax is None:
+        _, ax = plt.subplots()
+    
+    X0 = model.X[kind].copy()
+    XS0 = model.XS[kind].copy()
+
+    # metric_test_true = model._score(model.y[kind], model.y_pred[w_type][kind], model.metric)
+    metric_test_true = model._score(model.y[kind], model.forwardpass(model.p[w_type], kind), model.metric)
+    
+    # start permutation
+    s_perm = []
+    for _ in range(num_repeat):
+        for name in model.filter_names:
+            if name in model.S:
+                model.XS[kind][name] = np.random.permutation(model.XS[kind][name])
+            else:
+                model.X[kind][name] = np.random.permutation(model.X[kind][name])
+                
+        s_perm.append(model._score(model.y[kind], model.forwardpass(model.p[w_type], kind), model.metric))
+    else:
+        for name in model.filter_names:
+            if name in model.S:
+                model.XS[kind][name] = XS0[name] 
+            else:
+                model.X[kind][name] = X0[name]
+                
+    ax.boxplot(s_perm)
+    ax.axhline(metric_test_true, color='black', linestyle='--')
+    ax.set_title(f'Prediction on permutated {kind} set')
+
+def plot_permutate_testset(model, X_test, y_test, w_type, num_repeat=100, ax=None):
+    
+    if ax is None:
+        _, ax = plt.subplots()
+    
+    model.y['test'] = y_test[model.burn_in:]
+    model.X['test'] = {}
+    model.XS['test'] = {}
+
+    if type(X_test) is dict:
+        for name in X_test:
+            model.add_design_matrix(X_test[name], dims=model.dims[name], shift=model.shift[name], name=name, kind='test')
+    else:
+        # if X is np.array, assumed it's the stimulus.
+        model.add_design_matrix(X_test, dims=model.dims['stimulus'], shift=model.shift['stimulus'], name='stimulus', kind='test')
+
+    if model.num_subunits != 1:
+        for name in model.X['test']:
+            if 'stimulus' in name:
+                model.X['test'][name] = model.X['test']['stimulus']
+                model.XS['test'][name] = model.XS['test']['stimulus']
+        model.X['test'].pop('stimulus')
+        model.XS['test'].pop('stimulus')
+
+    Xtest0 = model.X['test'].copy()
+    XStest0 = model.XS['test'].copy()
+
+    # metric_test_true = model._score(model.y['test'], model.y_pred[w_type]['test'], model.metric)
+    metric_test_true = model._score(model.y['test'], model.forwardpass(model.p[w_type], 'test'), model.metric)
+    s_perm = []
+    for _ in range(num_repeat):
+        for name in model.X['test']:
+            if name in model.S:
+                model.XS['test'][name] = np.random.permutation(model.XS['test'][name])
+            else:
+                model.X['test'][name] = np.random.permutation(model.X['test'][name])
+                
+        s_perm.append(model._score(model.y['test'], model.forwardpass(model.p[w_type], 'test'), model.metric))
+    else:
+        for name in model.X['test']:
+            if name in model.S:
+                model.XS['test'][name] = XStest0[name] 
+            else:
+                model.X['test'][name] = Xtest0[name]
+                
+    ax.boxplot(s_perm)
+    ax.axhline(metric_test_true, color='black', linestyle='--')
+    ax.set_title('Prediction on permutated test set')
+
+def residuals_pearson(y, y_pred):
+    rsd = y - y_pred
+    ri = rsd / np.sqrt(y_pred)
+    return ri
+
+def residuals_deviance(y, y_pred):
+    quo = y / y_pred 
+    rsd = y - y_pred
+    ri = np.sign(rsd) * np.sqrt(2 * (y * np.log( quo, out=np.zeros_like(quo), where=(quo!=0)) - rsd))
+    
+    return ri
+
+def plot_cost(model, ax=None):
+    if ax is None:
+        _, ax = plt.subplots()
+    ax.plot(model.cost_train, color='black', label='Cost (train)')
+    if 'dev' in model.y:
+        ax.plot(model.cost_dev, color='gray', label='Cost (dev)')
+    if model.distr == 'poisson':
+        ax.set_ylabel('negLogLikelihood')
+    else:
+        ax.set_ylabel('MSE')
+    ax.set_xscale('log')
+    ax.set_xlabel('Iteration')
+    ax.legend(frameon=False)
+
+def plot_metric(model, ax=None):
+    if ax is None:
+        _, ax = plt.subplots()
+    ax.plot(model.metric_train, color='black', label=f'{model.metric} (train)')
+    if 'dev' in model.y:
+        ax.plot(model.metric_dev, color='gray', label=f'{model.metric} (dev)')
+    ax.set_xscale('log')
+    ax.set_ylabel(f'{model.metric}')
+    ax.set_xlabel('Iteration')
+    ax.legend(frameon=False)
+        
+def plot1d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', display_window=100, figsize=None, num_repeat=500, random_seed=2046):
+    
+    '''
+    Parameters
+    ----------
+    
+    display_window: float
+        Seconds of prediction to display.
+    
+    '''
+    
+    import matplotlib.gridspec as gridspec
+    import warnings
+    warnings.filterwarnings("ignore")
+    
+    np.random.seed(random_seed)
+    dt = model.dt
+    ncols = 5 if len(model.filter_names) < 5 else len(model.filter_names)
+    nrows = 4
+
+    figsize = figsize if figsize is not None else (3 * ncols, 2 * nrows + 2)
+    fig = plt.figure(figsize=figsize)
+    spec = gridspec.GridSpec(ncols=ncols, nrows=nrows + 1, figure=fig) 
+    
+    # plot filters
+    filts = []
+    for i, name in enumerate(model.filter_names):
+        filts.append(fig.add_subplot(spec[0, i]))
+        
+        w = model.w[w_type][name].flatten()
+        w_se = model.w_se[w_type][name]
+        vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(w.max() + 2 * w_se.max()), np.abs(w.min() - 2 * w_se.min())])
+        tt = np.linspace(-model.dims[name][0] - model.shift[name], 0-model.shift[name], model.dims[name][0]) * dt
+        
+        filts[i].plot(tt, w, color=f'C{i}')
+        filts[i].fill_between(tt,
+                         w+ 2 * w_se, 
+                         w- 2 * w_se, color=f'C{i}', alpha=0.5)
+        filts[i].axhline(0, color='black', linestyle='--')
+        filts[i].axvline(0, color='black', linestyle='--')
+        filts[i].set_title(name)
+        filts[i].set_xlim(tt[0], dt)
+        filts[i].set_ylim(-vmax, vmax)
+        
+    
+    diagnostics = []
+    diagnostics.append(fig.add_subplot(spec[1, 0]))
+    if w_type == 'opt':
+        plot_cost(model, ax=diagnostics[0])
+    else:
+        diagnostics[0].axis('off') 
+        
+    diagnostics.append(fig.add_subplot(spec[1, 1]))
+    if w_type == 'opt':
+        plot_metric(model, ax=diagnostics[1])
+    else:
+       diagnostics[1].axis('off') 
+        
+
+    # plot train and dev prediction
+    axes_pred = fig.add_subplot(spec[2, :-1])
+    
+    length = get_n_samples(display_window / 60, dt)
+    y_train = model.y['train']
+    y_pred_train = model.y_pred[w_type]['train']
+    y_pred_train_lower = model.y_pred_lower[w_type]['train']
+    y_pred_train_upper = model.y_pred_upper[w_type]['train']
+    
+    if model.distr != 'gaussian':
+        diagnostics.append(fig.add_subplot(spec[1, 2]))
+        plot_residuals_pearson(y_train, y_pred_train, ax=diagnostics[2])
+
+        diagnostics.append(fig.add_subplot(spec[1, 3]))
+        plot_residuals_deviance(y_train, y_pred_train, ax=diagnostics[3])
+    else:
+        diagnostics.append(fig.add_subplot(spec[1, 2]))
+        plot_residuals(y_train, y_pred_train, ax=diagnostics[2])
+
+    # check if metric exists
+    if not hasattr(model, 'metric'):
+        model.metric = metric
+
+    diagnostics.append(fig.add_subplot(spec[1, 4]))    
+    plot_permutate(model, kind='train', w_type=w_type, num_repeat=num_repeat, ax=diagnostics[4])
+    
+    diagnostics.append(fig.add_subplot(spec[2, 4]))    
+    plot_permutate(model, kind='dev', w_type=w_type, num_repeat=num_repeat, ax=diagnostics[5])
+        
+        
+    if 'dev' in model.y:
+        y_dev = model.y['dev']
+        y_pred_dev = model.y_pred[w_type]['dev']
+        y_pred_dev_lower = model.y_pred_lower[w_type]['dev']
+        y_pred_dev_upper = model.y_pred_upper[w_type]['dev']
+        
+        y = np.hstack([y_train[-int(length/2):], y_dev[:int(length/2)]])
+        y_pred = np.hstack([y_pred_train[-int(length/2):], y_pred_dev[:int(length/2)]])
+        y_pred_lower = np.hstack([y_pred_train_lower[-int(length/2):], y_pred_dev_lower[:int(length/2)]])
+        y_pred_upper = np.hstack([y_pred_train_upper[-int(length/2):], y_pred_dev_upper[:int(length/2)]])
+    else:
+        y = y_train
+        y_pred = y_pred_train
+        y_pred_lower = y_pred_train_lower
+        y_pred_upper = y_pred_train_upper
+
+    tt = np.arange(len(y)) * dt
+    
+    axes_pred.plot(tt, y, color='black')
+    axes_pred.plot(tt, y_pred, color='red')    
+    axes_pred.fill_between(tt, y_pred_lower, y_pred_upper, color='red', alpha=0.5)
+
+    if len(y) == length:
+        axes_pred.axvline(tt[int(length/2)], color='black', linestyle='--')
+    else:
+        axes_pred.axvline(tt[len(y_train[-int(length/2):])], color='black', linestyle='--')
+        
+    axes_pred.set_xlabel('(train set)  <-    Time (second)  ->     (dev set)', fontsize=12)
+    axes_pred.set_ylabel('spikes counts')
+
+    metric_train = model._score(model.y['train'], model.forwardpass(model.p[w_type], 'train'), model.metric)
+    # metric_train = model._score(model.y['train'], model.y_pred[w_type]['train'], model.metric)
+    if 'dev' in model.y:
+        metric_dev = model._score(model.y['dev'], model.forwardpass(model.p[w_type], 'dev'), model.metric)
+        # metric_dev = model._score(model.y['dev'], model.y_pred[w_type]['dev'], model.metric)
+        axes_pred.set_title(f'{model.metric}(train) = {metric_train:.2f} |  {model.metric}(dev) = {metric_dev:.2f}')
+    else:
+        axes_pred.set_title(f'{model.metric}(train) = {metric_train:.2f}') 
+    
+    # test set prediction
+    if X_test is not None:
+        axes_pred_test = fig.add_subplot(spec[3, :-1])
+        plot_prediction_test(model, X_test, y_test, display_window, w_type, ax=axes_pred_test)
+
+        diagnostics.append(fig.add_subplot(spec[3, 4]))    
+        plot_permutate_testset(model, X_test, y_test, w_type=w_type, num_repeat=num_repeat, ax=diagnostics[6])
+
+    fig.tight_layout()
 
 def plot3d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', window=None,
            contour=0.1, pixel_size=30, figsize=None):
@@ -108,9 +438,11 @@ def plot3d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', win
     ws = model.w[w_type]
     
     # n_stimulus_filter = len(ws)
-    w_subunits = [ws[name] for name in ws if 'stimulus' in name]
-    n_subunits = [w.shape[1] for w in w_subunits]
-    
+    if hasattr(model, 'w_opt'):
+        w_subunits = [model.w_opt[name] for name in model.w_opt if 'stimulus' in name]
+        n_subunits = [w.shape[1] for w in w_subunits]
+    else:
+        n_subunits = 1
     ncols = 3
     nrows = np.sum(n_subunits) + 1
     figsize = figsize if figsize is not None else (8, 8 * nrows / ncols)

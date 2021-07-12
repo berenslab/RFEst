@@ -229,8 +229,7 @@ class GLM:
             else:
                 if kind == 'train':
                     self.n_features[name] = self.X['train'][name].shape[1]
-
-                self.edf[name] = self.n_features[name]
+                    self.edf[name] = self.n_features[name]
         
         else: # use spline
 
@@ -244,13 +243,16 @@ class GLM:
             self.P[name] = P # penalty matrix, which absolved lamda already
 
             XS = self.X[kind][name] @ S
-            edf =(XS.T * (np.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
-            self.edf[name] = edf
             self.XS[kind][name] = XS
 
             if kind =='train': 
                 self.n_features[name] = self.XS['train'][name].shape[1]
-    
+                if (P == 0).all():
+                    self.edf[name] = self.n_features[name]
+                else:
+                    edf =(XS.T * (np.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
+                    self.edf[name] = edf 
+
     def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', random_seed=2046, verbose=0):
     
         self.init_method = method # store meta            
@@ -355,19 +357,23 @@ class GLM:
         # get random variance
         if method == 'random':
             self.y['train'] = y_train[self.burn_in:]
-            self.y_pred['random']['train'] = self.forwardpass(self.p0, kind='train')
+            # self.y_pred['random']['train'] = self.forwardpass(self.p0, kind='train')
             # # get filter confidence interval
             self._get_filter_variance(w_type='random')
             self._get_response_variance(w_type='random', kind='train')
             
             if type(y) is dict and 'dev' in y:
                 self.y['dev'] = y_dev[self.burn_in:]
-                self.y_pred['random']['dev'] = self.forwardpass(self.p0, kind='dev') 
+                # self.y_pred['random']['dev'] = self.forwardpass(self.p0, kind='dev') 
                 self._get_response_variance(w_type='random', kind='dev')
 
         self.dt = dt
         self.p[method] = p0
         self.p0 = p0
+        if np.array([np.array(self.P[name] == 0).all() for name in self.P]).all():
+            self.penalize_S = True
+        else:
+            self.penalize_S = False
 
     def compute_mle(self, y):
 
@@ -388,7 +394,7 @@ class GLM:
             y = {'train': y}
             y_train = y['train']
 
-        X = np.hstack([self.XS['train'][name] if name in self.XS['train'] else self.X['train'][name] for name in self.filter_names])   
+        X = np.hstack([self.XS['train'][name] if name in self.S else self.X['train'][name] for name in self.filter_names])   
         X = np.hstack([np.ones(X.shape[0])[:, np.newaxis], X])
 
         P = scipy.linalg.block_diag(*([0] + [self.P[name] if name in self.P else np.zeros([self.X['train'][name].shape[1], self.X['train'][name].shape[1]]) 
@@ -492,8 +498,9 @@ class GLM:
         intercept = p['intercept'] if 'intercept' in p else self.intercept
                 
         filters_output = []
-        for name in self.X[kind]: # 
-            if 'train' in self.XS and name in self.XS[kind]:
+        # for name in self.filter_names: # 
+        for name in self.X[kind]:
+            if name in self.S:
                 input_term = self.XS[kind][name]
             else:
                 input_term = self.X[kind][name]
@@ -549,7 +556,7 @@ class GLM:
             loss += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
         
         # regularization: spline wiggliness
-        if penalize and kind == 'train':
+        if penalize and self.penalize_S and kind == 'train':
             
             energy = np.array([np.sum(p[name].T @ self.P[name] @ p[name]) for name in self.P]).sum()
             loss += energy
@@ -845,7 +852,7 @@ class GLM:
 
         y_pred = self.forwardpass(p, kind='test')
 
-        self.y_pred['test'] = y_pred
+        # self.y_pred[w_type]['test'] = y_pred
         self._get_response_variance(w_type=w_type, kind='test')
 
         return y_pred
@@ -901,7 +908,7 @@ class GLM:
 
         '''
 
-        y_test = y_test[self.burn_in:]
+        y_test = y_test[self.burn_in:].flatten()
 
         if type(X_test) is dict:
             y_pred = self.predict(X_test, w_type)
@@ -923,7 +930,10 @@ class GLM:
         
         P = self.P
         S = self.S
-        XS = self.XS['train']
+        if 'train' in self.XS:
+            XS = self.XS['train']
+        
+        X = self.X['train']
         
         # trA = {name: (XS[name].T * (np.linalg.inv(XS[name].T @ XS[name] + P[name]) @ XS[name].T)).sum(0) for name in self.P}
         edf = self.edf
@@ -940,7 +950,7 @@ class GLM:
             b_se = {}
             w_se = {}
             for name in self.filter_names:
-                if name in XS:
+                if name in S:
                     V[name] = np.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
                     b_se[name] = np.sqrt(np.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
@@ -958,24 +968,24 @@ class GLM:
             w_se = {}
             b_se = {}
             for name in self.filter_names:
-                if name in XS:
+                if name in S:
                     b[name] = self.b[w_type][name]
                     u[name] = self.fnl(XS[name] @ b[name], self.filter_nonlinearity[name])
-                    U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten()
+                    U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten() ** 2
                     V[name] = np.linalg.inv(XS[name].T * U[name] @ XS[name] + P[name])
                     b_se[name] = np.sqrt(np.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
                 else:
                     w[name] = self.w[w_type][name]
                     u[name] = self.fnl(X[name] @ w[name], self.filter_nonlinearity[name])
-                    U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten()
+                    U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten() ** 2
                     V[name] = np.linalg.inv(X[name].T * U[name] @ X[name])
                     w_se[name] = np.sqrt(np.diag(V[name])) 
+        
         
         self.V[w_type] = V
         self.b_se[w_type] = b_se
         self.w_se[w_type] = w_se
-
 
     def _get_response_variance(self, w_type='opt', kind='train'):
 
@@ -986,7 +996,8 @@ class GLM:
         P = self.P
         S = self.S
         X = self.X[kind]
-        XS = self.XS[kind]
+        if kind in self.XS:
+            XS = self.XS[kind]
         w = self.w[w_type]
         V = self.V[w_type]
 
@@ -995,7 +1006,7 @@ class GLM:
         y_pred_filters_upper = {}
         y_pred_filters_lower = {}
         for name in X:
-            if name in XS:
+            if name in S:
                 y_se[name] = np.sqrt(np.sum(XS[name] @ V[name] * XS[name], 1))
             else:
                 y_se[name] = np.sqrt(np.sum(self.X[kind][name] @ V[name] * self.X[kind][name], 1))   
@@ -1015,8 +1026,6 @@ class GLM:
         self.y_pred[w_type][kind] = y_pred
         self.y_pred_upper[w_type][kind] = y_pred_upper
         self.y_pred_lower[w_type][kind] = y_pred_lower
-
-
         
 # def elementwise_add(A):
     
