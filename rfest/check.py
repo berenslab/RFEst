@@ -181,12 +181,13 @@ def plot_permutation(model, kind='train', w_type='opt', q=99, num_repeat=100, ax
     line = ax.axhline(score_true, c='r', zorder=0)
     line_q = ax.axhline(perc, c='b', ls=':', zorder=0)
     
-    bp = ax.boxplot(s_perm)
+    bp = ax.boxplot(s_perm, positions=[0])
     # ax.axhline(score_true, color='black', linestyle='--')
-    ax.plot(-0.01, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
-    ax.plot(-0.01, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
+    ax.plot(-0.3, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
+    ax.plot(-0.3, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
     # ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['true X', 'perm. X', f'q{q}'], loc='lower right')
     ax.set_title(f'Prediction on permuted {kind} set')
+    ax.set_xlim([-0.4, 0.4])
 
 def plot_permutation_testset(model, X_test, y_test, w_type, q=99, num_repeat=100, ax=None):
     
@@ -238,13 +239,13 @@ def plot_permutation_testset(model, X_test, y_test, w_type, q=99, num_repeat=100
     line = ax.axhline(score_true, c='r', zorder=0)
     line_q = ax.axhline(perc, c='b', ls=':', zorder=0)
                  
-    bp = ax.boxplot(s_perm)
+    bp = ax.boxplot(s_perm, positions=[0])
     # ax.axhline(score_true, color='black', linestyle='--')
-    ax.plot(-0.01, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
-    ax.plot(-0.01, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
+    ax.plot(-0.3, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
+    ax.plot(-0.3, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
     # ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['true X', 'perm. X', f'q{q}'], loc='lower right')
     ax.set_title('Prediction on permutated test set')
-
+    ax.set_xlim([-0.4, 0.4])
 def residuals_pearson(y, y_pred):
     rsd = y - y_pred
     ri = rsd / np.sqrt(y_pred)
@@ -268,6 +269,7 @@ def plot_cost(model, ax=None):
     else:
         ax.set_ylabel('MSE')
     ax.set_xscale('log')
+    ax.set_yscale('log')
     ax.set_xlabel('Iteration')
     ax.legend(frameon=False)
 
@@ -345,6 +347,231 @@ def plot1d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', dis
 
     fig.tight_layout()
 
+def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_stats=False):
+
+    '''
+    Parameters
+    ----------
+
+    model: object
+        Model object
+
+    X_test: np.array, dict or None
+        Stimulus. Only the named filters in the dict will be used for prediction.
+        Other filters, even trained, will be ignored if no test set provided. 
+
+    y_test: np.array
+        Response.   
+
+    w_type: str
+        weight types. 'opt', 'mle' or 'init'.
+
+    metric: str
+        Method of model evaluation. Can be
+        `mse`, `corrcoeff`, `r2`
+
+    window: float or None
+        Length of prediction to be plotted. If None, the whole `y_test`
+        is used. If the window is longer than y_test, the length of `y_test`
+        is used.
+
+    contour: float
+        > 0. The contour level. Default is 0.015.
+
+    pixel_size: 
+        The size of pixel for calculating the contour size.
+
+    figsize: tuple
+        Figure size.
+
+    '''
+    
+    import matplotlib.gridspec as gridspec
+    import warnings
+    warnings.filterwarnings("ignore")
+
+    dt = model.dt
+    dims = model.dims
+    shift = model.shift
+
+    # rf
+    ws = model.w[w_type]
+    ws_se = model.w_se[w_type]
+    
+    ncols = 4
+    nrows = sum(['stimulus' in name for name in model.filter_names]) + 1
+    figsize = figsize if figsize is not None else (16 * ncols / 4, 4 * nrows)
+    fig = plt.figure(figsize=figsize)
+
+    spec = gridspec.GridSpec(ncols=ncols, nrows=nrows, figure=fig)
+
+    # plot RF and get stats
+    stats = {}
+    RF_data = {}
+    ax_data = {}
+    
+    W_score, p_values = significance(model, w_type)
+    
+    for i, name in enumerate(ws):
+
+        if 'stimulus' in name:
+
+            RF_data[name] = {
+
+                "sRFs_min": [],
+                "sRFs_max": [],
+                "tRFs": [],
+                "sRFs_min_cntr": [],
+                "sRFs_max_cntr": [],
+            }
+            ax_data[name] = {
+                "axes_sRF_min": [],
+                "axes_sRF_max": [],
+                "axes_tRF": [],
+            }
+
+            stats[name] = {
+                'tRF_time_min': [],
+                'tRF_time_max': [],
+                'tRF_activation_min': [],
+                'tRF_activation_max': [],
+                'tRF_time_diff': [],
+                'tRF_activation_diff': [],
+                'sRF_size_min': [],
+                'sRF_size_max': [],
+                'sRF_size_diff': [],
+            }
+
+            t_tRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
+
+            w = ws[name].flatten()
+            w_uvec = uvec(ws[name].flatten())
+            w_se = ws_se[name].flatten()
+            
+            wu = w + 2 * w_se
+            wl = w - 2 * w_se
+            
+            vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(wu.max()), np.abs(wu.min()), np.abs(wl.max()), np.abs(wl.min())])
+            
+            w = w.reshape(dims[name])
+            wu = wu.reshape(dims[name])
+            wl = wl.reshape(dims[name])
+            w_uvec = w_uvec.reshape(dims[name])
+            
+            ax_RF = fig.add_subplot(spec[i, 0])
+            ax_RF.imshow(w, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+            
+            sRF, tRF = get_spatial_and_temporal_filters(w, model.dims[name])
+            ref = [sRF[2:-2].max(), sRF[2:-2].min()][np.argmax([np.abs(sRF.max()), np.abs(sRF.min())])]
+            max_coord = np.where(sRF == ref)
+
+            tRF = w[:, max_coord].flatten()
+            tRFu = wu[:, max_coord].flatten()
+            tRFl = wl[:, max_coord].flatten()
+            
+            tRF_max = np.argmax(tRF)
+            sRF_max = w[tRF_max]
+            sRF_max_u = wu[tRF_max]
+            sRF_max_l = wl[tRF_max]
+            sRF_max_uvec = w_uvec[tRF_max]
+            
+            tRF_min = np.argmin(tRF)
+            sRF_min = w[tRF_min]
+            sRF_min_u = wu[tRF_min]
+            sRF_min_l = wl[tRF_min]            
+            sRF_min_uvec = w_uvec[tRF_min]
+
+            RF_data[name]['sRFs_max'].append(sRF_max_uvec)
+            RF_data[name]['sRFs_min'].append(sRF_min_uvec)
+            RF_data[name]['tRFs'].append(tRF)
+
+            xrnge = np.linspace(-len(sRF_min) / 2, len(sRF_min)/2, len(sRF_min))
+
+            ax_sRF_min = fig.add_subplot(spec[i, 1])
+            ax_data[name]['axes_sRF_min'].append(ax_sRF_min)
+
+            ax_sRF_min.plot(xrnge, sRF_min, color='C0')
+            ax_sRF_min.fill_between(xrnge, sRF_min_u, sRF_min_l, color='C0', alpha=0.5)
+            ax_sRF_min.axhline(0, color='gray', linestyle='--')
+            ax_sRF_min.axvline(xrnge[np.argmin(sRF_min)], color='gray', linestyle='--')
+
+            ax_sRF_max = fig.add_subplot(spec[i, 2])
+            ax_data[name]['axes_sRF_max'].append(ax_sRF_max)
+            ax_sRF_max.plot(xrnge, sRF_max, color='C3')
+            ax_sRF_max.fill_between(xrnge, sRF_max_u, sRF_max_l, color='C3', alpha=0.5)
+            ax_sRF_max.axhline(0, color='gray', linestyle='--')
+            ax_sRF_max.axvline(xrnge[np.argmax(sRF_max)], color='gray', linestyle='--')
+
+
+            ax_tRF = fig.add_subplot(spec[i, 3])
+            ax_data[name]['axes_tRF'].append(ax_tRF)
+            ax_tRF.plot(t_tRF, tRF, color='black')
+            ax_tRF.fill_between(t_tRF, tRFu, tRFl, color='gray', alpha=0.5)
+            
+            ax_tRF.axhline(0, color='gray', linestyle='--')
+            ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
+            ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
+            ax_tRF.set_yticks([tRFl.min(), 0, tRFu.max()])
+            ax_tRF.set_ylim(-vmax, vmax)
+
+            stats[name]['tRF_time_min'].append(t_tRF[tRF_min])
+            stats[name]['tRF_time_max'].append(t_tRF[tRF_max])
+            stats[name]['tRF_activation_min'].append(float(tRF[tRF_min]))
+            stats[name]['tRF_activation_max'].append(float(tRF[tRF_max]))
+
+            stats[name]['tRF_time_diff'].append(np.abs(t_tRF[tRF_max] - t_tRF[tRF_min]))
+            stats[name]['tRF_activation_diff'].append(np.abs(tRF[tRF_max] - tRF[tRF_min]))
+
+            if i == 0:
+                ax_sRF_min.set_title('Spatial (min)', fontsize=14)
+                ax_sRF_max.set_title('Spatial (max)', fontsize=14)
+                ax_tRF.set_title('Temporal', fontsize=14)
+
+            p = p_values[name]
+            
+            stars = '*'
+            
+            if p < 0.001:
+                stars *= 3
+            elif p<0.01:
+                stars *= 2
+            elif p<0.05:
+                stars *= 1
+            else:
+                stars = '[n.s.]'
+                
+            ax_RF.set_ylabel(f'{name} \n p={p:.02f}{stars} ', fontsize=14)
+            ax_RF.axvline(max_coord, color='gray', linestyle='--', alpha=0.5)
+            ax_RF.axhline(tRF_max, color='C3', linestyle='--', alpha=0.5)
+            ax_RF.axhline(tRF_min, color='C0', linestyle='--', alpha=0.5)
+
+            
+            for ax in [ax_sRF_max, ax_sRF_min, ax_tRF]:
+                asp = np.diff(ax.get_xlim())[0] / np.diff(ax.get_ylim())[0]
+                ax.set_aspect(asp)
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+        else :
+            
+            h = ws[name].flatten()
+            h_se = ws_se[name].flatten()
+            
+            hu = h + 2 * h_se
+            hl = h - 2 * h_se
+            t_hRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
+            ax_hRF = fig.add_subplot(spec[0, -1])
+            ax_hRF.plot(t_hRF, h, color='black')
+            ax_hRF.fill_between(t_hRF, hu, hl, color='gray', alpha=0.5)
+            ax_hRF.spines['top'].set_visible(False)
+            ax_hRF.spines['right'].set_visible(False)
+            ax_hRF.set_yticks([hl.min(), 0, hu.max()])
+            ax_hRF.set_title(name.capitalize(), fontsize=14)
+
+    fig.tight_layout()
+
+    if return_stats:
+        return RF_data, stats
+
 def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_stats=False):
 
     '''
@@ -396,7 +623,7 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
     ws = model.w[w_type]
     ws_se = model.w_se[w_type]
     
-    ncols = 3 + (len(ws) - 1)
+    ncols = 4
     nrows = sum(['stimulus' in name for name in model.filter_names]) + 1
     figsize = figsize if figsize is not None else (16 * ncols / 4, 4 * nrows)
     fig = plt.figure(figsize=figsize)
@@ -531,13 +758,18 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
 
         else :
             
-            h = ws[name]
+            h = ws[name].flatten()
+            h_se = ws_se[name].flatten()
+            
+            hu = h + 2 * h_se
+            hl = h - 2 * h_se
             t_hRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
-            ax_hRF = fig.add_subplot(spec[-1, 2])
+            ax_hRF = fig.add_subplot(spec[0, -1])
             ax_hRF.plot(t_hRF, h, color='black')
+            ax_hRF.fill_between(t_hRF, hu, hl, color='gray', alpha=0.5)
             ax_hRF.spines['top'].set_visible(False)
             ax_hRF.spines['right'].set_visible(False)
-            ax_hRF.set_yticks([h.min(), 0, h.max()])
+            ax_hRF.set_yticks([hl.min(), 0, hu.max()])
             ax_hRF.set_title(name.capitalize(), fontsize=14)
     #             ax_hRF.set_ylim(-vmax-0.01, vmax+0.01)
 
