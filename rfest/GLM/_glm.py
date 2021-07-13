@@ -338,24 +338,28 @@ class GLM:
             self.S.pop('stimulus')
             self.P.pop('stimulus')
             self.filter_names = filter_names
-            
+
+        self.p[method] = {} 
         p0 = {}
         for i, name in enumerate(self.filter_names):
             if name in self.S:
                 b = self.b[method][name]
                 key = random.PRNGKey(random_seed + i) 
                 noise = 0.1 * random.normal(key, shape=b.shape)
+                self.p[method].update({name: b})
                 p0.update({name: b + noise})
             else:
                 w = self.w[method][name]
                 key = random.PRNGKey(random_seed + i) 
                 noise = 0.1 * random.normal(key, shape=w.shape)
+                self.p[method].update({name: w})
                 p0.update({name: w})
-
+            
+            self.p[method].update({'intercept': self.intercept[method]}) 
             p0.update({'intercept': self.intercept[method]}) 
         
         # get random variance
-        if method == 'random':
+        if method == 'random' and self.y:
             self.y['train'] = y_train[self.burn_in:]
             # self.y_pred['random']['train'] = self.forwardpass(self.p0, kind='train')
             # # get filter confidence interval
@@ -368,7 +372,7 @@ class GLM:
                 self._get_response_variance(w_type='random', kind='dev')
 
         self.dt = dt
-        self.p[method] = p0
+         
         self.p0 = p0
         if np.array([np.array(self.P[name] == 0).all() for name in self.P]).all():
             self.penalize_S = True
@@ -446,7 +450,6 @@ class GLM:
             self.y_pred['mle']['dev'] = self.forwardpass(self.p['mle'], kind='dev') 
             self._get_response_variance(w_type='mle', kind='dev')
 
-
         # # performance stats
         # self.p['null'] = {name: np.zeros_like(self.p['mle'][name]) for name in self.p['mle']}
         
@@ -498,14 +501,13 @@ class GLM:
         intercept = p['intercept'] if 'intercept' in p else self.intercept
                 
         filters_output = []
-        # for name in self.filter_names: # 
         for name in self.X[kind]:
             if name in self.S:
                 input_term = self.XS[kind][name]
             else:
                 input_term = self.X[kind][name]
 
-            output = self.fnl(np.sum( input_term @ p[name], axis=1), kind=self.filter_nonlinearity[name]) 
+            output = self.fnl(np.squeeze(input_term @ p[name]), kind=self.filter_nonlinearity[name]) 
             filters_output.append(output)
 
         filters_output = np.array(filters_output).sum(0)
@@ -715,7 +717,7 @@ class GLM:
         self.metric_dev_opt = metric_dev_opt
         self.total_time_elapsed = total_time_elapsed 
 
-        self.all_params = params_list # not sure if this will occupy a lot of RAM.
+        self.all_params = params_list[:i+1] # not sure if this will occupy a lot of RAM.
         self.y_pred['opt'].update({'train': y_pred_train, 
                               'dev': y_pred_dev})
                 
@@ -998,6 +1000,7 @@ class GLM:
         X = self.X[kind]
         if kind in self.XS:
             XS = self.XS[kind]
+        b = self.b[w_type]
         w = self.w[w_type]
         V = self.V[w_type]
 
@@ -1008,10 +1011,12 @@ class GLM:
         for name in X:
             if name in S:
                 y_se[name] = np.sqrt(np.sum(XS[name] @ V[name] * XS[name], 1))
+                y_pred_filters[name] = self.fnl((XS[name] @ b[name]).flatten(), kind=self.filter_nonlinearity[name])
+
             else:
                 y_se[name] = np.sqrt(np.sum(self.X[kind][name] @ V[name] * self.X[kind][name], 1))   
-            
-            y_pred_filters[name] = self.fnl((X[name] @ w[name]).flatten(), kind=self.filter_nonlinearity[name])
+                y_pred_filters[name] = self.fnl((X[name] @ w[name]).flatten(), kind=self.filter_nonlinearity[name])
+ 
             y_pred_filters_upper[name] = self.fnl((X[name] @ w[name]).flatten() + 2 * y_se[name], kind=self.filter_nonlinearity[name])
             y_pred_filters_lower[name] = self.fnl((X[name] @ w[name]).flatten() - 2 * y_se[name], kind=self.filter_nonlinearity[name])
 
