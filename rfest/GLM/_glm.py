@@ -253,10 +253,11 @@ class GLM:
                     edf =(XS.T * (np.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
                     self.edf[name] = edf 
 
-    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', random_seed=2046, verbose=0):
+    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046, verbose=0):
     
         self.init_method = method # store meta            
         self.num_subunits = num_subunits
+        self.compute_ci = compute_ci
 
         if method =='random':
 
@@ -283,7 +284,6 @@ class GLM:
                 print('Initializing model paraemters with maximum likelihood...')
                 
             if not self.mle_computed:
-                # self.compute_mle(y, num_subunits, random_seed)
                 self.compute_mle(y) 
                 
             if verbose:
@@ -333,10 +333,11 @@ class GLM:
             self.w[method].pop('stimulus')
             self.X['train'].pop('stimulus')
             self.X['dev'].pop('stimulus')
-            self.XS['train'].pop('stimulus')
-            self.XS['dev'].pop('stimulus')
-            self.S.pop('stimulus')
-            self.P.pop('stimulus')
+            if self.XS != {}:
+                self.XS['train'].pop('stimulus')
+                self.XS['dev'].pop('stimulus')
+                self.S.pop('stimulus')
+                self.P.pop('stimulus')
             self.filter_names = filter_names
 
         self.p[method] = {} 
@@ -361,18 +362,21 @@ class GLM:
         # get random variance
         if method == 'random' and self.y:
             self.y['train'] = y_train[self.burn_in:]
-            # self.y_pred['random']['train'] = self.forwardpass(self.p0, kind='train')
+            if len(self.y['train']) == 0:
+                raise ValueError('Training set is empty after burned in.')
             # # get filter confidence interval
-            self._get_filter_variance(w_type='random')
-            self._get_response_variance(w_type='random', kind='train')
-            
+            if self.compute_ci:
+                self._get_filter_variance(w_type='random')
+                self._get_response_variance(w_type='random', kind='train')
+                
             if type(y) is dict and 'dev' in y:
                 self.y['dev'] = y_dev[self.burn_in:]
-                # self.y_pred['random']['dev'] = self.forwardpass(self.p0, kind='dev') 
-                self._get_response_variance(w_type='random', kind='dev')
+                if len(self.y['dev']) == 0:
+                    raise ValueError('Dev set is empty after burned in.')
+                if self.compute_ci:
+                    self._get_response_variance(w_type='random', kind='dev')
 
         self.dt = dt
-         
         self.p0 = p0
         if np.array([np.array(self.P[name] == 0).all() for name in self.P]).all():
             self.penalize_S = True
@@ -392,6 +396,8 @@ class GLM:
         
         if type(y) is dict:
             y_train = y['train']
+            if len(y['train']) == 0:
+                raise ValueError('Training set is empty after burned in.')
             if 'dev' in y:
                 y_dev = y['dev']
         else:
@@ -407,7 +413,11 @@ class GLM:
         XtX = X.T @ X
         Xty = X.T @ y_train[self.burn_in:]
 
-        mle = np.linalg.solve(XtX + P, Xty)
+        try:
+            mle = np.linalg.solve(XtX + P, Xty)
+        except:
+            # if the stimulus cov is singular, then use lstsq
+            mle = np.linalg.lstsq(XtX + P, Xty, rcond=None)[0]
 
         self.b['mle'] = {}
         self.w['mle'] = {}
@@ -440,15 +450,25 @@ class GLM:
         # self.n_params = XtX.shape[1] # total number of model parameters
  
         self.y['train'] = y_train[self.burn_in:]
+
+        if len(self.y['train']) == 0:
+            raise ValueError('Training set is empty after burned in.')
+
         self.y_pred['mle']['train'] = self.forwardpass(self.p['mle'], kind='train')
+
         # # get filter confidence interval
-        self._get_filter_variance(w_type='mle')
-        self._get_response_variance(w_type='mle', kind='train')
-        
+        if self.compute_ci:
+            self._get_filter_variance(w_type='mle')
+            self._get_response_variance(w_type='mle', kind='train')
+            
         if type(y) is dict and 'dev' in y:
             self.y['dev'] = y_dev[self.burn_in:]
+            if len(self.y['dev']) == 0:
+                raise ValueError('Dev set is empty after burned in.')
+
             self.y_pred['mle']['dev'] = self.forwardpass(self.p['mle'], kind='dev') 
-            self._get_response_variance(w_type='mle', kind='dev')
+            if self.compute_ci:
+               self._get_response_variance(w_type='mle', kind='dev')
 
         # # performance stats
         # self.p['null'] = {name: np.zeros_like(self.p['mle'][name]) for name in self.p['mle']}
@@ -542,7 +562,9 @@ class GLM:
         
         elif distr == 'poisson':
             
+            r = np.where(r!=np.inf, r, 0.) # remove inf
             r = np.maximum(r, 1e-20) # remove zero to avoid nan in log.
+            
             term0 = - np.log(r) @ y # spike term from poisson log-likelihood
             term1 = np.sum(r) # non-spike term            
             loss = term0 + term1
@@ -718,8 +740,10 @@ class GLM:
         self.total_time_elapsed = total_time_elapsed 
 
         self.all_params = params_list[:i+1] # not sure if this will occupy a lot of RAM.
-        self.y_pred['opt'].update({'train': y_pred_train, 
-                              'dev': y_pred_dev})
+        
+        self.y_pred['opt'].update({'train': y_pred_train})
+        if 'dev' in self.y:
+            self.y_pred['opt'].update({'dev': y_pred_dev})
                 
         return params
                        
@@ -774,6 +798,9 @@ class GLM:
         self.beta = beta
         self.metric = metric
 
+        if not 'dev' in self.y:
+            return_model = 'last'
+
         if y is None:
             if not 'train' in self.y:
                raise ValueError(f'No `y` is provided.') 
@@ -782,8 +809,11 @@ class GLM:
                 self.y['train'] = y['train'][self.burn_in:]
                 if 'dev' in y:
                     self.y['dev'] = y['dev'][self.burn_in:]
+
             else:
                 self.y['train'] = y[self.burn_in:]
+        
+
 
         self.y_pred['opt'] = {}
             
@@ -802,11 +832,12 @@ class GLM:
         
         self.intercept['opt'] = self.p['opt']['intercept']
         # get filter confidence interval
-        self._get_filter_variance(w_type='opt')
-        # get prediction confidence interval
-        self._get_response_variance(w_type='opt', kind='train')
-        if 'dev' in self.y: 
-            self._get_response_variance(w_type='opt', kind='dev')
+        if self.compute_ci:
+            self._get_filter_variance(w_type='opt')
+            # get prediction confidence interval
+            self._get_response_variance(w_type='opt', kind='train')
+            if 'dev' in self.y: 
+                self._get_response_variance(w_type='opt', kind='dev')
 
     def predict(self, X, w_type='opt'):
         
@@ -933,8 +964,7 @@ class GLM:
         P = self.P
         S = self.S
         if 'train' in self.XS:
-            XS = self.XS['train']
-        
+            XS = self.XS['train'] 
         X = self.X['train']
         
         # trA = {name: (XS[name].T * (np.linalg.inv(XS[name].T @ XS[name] + P[name]) @ XS[name].T)).sum(0) for name in self.P}
@@ -953,11 +983,28 @@ class GLM:
             w_se = {}
             for name in self.filter_names:
                 if name in S:
-                    V[name] = np.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
+                    # check sample size
+                    if len(XS[name]) < self.edf[name]:
+                        print('Sample size is too small for getting reasonable confidence interval.')
+                    # compute weight covariance
+                    try:
+                        V[name] = np.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
+                    except:
+                        # if inv failed, use pinv
+                        V[name] = np.linalg.pinv(XS[name].T @ XS[name] + P[name]) * rss_var[name] 
+                    
+                    # remove negative correlation?
+                    # https://math.stackexchange.com/q/4018326
+                    V[name] = np.abs(V[name])
+                    
                     b_se[name] = np.sqrt(np.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
+                
                 else:
+                    if len(X[name]) < np.product(np.array(self.dims[name])):
+                        print('Sample size is too small for getting reasonable confidence interval.')
                     V[name] = np.linalg.inv(X[name].T @ X[name]) * rss_var[name]
+                    V[name] = np.abs(V[name])
                     w_se[name] = np.sqrt(np.diag(V[name])) 
 
         else:
@@ -971,17 +1018,36 @@ class GLM:
             b_se = {}
             for name in self.filter_names:
                 if name in S:
+                    # check sample size
+                    if len(XS[name]) < self.edf[name]:
+                        print('Sample size is too small for getting reasonable confidence interval.')
+                    
                     b[name] = self.b[w_type][name]
                     u[name] = self.fnl(XS[name] @ b[name], self.filter_nonlinearity[name])
                     U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten() ** 2
-                    V[name] = np.linalg.inv(XS[name].T * U[name] @ XS[name] + P[name])
+                    
+                    try:
+                        V[name] = np.linalg.inv(XS[name].T * U[name] @ XS[name] + P[name])
+                    except:
+                        V[name] = np.linalg.pinv(XS[name].T * U[name] @ XS[name] + P[name]) 
+                    
+                    V[name] = np.abs(V[name])
                     b_se[name] = np.sqrt(np.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
                 else:
+
+                    if len(X[name]) < np.product(np.array(self.dims[name])):
+                        print('Sample size is too small for getting reasonable confidence interval.')
+                    
                     w[name] = self.w[w_type][name]
                     u[name] = self.fnl(X[name] @ w[name], self.filter_nonlinearity[name])
                     U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten() ** 2
-                    V[name] = np.linalg.inv(X[name].T * U[name] @ X[name])
+                    
+                    try:
+                        V[name] = np.linalg.inv(X[name].T * U[name] @ X[name])
+                    except:
+                        V[name] = np.linalg.pinv(X[name].T * U[name] @ X[name]) 
+                    V[name] = np.abs(V[name])
                     w_se[name] = np.sqrt(np.diag(V[name])) 
         
         

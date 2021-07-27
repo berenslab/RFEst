@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
+import scipy.stats
 
 from .utils import get_n_samples, uvec, get_spatial_and_temporal_filters
 
@@ -53,23 +54,22 @@ def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
     ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['true X', 'perm. X', f'q{q}'], loc='lower right')
     ax.plot(-0.3, score_trueX, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
     ax.plot(-0.3, score_trueX, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
+    
     return ax
 
 def significance(model, w_type='opt', show_results=False):
     
-    import scipy.stats
-
     W_values = {}
     p_values = {}
     for name in model.filter_names:    
         W = np.squeeze(model.p[w_type][name].T @ np.linalg.inv(model.V[w_type][name]) @ model.p[w_type][name])
         p_value = 1 - scipy.stats.chi2.cdf(x=W, df=model.edf[name]) 
-        
+
         W_values[name] = W
         p_values[name] = p_value
         
         if show_results:
-            if p_value < 0.01:
+            if p_value < 0.05:
                 print(f'{name}: \n\tsignificant \n\tW={W:.3f}, p_value={p_value:.3f}')
             else:
                 print(f'{name}: \n\tnot significant \n\tW={W:.3f}, p_value={p_value:.3f}')      
@@ -130,15 +130,18 @@ def plot_prediction_testset(model, X_test, y_test, display_window, w_type, ax=No
     dt = model.dt
     length = get_n_samples(display_window / 60, dt)
     y = y_test
+
     _ = model.predict(X_test, w_type)
+
+    y = y[model.burn_in:]
     y_pred = model.y_pred[w_type]['test'] 
     y_pred_lower = model.y_pred_lower[w_type]['test']
     y_pred_upper = model.y_pred_upper[w_type]['test']
 
-    s = model._score(y[model.burn_in:], model.forwardpass(model.p[w_type], 'test'), model.metric)
+    s = model._score(y, model.forwardpass(model.p[w_type], 'test'), model.metric)
 
     tt = np.arange(len(y[:length])) * dt
-    ax.plot(tt, y[model.burn_in:model.burn_in+length], color='black')
+    ax.plot(tt, y[:length], color='black')
     ax.plot(tt, y_pred[:length], color='red')  
 
     ax.fill_between(tt, y_pred_upper[:length], y_pred_lower[:length], color='red', alpha=0.5)
@@ -147,7 +150,7 @@ def plot_prediction_testset(model, X_test, y_test, display_window, w_type, ax=No
     ax.set_ylabel('spikes counts')
     ax.set_title(f'{model.metric}(test) = {s:.2f}')
 
-def plot_permutation(model, kind='train', w_type='opt', q=99, num_repeat=100, ax=None):
+def plot_permutation(model, kind='train', w_type='opt', q=99, num_repeat=100, ax=None, legend=False):
     
     if ax is None:
         _, ax = plt.subplots()
@@ -183,10 +186,26 @@ def plot_permutation(model, kind='train', w_type='opt', q=99, num_repeat=100, ax
     
     bp = ax.boxplot(s_perm, positions=[0])
     # ax.axhline(score_true, color='black', linestyle='--')
-    ax.plot(-0.3, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
-    ax.plot(-0.3, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
-    # ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['true X', 'perm. X', f'q{q}'], loc='lower right')
-    ax.set_title(f'Prediction on permuted {kind} set')
+    # ax.plot(-0.3, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
+    # ax.plot(-0.3, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
+    t_value, p_value = scipy.stats.ttest_1samp(s_perm, score_true, alternative='less')
+    stars = '*'
+    if p_value < 0.001:
+        stars *= 3
+        p_result = f'p<0.001{stars}'
+    elif p_value<0.01:
+        stars *= 2
+        p_result = f'p<0.01{stars}'
+    elif p_value<0.05:
+        stars *= 1
+        p_result = f'p<0.05{stars}'
+    else:
+        stars = '[n.s.]'
+        p_result = f'p>0.05{stars}'    
+
+    if legend:
+        ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['model pred.', 'permuted pred.', f'q{q}'])
+    ax.set_title(f'Prediction on permuted {kind} set\n{p_result}')
     ax.set_xlim([-0.4, 0.4])
 
 def plot_permutation_testset(model, X_test, y_test, w_type, q=99, num_repeat=100, ax=None):
@@ -241,10 +260,24 @@ def plot_permutation_testset(model, X_test, y_test, w_type, q=99, num_repeat=100
                  
     bp = ax.boxplot(s_perm, positions=[0])
     # ax.axhline(score_true, color='black', linestyle='--')
-    ax.plot(-0.3, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
-    ax.plot(-0.3, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
+    # ax.plot(-0.3, score_true, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
+    # ax.plot(-0.3, score_true, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
     # ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['true X', 'perm. X', f'q{q}'], loc='lower right')
-    ax.set_title('Prediction on permutated test set')
+    t_value, p_value = scipy.stats.ttest_1samp(s_perm, score_true, alternative='less')
+    stars = '*'
+    if p_value < 0.001:
+        stars *= 3
+        p_result = f'p<0.001{stars}'
+    elif p_value<0.01:
+        stars *= 2
+        p_result = f'p<0.01{stars}'
+    elif p_value<0.05:
+        stars *= 1
+        p_result = f'p<0.05{stars}'
+    else:
+        stars = '[n.s.]'
+        p_result = f'p>0.05{stars}'  
+    ax.set_title(f'Prediction on permutated test set\n{p_result}')
     ax.set_xlim([-0.4, 0.4])
 def residuals_pearson(y, y_pred):
     rsd = y - y_pred
@@ -284,27 +317,36 @@ def plot_metric(model, ax=None):
     ax.set_xlabel('Iteration')
     ax.legend(frameon=False)
         
-def plot1d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', display_window=100, figsize=None, num_repeat=500, random_seed=2046):
+def plot1d(model, w_type='opt', w_true=None, figsize=None, ):
     
     '''
     Parameters
     ----------
-    
-    display_window: float
-        Seconds of prediction to display.
+        
+    w_type: str:
+        'opt' or 'mle'
+
+    w_true: np.array or dict
+        Ground true.
+
+    figszie: float
     
     '''
-    
+
     import matplotlib.gridspec as gridspec
     import warnings
     warnings.filterwarnings("ignore")
     
-    np.random.seed(random_seed)
+    if w_true is not None:
+        if type(w_true) is not dict:
+            w_true = {'stimulus': w_true}
+
     dt = model.dt
     ncols = 5 if len(model.filter_names) < 5 else len(model.filter_names)
     nrows = 1
 
-    W_score, p_values = significance(model, w_type)
+    if model.compute_ci:
+        W_score, p_values = significance(model, w_type)
 
     figsize = figsize if figsize is not None else (3 * ncols, 2 * nrows + 2)
     fig = plt.figure(figsize=figsize)
@@ -320,6 +362,9 @@ def plot1d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', dis
         vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(w.max() + 2 * w_se.max()), np.abs(w.min() - 2 * w_se.min())])
         tt = np.linspace(-model.dims[name][0] - model.shift[name], 0-model.shift[name], model.dims[name][0]) * dt
         
+        if w_true is not None and name in w_true:
+           filts[i].plot(tt, w_true[name], color='black') 
+
         filts[i].plot(tt, w, color=f'C{i}')
         filts[i].fill_between(tt,
                          w+ 2 * w_se, 
@@ -327,18 +372,19 @@ def plot1d(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', dis
         filts[i].axhline(0, color='black', linestyle='--')
         filts[i].axvline(0, color='black', linestyle='--')
         
-        p = p_values[name]
-        stars = '*'
-        
-        if p < 0.001:
-            stars *= 3
-        elif p<0.01:
-            stars *= 2
-        elif p<0.05:
-            stars *= 1
-        else:
-            stars = '[n.s.]'        
-        filts[i].set_title(f'{name} \n p={p:.02f}{stars} ')
+        if model.compute_ci:
+            p = p_values[name]
+            stars = '*'
+            
+            if p < 0.001:
+                stars *= 3
+            elif p<0.01:
+                stars *= 2
+            elif p<0.05:
+                stars *= 1
+            else:
+                stars = '[n.s.]'        
+            filts[i].set_title(f'{name} \n p={p:.02f}{stars} ')
         filts[i].set_xlim(tt[0], dt)
         filts[i].set_ylim(-vmax, vmax)
         if i == 0:
@@ -396,7 +442,8 @@ def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
 
     # rf
     ws = model.w[w_type]
-    ws_se = model.w_se[w_type]
+    if model.compute_ci:
+        ws_se = model.w_se[w_type]
     
     ncols = 4
     nrows = sum(['stimulus' in name for name in model.filter_names]) + 1
@@ -410,7 +457,8 @@ def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
     RF_data = {}
     ax_data = {}
     
-    W_score, p_values = significance(model, w_type)
+    if model.compute_ci:
+        W_score, p_values = significance(model, w_type)
     
     for i, name in enumerate(ws):
 
@@ -446,17 +494,22 @@ def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
 
             w = ws[name].flatten()
             w_uvec = uvec(ws[name].flatten())
-            w_se = ws_se[name].flatten()
-            
-            wu = w + 2 * w_se
-            wl = w - 2 * w_se
-            
-            vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(wu.max()), np.abs(wu.min()), np.abs(wl.max()), np.abs(wl.min())])
-            
+
+            if model.compute_ci:
+                w_se = ws_se[name].flatten()
+                wu = w + 2 * w_se
+                wl = w - 2 * w_se
+                vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(wu.max()), np.abs(wu.min()), np.abs(wl.max()), np.abs(wl.min())])
+            else:
+                vmax = np.max([np.abs(w.max()), np.abs(w.min())])
+
+                
             w = w.reshape(dims[name])
-            wu = wu.reshape(dims[name])
-            wl = wl.reshape(dims[name])
             w_uvec = w_uvec.reshape(dims[name])
+            
+            if model.compute_ci:
+                wu = wu.reshape(dims[name])
+                wl = wl.reshape(dims[name])
             
             ax_RF = fig.add_subplot(spec[i, 0])
             ax_RF.imshow(w, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
@@ -466,21 +519,25 @@ def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
             max_coord = np.where(sRF == ref)
 
             tRF = w[:, max_coord].flatten()
-            tRFu = wu[:, max_coord].flatten()
-            tRFl = wl[:, max_coord].flatten()
-            
+
+            if model.compute_ci:
+                tRFu = wu[:, max_coord].flatten()
+                tRFl = wl[:, max_coord].flatten()
+                
             tRF_max = np.argmax(tRF)
             sRF_max = w[tRF_max]
-            sRF_max_u = wu[tRF_max]
-            sRF_max_l = wl[tRF_max]
             sRF_max_uvec = w_uvec[tRF_max]
+            if model.compute_ci:
+                sRF_max_u = wu[tRF_max]
+                sRF_max_l = wl[tRF_max]
             
             tRF_min = np.argmin(tRF)
             sRF_min = w[tRF_min]
-            sRF_min_u = wu[tRF_min]
-            sRF_min_l = wl[tRF_min]            
             sRF_min_uvec = w_uvec[tRF_min]
-
+            if model.compute_ci:
+                sRF_min_u = wu[tRF_min]
+                sRF_min_l = wl[tRF_min]            
+            
             RF_data[name]['sRFs_max'].append(sRF_max_uvec)
             RF_data[name]['sRFs_min'].append(sRF_min_uvec)
             RF_data[name]['tRFs'].append(tRF)
@@ -491,14 +548,16 @@ def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
             ax_data[name]['axes_sRF_min'].append(ax_sRF_min)
 
             ax_sRF_min.plot(xrnge, sRF_min, color='C0')
-            ax_sRF_min.fill_between(xrnge, sRF_min_u, sRF_min_l, color='C0', alpha=0.5)
+            if model.compute_ci:
+                ax_sRF_min.fill_between(xrnge, sRF_min_u, sRF_min_l, color='C0', alpha=0.5)
             ax_sRF_min.axhline(0, color='gray', linestyle='--')
             ax_sRF_min.axvline(xrnge[np.argmin(sRF_min)], color='gray', linestyle='--')
 
             ax_sRF_max = fig.add_subplot(spec[i, 2])
             ax_data[name]['axes_sRF_max'].append(ax_sRF_max)
             ax_sRF_max.plot(xrnge, sRF_max, color='C3')
-            ax_sRF_max.fill_between(xrnge, sRF_max_u, sRF_max_l, color='C3', alpha=0.5)
+            if model.compute_ci:
+                ax_sRF_max.fill_between(xrnge, sRF_max_u, sRF_max_l, color='C3', alpha=0.5)
             ax_sRF_max.axhline(0, color='gray', linestyle='--')
             ax_sRF_max.axvline(xrnge[np.argmax(sRF_max)], color='gray', linestyle='--')
 
@@ -511,7 +570,10 @@ def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
             ax_tRF.axhline(0, color='gray', linestyle='--')
             ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
             ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
-            ax_tRF.set_yticks([tRFl.min(), 0, tRFu.max()])
+            if model.compute_ci:
+                ax_tRF.set_yticks([tRFl.min(), 0, tRFu.max()])
+            else:
+                ax_tRF.set_yticks([tRF.min(), 0, tRF.max()])
             ax_tRF.set_ylim(-vmax, vmax)
 
             stats[name]['tRF_time_min'].append(t_tRF[tRF_min])
@@ -526,21 +588,22 @@ def plot2d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
                 ax_sRF_min.set_title('Spatial (min)', fontsize=14)
                 ax_sRF_max.set_title('Spatial (max)', fontsize=14)
                 ax_tRF.set_title('Temporal', fontsize=14)
-
-            p = p_values[name]
             
-            stars = '*'
-            
-            if p < 0.001:
-                stars *= 3
-            elif p<0.01:
-                stars *= 2
-            elif p<0.05:
-                stars *= 1
-            else:
-                stars = '[n.s.]'
+            if model.compute_ci:
+                p = p_values[name]
                 
-            ax_RF.set_ylabel(f'{name} \n p={p:.02f}{stars} ', fontsize=14)
+                stars = '*'
+                
+                if p < 0.001:
+                    stars *= 3
+                elif p<0.01:
+                    stars *= 2
+                elif p<0.05:
+                    stars *= 1
+                else:
+                    stars = '[n.s.]'
+                    
+                ax_RF.set_ylabel(f'{name} \n p={p:.02f}{stars} ', fontsize=14)
             ax_RF.axvline(max_coord, color='gray', linestyle='--', alpha=0.5)
             ax_RF.axhline(tRF_max, color='C3', linestyle='--', alpha=0.5)
             ax_RF.axhline(tRF_min, color='C0', linestyle='--', alpha=0.5)
@@ -621,7 +684,8 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
 
     # rf
     ws = model.w[w_type]
-    ws_se = model.w_se[w_type]
+    if model.compute_ci:
+        ws_se = model.w_se[w_type]
     
     ncols = 4
     nrows = sum(['stimulus' in name for name in model.filter_names]) + 1
@@ -635,7 +699,8 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
     RF_data = {}
     ax_data = {}
     
-    W_score, p_values = significance(model, w_type)
+    if model.compute_ci:
+        W_score, p_values = significance(model, w_type)
     
     for i, name in enumerate(ws):
 
@@ -671,25 +736,29 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
 
             w = ws[name].flatten()
             w_uvec = uvec(ws[name].flatten())
-            w_se = ws_se[name].flatten()
-            
-            wu = w + 2 * w_se
-            wl = w - 2 * w_se
-            
-            vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(wu.max()), np.abs(wu.min()), np.abs(wl.max()), np.abs(wl.min())])
-            
+            if model.compute_ci:
+                w_se = ws_se[name].flatten()
+                wu = w + 2 * w_se
+                wl = w - 2 * w_se
+                vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(wu.max()), np.abs(wu.min()), np.abs(wl.max()), np.abs(wl.min())])
+            else:
+                vmax = np.max([np.abs(w.max()), np.abs(w.min())])
+
+
             w = w.reshape(dims[name])
-            wu = wu.reshape(dims[name])
-            wl = wl.reshape(dims[name])
             w_uvec = w_uvec.reshape(dims[name])
+            if model.compute_ci:
+                wu = wu.reshape(dims[name])
+                wl = wl.reshape(dims[name])
             
             sRF, tRF = get_spatial_and_temporal_filters(w, model.dims[name])
             ref = [sRF[2:, 2:].max(), sRF[2:, 2:].min()][np.argmax([np.abs(sRF.max()), np.abs(sRF.min())])]
             max_coord = np.where(sRF == ref)
 
             tRF = w[:, max_coord[0], max_coord[1]].flatten()
-            tRFu = wu[:, max_coord[0], max_coord[1]].flatten()
-            tRFl = wl[:, max_coord[0], max_coord[1]].flatten()
+            if model.compute_ci:
+                tRFu = wu[:, max_coord[0], max_coord[1]].flatten()
+                tRFl = wl[:, max_coord[0], max_coord[1]].flatten()
             
             tRF_max = np.argmax(tRF)
             sRF_max = w[tRF_max]
@@ -718,14 +787,19 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
             ax_tRF = fig.add_subplot(spec[i, 2])
             ax_data[name]['axes_tRF'].append(ax_tRF)
             ax_tRF.plot(t_tRF, tRF, color='black')
-            ax_tRF.fill_between(t_tRF, tRFu, tRFl, color='gray', alpha=0.5)
+            if model.compute_ci:
+                ax_tRF.fill_between(t_tRF, tRFu, tRFl, color='gray', alpha=0.5)
+                ax_tRF.set_yticks([tRFl.min(), 0, tRFu.max()])
+            else:
+                ax_tRF.set_yticks([tRF.min(), 0, tRF.max()])
             
             ax_tRF.axhline(0, color='gray', linestyle='--')
             ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
             ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
             ax_tRF.spines['top'].set_visible(False)
             ax_tRF.spines['right'].set_visible(False)
-            ax_tRF.set_yticks([tRFl.min(), 0, tRFu.max()])
+            
+            
             ax_tRF.set_ylim(-vmax, vmax)
 
             stats[name]['tRF_time_min'].append(t_tRF[tRF_min])
@@ -741,20 +815,21 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
                 ax_sRF_max.set_title('Spatial (max)', fontsize=14)
                 ax_tRF.set_title('Temporal', fontsize=14)
 
-            p = p_values[name]
-            
-            stars = '*'
-            
-            if p < 0.001:
-                stars *= 3
-            elif p<0.01:
-                stars *= 2
-            elif p<0.05:
-                stars *= 1
-            else:
-                stars = '[n.s.]'
+            if model.compute_ci:
+                p = p_values[name]
                 
-            ax_sRF_min.set_ylabel(f'{name} \n p={p:.02f}{stars} ', fontsize=14)
+                stars = '*'
+                
+                if p < 0.001:
+                    stars *= 3
+                elif p<0.01:
+                    stars *= 2
+                elif p<0.05:
+                    stars *= 1
+                else:
+                    stars = '[n.s.]'
+                    
+                ax_sRF_min.set_ylabel(f'{name} \n p={p:.02f}{stars} ', fontsize=14)
 
         else :
             
@@ -766,18 +841,20 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
             t_hRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
             ax_hRF = fig.add_subplot(spec[0, -1])
             ax_hRF.plot(t_hRF, h, color='black')
-            ax_hRF.fill_between(t_hRF, hu, hl, color='gray', alpha=0.5)
+            if model.compute_ci:
+                ax_hRF.fill_between(t_hRF, hu, hl, color='gray', alpha=0.5)
+                ax_hRF.set_yticks([hl.min(), 0, hu.max()])
+            else:
+                ax_hRF.set_yticks([h.min(), 0, h.max()]) 
+
             ax_hRF.spines['top'].set_visible(False)
             ax_hRF.spines['right'].set_visible(False)
-            ax_hRF.set_yticks([hl.min(), 0, hu.max()])
             ax_hRF.set_title(name.capitalize(), fontsize=14)
-    #             ax_hRF.set_ylim(-vmax-0.01, vmax+0.01)
 
     # contour and more stats
 
     for name in ws:
 
-        
         if 'stimulus' in name:
             sRFs_min = RF_data[name]["sRFs_min"]
             sRFs_max = RF_data[name]["sRFs_max"]
@@ -825,7 +902,7 @@ def plot3d(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_
     if return_stats:
         return RF_data, stats
 
-def plot_diagnostics(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', display_window=100, figsize=None, num_repeat=100, random_seed=2046):
+def plot_diagnostics(model, X_test=None, y_test=None, w_type='opt', metric='corrcoef', display_window=100, plot_rsd=True, figsize=None, num_repeat=100, random_seed=2046):
     
     '''
     Parameters
@@ -870,59 +947,77 @@ def plot_diagnostics(model, X_test=None, y_test=None, w_type='opt', metric='corr
     length = get_n_samples(display_window / 60, dt)
     y_train = model.y['train']
     y_pred_train = model.y_pred[w_type]['train']
-    y_pred_train_lower = model.y_pred_lower[w_type]['train']
-    y_pred_train_upper = model.y_pred_upper[w_type]['train']
-    
+    if model.compute_ci:
+        y_pred_train_lower = model.y_pred_lower[w_type]['train']
+        y_pred_train_upper = model.y_pred_upper[w_type]['train']
+
     if model.distr != 'gaussian':
         diagnostics.append(fig.add_subplot(spec[0, 2]))
-        plot_residuals_pearson(y_train, y_pred_train, ax=diagnostics[2])
-
+        if plot_rsd:
+            plot_residuals_pearson(y_train, y_pred_train, ax=diagnostics[2])
+        else:
+            diagnostics[2].axis('off')
         diagnostics.append(fig.add_subplot(spec[0, 3]))
-        plot_residuals_deviance(y_train, y_pred_train, ax=diagnostics[3])
+        if plot_rsd:
+            plot_residuals_deviance(y_train, y_pred_train, ax=diagnostics[3])
+        else:
+            diagnostics[3].axis('off')
     else:
         diagnostics.append(fig.add_subplot(spec[0, 2]))
-        plot_residuals(y_train, y_pred_train, ax=diagnostics[2])
+        if plot_rsd:
+            plot_residuals(y_train, y_pred_train, ax=diagnostics[2])
+        else:
+            diagnostics[2].axis('off')
         diagnostics.append(fig.add_subplot(spec[0, 3]))
         diagnostics[3].axis('off')
 
+
     diagnostics.append(fig.add_subplot(spec[0, 4]))    
     plot_permutation(model, kind='train', w_type=w_type, num_repeat=num_repeat, ax=diagnostics[4])
-    
-    diagnostics.append(fig.add_subplot(spec[1, 4]))    
-    plot_permutation(model, kind='dev', w_type=w_type, num_repeat=num_repeat, ax=diagnostics[5])
 
+    if 'dev' in model.y: 
+        diagnostics.append(fig.add_subplot(spec[1, 4]))    
+        plot_permutation(model, kind='dev', w_type=w_type, num_repeat=num_repeat, ax=diagnostics[5])
+    # else:
+        # diagnostics[-1].axis('off') 
         
     if 'dev' in model.y:
         y_dev = model.y['dev']
         y_pred_dev = model.y_pred[w_type]['dev']
-        y_pred_dev_lower = model.y_pred_lower[w_type]['dev']
-        y_pred_dev_upper = model.y_pred_upper[w_type]['dev']
-        
+
         y = np.hstack([y_train[-int(length/2):], y_dev[:int(length/2)]])
         y_pred = np.hstack([y_pred_train[-int(length/2):], y_pred_dev[:int(length/2)]])
-        y_pred_lower = np.hstack([y_pred_train_lower[-int(length/2):], y_pred_dev_lower[:int(length/2)]])
-        y_pred_upper = np.hstack([y_pred_train_upper[-int(length/2):], y_pred_dev_upper[:int(length/2)]])
+
+        if model.compute_ci:
+            y_pred_dev_lower = model.y_pred_lower[w_type]['dev']
+            y_pred_dev_upper = model.y_pred_upper[w_type]['dev']
+            
+            y_pred_lower = np.hstack([y_pred_train_lower[-int(length/2):], y_pred_dev_lower[:int(length/2)]])
+            y_pred_upper = np.hstack([y_pred_train_upper[-int(length/2):], y_pred_dev_upper[:int(length/2)]])
     else:
-        y = y_train
-        y_pred = y_pred_train
-        y_pred_lower = y_pred_train_lower
-        y_pred_upper = y_pred_train_upper
+        y = y_train[-int(length):]
+        y_pred = y_pred_train[-int(length):]
+        if model.compute_ci:
+            y_pred_lower = y_pred_train_lower[-int(length):]
+            y_pred_upper = y_pred_train_upper[-int(length):]
 
     tt = np.arange(len(y)) * dt
     
     # plot train and dev prediction
     axes_pred = fig.add_subplot(spec[1, :-1])
     axes_pred.plot(tt, y, color='black')
-    axes_pred.plot(tt, y_pred, color='red')    
-    axes_pred.fill_between(tt, y_pred_lower, y_pred_upper, color='red', alpha=0.5)
+    axes_pred.plot(tt, y_pred, color='red') 
+    if model.compute_ci:
+        axes_pred.fill_between(tt, y_pred_lower, y_pred_upper, color='red', alpha=0.5)
 
     if len(y) == length:
         axes_pred.axvline(tt[int(length/2)], color='black', linestyle='--')
+        axes_pred.set_xlabel('(train set)  <-    Time (second)  ->     (dev set)', fontsize=12)
     else:
-        axes_pred.axvline(tt[len(y_train[-int(length/2):])], color='black', linestyle='--')
+        # axes_pred.axvline(tt[len(y_train[-int(length/2):])], color='black', linestyle='--')
+        axes_pred.set_xlabel('Time (second)', fontsize=12)
         
-    axes_pred.set_xlabel('(train set)  <-    Time (second)  ->     (dev set)', fontsize=12)
-    axes_pred.set_ylabel('spikes counts')
+    axes_pred.set_ylabel('Data')
 
     metric_train = model._score(model.y['train'], model.forwardpass(model.p[w_type], 'train'), model.metric)
     # metric_train = model._score(model.y['train'], model.y_pred[w_type]['train'], model.metric)

@@ -266,7 +266,10 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
     # initialize list of degree of freedom for each dimension
     if len(df) != ndim:
         raise ValueError("`df` must have the same length as `dims`")
-            
+
+    if type(lam) is not list:
+        lam = [lam,] * ndim
+     
     if smooth == 'cr':
         basis = cr  # Natural cubic regression spline
     elif smooth == 'cc':

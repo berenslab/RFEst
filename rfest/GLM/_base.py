@@ -388,7 +388,7 @@ class Base:
         pass
 
 
-    def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose):
+    def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model):
 
         """
 
@@ -480,23 +480,26 @@ class Base:
                     cost_dev_slice = np.array(cost_dev[i-tolerance:i])
                     
                     if np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
-                        params = params_list[i-tolerance]
-                        metric_dev_opt = metric_dev[i-tolerance]
+                        # params = params_list[i-tolerance]
+                        # metric_dev_opt = metric_dev[i-tolerance]
                         if verbose:
                             print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(i, tolerance))
+                        stop = 'dev_stop'
                         break
                     
                     if np.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
-                        params = params_list[i]
-                        metric_dev_opt = metric_dev_opt[i]
+                        # params = params_list[i]
+                        # metric_dev_opt = metric_dev[i]
                         if verbose:
                             print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.\n'.format(i, tolerance))
+                        stop = 'train_stop'
                         break
             
             else:
-                params = params_list[i]
-                metric_dev_opt = metric_dev[i]
+                # params = params_list[i]
+                # metric_dev_opt = metric_dev[i]
                 total_time_elapsed = time.time() - time_start
+                stop = 'maxiter_stop'
 
                 if verbose:
                     print('Stop: reached {0} steps.\n'.format(num_iters))
@@ -504,19 +507,52 @@ class Base:
         else:    
             print('Total time elapsed: {0:.3f} s.'.format(total_time_elapsed))
             
+
+        if return_model == 'best_dev_cost':
+            best = np.argmin(np.asarray(cost_dev[:i+1]))     
+
+        elif return_model == 'best_train_cost':
+            best = np.argmin(np.asarray(cost_train[:i+1]))  
+
+        elif return_model == 'best_dev_metric':
+            if metric in ['mse', 'gcv']:
+                best = np.argmin(np.asarray(metric_dev[:i+1]))
+            else:
+                best = np.argmax(np.asarray(metric_dev[:i+1]))
+
+        elif return_model == 'best_train_metric':
+            if metric in ['mse', 'gcv']: 
+                best = np.argmin(np.asarray(metric_train[:i+1]))
+            else:
+                best = np.argmax(np.asarray(metric_train[:i+1])) 
+
+        elif return_model == 'last':
+            if stop == 'dev_stop':
+                best = i-tolerance
+            else:
+                best = i
+        
+        else:
+            print('Provided `return_model` is not supported. Fallback to `best_dev_cost`') 
+            best = np.argmin(np.asarray(cost_dev[:i+1])) 
+        
+        params = params_list[best]
+        metric_dev_opt = metric_dev[best]   
+
         self.cost_train = np.hstack(cost_train[:i+1])
         self.cost_dev = np.hstack(cost_dev[:i+1])
         self.metric_train = np.hstack(metric_train[:i+1])
         self.metric_dev = np.hstack(metric_dev[:i+1])
         self.metric_dev_opt = metric_dev_opt 
-
+        self.total_time_elapsed = total_time_elapsed 
+        
         return params
 
     def fit(self, p0=None, extra=None, initialize='random',
             num_epochs=1, num_iters=5, metric=None, alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
-            step_size=1e-2, tolerance=10, verbose=1, random_seed=2046):
+            step_size=1e-2, tolerance=10, verbose=1, random_seed=2046, return_model='best_dev_cost'):
 
         """
 
@@ -624,7 +660,7 @@ class Base:
 
         # store optimized parameters
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
         self.R = self.p_opt['R'] if fit_R else np.array([1.])
 
         if fit_linear_filter:
@@ -814,7 +850,7 @@ class splineBase(Base):
             num_epochs=1, num_iters=3000, metric=None, alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
-            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046):
+            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046, return_model='best_dev_cost'):
 
         """
 
@@ -929,7 +965,7 @@ class splineBase(Base):
 
         # store optimized parameters
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
         self.R = self.p_opt['R'] if fit_R else np.array([1.])
 
         if fit_linear_filter:

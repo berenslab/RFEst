@@ -115,7 +115,7 @@ class LNLN(Base):
             alpha=1, beta=0.05, 
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False, 
-            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046):
+            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046, return_model='best_dev_cost'):
 
         self.metric = metric
 
@@ -169,7 +169,7 @@ class LNLN(Base):
                 p0.update({'nl_params': [None for i in range(self.n_s + 1)]})
         
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose)   
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)   
         self.R = self.p_opt['R']
         
         if fit_linear_filter: 
