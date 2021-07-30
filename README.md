@@ -16,12 +16,10 @@ lnp = GLM(distr='poisson', output_nonlinearity='softplus')
 # add training data
 lnp.add_design_matrix(X_train, dims=[25,], df=[8,], smooth='cr', name='stimulus') # use spline for stimulus filter
 lnp.add_design_matrix(y_train, dims=[20,], df=[8,], smooth='cr', shift=1, name='history') # use spline for history filter
-lnp.add_design_matrix(y_train_c, dims=[20,], shift=1, name='couple') # fit coupling filters without spline
 
 # add validation data
-lnp.add_design_matrix(X_train, dims=[25,], name='stimulus') # basis will automatically apply to dev set
-lnp.add_design_matrix(y_train, dims=[20,], shift=1, name='history') 
-lnp.add_design_matrix(y_train_c, dims=[20,], shift=1, name='couple')
+lnp.add_design_matrix(X_train, name='stimulus') # basis will automatically apply to dev set
+lnp.add_design_matrix(y_train, name='history') 
 
 # intialize model parameters
 lnp.initialize(num_subunits=1, dt=dt, kind='random', random_seed=2046)
