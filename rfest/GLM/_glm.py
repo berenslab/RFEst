@@ -140,8 +140,8 @@ class GLM:
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-    def add_design_matrix(self, X, dims=None, df=None, smooth=None, 
-                          num_subunits=1  , lam=0., filter_nonlinearity='none',
+    def add_design_matrix(self, X, dims=None, df=None, smooth=None, lag=True,
+                          lam=0., filter_nonlinearity='none',
                           kind='train', name='stimulus', shift=0, burn_in=None):
 
         '''
@@ -204,10 +204,17 @@ class GLM:
             shift = self.shift[name] 
             
         if not hasattr(self, 'burn_in'): # if exists, ignore
-            self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore 
-        
-        self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift)[self.burn_in:]
-         
+            self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore
+            self.has_burn_in = True
+
+        if lag: 
+            self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift)[self.burn_in:]
+        else:
+            self.X[kind][name] = X # if not time lag, shoudn't it also be no burn in?  
+                                # TODO: might need different handlings for instantenous RF.
+                                # conflict: history filter burned-in but the stimulus filter didn't
+            self.has_burn_in = False
+
         if smooth is None:
             # if train set exists and used spline as basis
             # automatically apply the same basis for dev/test set
@@ -253,7 +260,7 @@ class GLM:
                     edf =(XS.T * (np.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
                     self.edf[name] = edf 
 
-    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046, verbose=0):
+    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046, verbose=0, add_noise_to_mle=0):
     
         self.init_method = method # store meta            
         self.num_subunits = num_subunits
@@ -263,17 +270,19 @@ class GLM:
 
             self.b['random'] = {}
             self.w['random'] = {}
+            self.intercept['random'] = {}
             if verbose:
-                print('Initializing model paraemters randomly...')
+                print('Initializing model parameters randomly...')
 
             for i, name in enumerate(self.filter_names):
+                self.intercept['random'][name] = 0.
                 key = random.PRNGKey(random_seed + i) # change random seed for each filter
                 if name in self.S:
                     self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1))
                     self.w['random'][name] = self.S[name] @ self.b['random'][name] 
                 else:
                     self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1))
-            self.intercept['random'] = 0.
+            self.intercept['random']['global'] = 0.
         
             if verbose:
                 print('Finished.')
@@ -304,7 +313,9 @@ class GLM:
                     self.df[name] = self.dims['stimulus']
                     self.shift[name] = self.shift['stimulus']
                     self.filter_nonlinearity[name] = self.filter_nonlinearity['stimulus']
+                    self.intercept[method][name] = self.intercept[method]['stimulus'] 
                     self.w[method][name] = self.w[method]['stimulus']
+                    
                     if method in self.w_se: 
                         self.w_se[method][name] = self.w_se[method]['stimulus']
                     self.X['train'][name] = self.X['train']['stimulus']
@@ -331,6 +342,7 @@ class GLM:
                 pass
             
             self.w[method].pop('stimulus')
+            self.intercept[method].pop('stimulus')
             self.X['train'].pop('stimulus')
             self.X['dev'].pop('stimulus')
             if self.XS != {}:
@@ -338,6 +350,7 @@ class GLM:
                 self.XS['dev'].pop('stimulus')
                 self.S.pop('stimulus')
                 self.P.pop('stimulus')
+                
             self.filter_names = filter_names
 
         self.p[method] = {} 
@@ -345,17 +358,18 @@ class GLM:
         for i, name in enumerate(self.filter_names):
             if name in self.S:
                 b = self.b[method][name]
-                key = random.PRNGKey(random_seed + i) 
-                noise = 0.1 * random.normal(key, shape=b.shape)
+                key = random.PRNGKey(random_seed + i)
                 self.p[method].update({name: b})
+                noise = add_noise_to_mle * random.normal(key, shape=b.shape)
                 p0.update({name: b + noise})
+                
             else:
                 w = self.w[method][name]
                 key = random.PRNGKey(random_seed + i) 
-                noise = 0.1 * random.normal(key, shape=w.shape)
                 self.p[method].update({name: w})
-                p0.update({name: w})
-            
+                noise = add_noise_to_mle * random.normal(key, shape=w.shape)
+                p0.update({name: w + noise})
+                
             self.p[method].update({'intercept': self.intercept[method]}) 
             p0.update({'intercept': self.intercept[method]}) 
         
@@ -383,7 +397,7 @@ class GLM:
         else:
             self.penalize_S = False
 
-    def compute_mle(self, y):
+    def compute_mle(self, y, compute_ci=True):
 
         '''Compute maximum likelihood estimates.
         
@@ -393,6 +407,10 @@ class GLM:
         y: np.array or dict, (n_samples)
             Response. if dict is 
         '''
+        import sys
+
+        if not hasattr(self, 'compute_ci'):
+            self.compute_ci = compute_ci
         
         if type(y) is dict:
             y_train = y['train']
@@ -404,37 +422,38 @@ class GLM:
             y = {'train': y}
             y_train = y['train']
 
-        X = np.hstack([self.XS['train'][name] if name in self.S else self.X['train'][name] for name in self.filter_names])   
-        X = np.hstack([np.ones(X.shape[0])[:, np.newaxis], X])
-
-        P = scipy.linalg.block_diag(*([0] + [self.P[name] if name in self.P else np.zeros([self.X['train'][name].shape[1], self.X['train'][name].shape[1]]) 
-                                                    for name in self.filter_names]))
+        n_samples = len(y_train) - self.burn_in
+        X = np.hstack([np.hstack([np.ones(n_samples)[:, np.newaxis], self.XS['train'][name]]) if name in self.S else np.hstack([np.ones(n_samples)[:, np.newaxis], self.X['train'][name]]) for name in self.filter_names])   
+        X = np.hstack([np.ones(n_samples)[:, np.newaxis], X])
 
         XtX = X.T @ X
         Xty = X.T @ y_train[self.burn_in:]
 
-        try:
-            mle = np.linalg.solve(XtX + P, Xty)
-        except:
+        # if np.linalg.cond(XtX) < 1/sys.float_info.epsilon:
+        #     mle = np.linalg.solve(XtX, Xty)
+        # else:
             # if the stimulus cov is singular, then use lstsq
-            mle = np.linalg.lstsq(XtX + P, Xty, rcond=None)[0]
+        mle = np.linalg.lstsq(XtX, Xty, rcond=None)[0]
 
         self.b['mle'] = {}
         self.w['mle'] = {}
-        
+        self.intercept['mle'] = {}
+
         # slicing the mle matrix into each filter
-        l = np.cumsum(np.hstack([0, [self.n_features[name] for name in self.n_features]]))
+        l = np.cumsum(np.hstack([0, [self.n_features[name] + 1 for name in self.n_features]]))
         idx = [np.array((l[i], l[i+1])) for i in range(len(l)-1)]
         self.idx = idx
 
         for i, name in enumerate(self.filter_names):
+            mle_params = mle[idx[i][0]:idx[i][1]][:, np.newaxis]
+            self.intercept['mle'][name] = mle_params[0]
             if name in self.S:
-                self.b['mle'][name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]
+                self.b['mle'][name] = mle_params[1:]
                 self.w['mle'][name] = self.S[name] @ self.b['mle'][name]
             else:
-                self.w['mle'][name] = mle[idx[i][0]:idx[i][1]][:, np.newaxis]   
+                self.w['mle'][name] = mle_params[1:]
     
-        self.intercept['mle'] = mle[0]
+        self.intercept['mle']['global'] = mle[0]
 
         self.p['mle'] = {}
         self.y_pred['mle'] = {}
@@ -446,9 +465,6 @@ class GLM:
                 self.p['mle'].update({name: self.w['mle'][name]})
 
         self.p['mle']['intercept'] = self.intercept['mle']
-        # self.edf_tot = np.array([self.edf[name] if name in self.edf else self.n_features[name] for name in self.filter_names]).sum()
-        # self.n_params = XtX.shape[1] # total number of model parameters
- 
         self.y['train'] = y_train[self.burn_in:]
 
         if len(self.y['train']) == 0:
@@ -470,37 +486,6 @@ class GLM:
             if self.compute_ci:
                self._get_response_variance(w_type='mle', kind='dev')
 
-        # # performance stats
-        # self.p['null'] = {name: np.zeros_like(self.p['mle'][name]) for name in self.p['mle']}
-        
-        # for method in ['corrcoef', 'r2', 'mse', 'r2adj', 'r2pseudo', 'gcv']:
-        #     self.scores[method] = {}
-        #     if method == 'r2pseudo':
-        #         self.p['null']['intercept'] = self.y['train'].mean()      
-        #         self.scores[method]['train'] = np.asarray(1 - self.cost(self.p['mle'], 'train', penalize=False) / self.cost(self.p['null'], 'train', penalize=False) )
-            
-        #     elif method == 'gcv':
-        #         self.scores[method]['train'] = gcv(self.y['train'], self.y_pred['mle']['train'], self.edf_tot)
-        #     else:
-        #         self.scores[method]['train'] = self._score(self.y['train'], self.y_pred['mle']['train'], method)
-             
-        #     if type(y) is dict and 'dev' in y:
-        #         if method == 'r2pseudo':
-        #             self.p['null']['intercept'] = self.y['train'].mean()      
-        #             self.scores[method]['dev'] = np.asarray(1 - self.cost(self.p['mle'], 'dev', penalize=False) / self.cost(self.p['null'], 'dev', penalize=False) )
-        #         elif method == 'gcv':
-        #             self.scores[method]['dev'] = gcv(self.y['dev'], self.y_pred['mle']['dev'], self.edf_tot)
-        #         else:
-        #             self.scores[method]['dev'] = self._score(self.y['dev'], self.y_pred['mle']['dev'], method)
-                
-        # null model with mean firing rate as intercept 
- 
-        # self.r2pseudo['mle'] = {}
-        # self.r2pseudo['mle']['train'] = 1 - self.cost(self.p['mle'], 'train', penalize=False) / self.cost(self.p['null'], 'train', penalize=False)
-        # if 'dev' in y:
-        #     self.p['null']['intercept'] = self.y['dev'].mean()
-        #     self.r2pseudo['mle']['dev'] = 1 - self.cost(self.p['mle'], 'dev', penalize=False) / self.cost(self.p['null'], 'dev', penalize=False)
-
         self.mle_computed = True
 
     def forwardpass(self, p, kind):
@@ -518,7 +503,7 @@ class GLM:
         
         '''
         
-        intercept = p['intercept'] if 'intercept' in p else self.intercept
+        intercept = p['intercept']
                 
         filters_output = []
         for name in self.X[kind]:
@@ -527,12 +512,13 @@ class GLM:
             else:
                 input_term = self.X[kind][name]
 
-            output = self.fnl(np.squeeze(input_term @ p[name]), kind=self.filter_nonlinearity[name]) 
+            output = self.fnl(np.squeeze(input_term @ p[name]) + intercept[name], kind=self.filter_nonlinearity[name])
+            # output = self.fnl(np.squeeze(input_term @ p[name]), kind=self.filter_nonlinearity[name]) 
             filters_output.append(output)
 
         filters_output = np.array(filters_output).sum(0)
-        final_output = self.fnl(filters_output + intercept, kind=self.output_nonlinearity)
-        
+        final_output = self.fnl(filters_output + intercept['global'], kind=self.output_nonlinearity)
+        # final_output = self.fnl(filters_output, kind=self.output_nonlinearity) 
         return final_output
                           
     def cost(self, p, kind='train', precomputed=None, penalize=True):
@@ -678,28 +664,25 @@ class GLM:
                 cost_dev_slice = np.array(cost_dev[i-tolerance:i])
 
                 if 'dev' in self.y and np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
-                    # params = params_list[i-tolerance]
-                    # metric_dev_opt = metric_dev[i-tolerance]
                     if verbose:
-                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(i, tolerance))
+                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.'.format(i, tolerance))
+                        print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                     stop = 'dev_stop'
                     break
 
                 if np.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
-                    # params = params_list[i]
-                    # metric_dev_opt = metric_dev[i]
                     if verbose:
-                        print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.\n'.format(i, tolerance))
+                        print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.'.format(i, tolerance))
+                        print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                     stop = 'train_stop'
                     break
                     
         else:
-            # params = params_list[i]
-            # metric_dev_opt = metric_dev[i]
             total_time_elapsed = time.time() - time_start
             stop = 'maxiter_stop'
             if verbose:
-                print('Stop: reached {0} steps.\n'.format(num_iters))
+                print('Stop: reached {0} steps.'.format(num_iters))
+                print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                 
         if return_model == 'best_dev_cost':
             best = np.argmin(np.asarray(cost_dev[:i+1]))     
@@ -1074,21 +1057,22 @@ class GLM:
         y_pred_filters = {}
         y_pred_filters_upper = {}
         y_pred_filters_lower = {}
+        intercept = self.intercept[w_type]
         for name in X:
             if name in S:
                 y_se[name] = np.sqrt(np.sum(XS[name] @ V[name] * XS[name], 1))
-                y_pred_filters[name] = self.fnl((XS[name] @ b[name]).flatten(), kind=self.filter_nonlinearity[name])
+                y_pred_filters[name] = self.fnl((XS[name] @ b[name] + intercept[name]).flatten(), kind=self.filter_nonlinearity[name])
 
             else:
                 y_se[name] = np.sqrt(np.sum(self.X[kind][name] @ V[name] * self.X[kind][name], 1))   
-                y_pred_filters[name] = self.fnl((X[name] @ w[name]).flatten(), kind=self.filter_nonlinearity[name])
+                y_pred_filters[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten(), kind=self.filter_nonlinearity[name])
  
-            y_pred_filters_upper[name] = self.fnl((X[name] @ w[name]).flatten() + 2 * y_se[name], kind=self.filter_nonlinearity[name])
-            y_pred_filters_lower[name] = self.fnl((X[name] @ w[name]).flatten() - 2 * y_se[name], kind=self.filter_nonlinearity[name])
+            y_pred_filters_upper[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten() + 2 * y_se[name], kind=self.filter_nonlinearity[name])
+            y_pred_filters_lower[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten() - 2 * y_se[name], kind=self.filter_nonlinearity[name])
 
-        y_pred = self.fnl(np.array([y_pred_filters[name] for name in X]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
-        y_pred_upper = self.fnl(np.array([y_pred_filters_upper[name] for name in X]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
-        y_pred_lower = self.fnl(np.array([y_pred_filters_lower[name] for name in X]).sum(0) + self.intercept[w_type], kind=self.output_nonlinearity)
+        y_pred = self.fnl(np.array([y_pred_filters[name] for name in X]).sum(0) + intercept['global'], kind=self.output_nonlinearity)
+        y_pred_upper = self.fnl(np.array([y_pred_filters_upper[name] for name in X]).sum(0) + intercept['global'], kind=self.output_nonlinearity)
+        y_pred_lower = self.fnl(np.array([y_pred_filters_lower[name] for name in X]).sum(0) + intercept['global'], kind=self.output_nonlinearity)
         
         if not w_type in self.y_pred_lower:
             self.y_pred_lower[w_type] = {}

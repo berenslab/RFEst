@@ -2,6 +2,6 @@ numpy
 scipy
 sklearn
 matplotlib
-jax
-jaxlib
+jax==0.2.6
+jaxlib==0.1.57
 opencv-python

@@ -1014,7 +1014,7 @@ def plot_diagnostics(model, X_test=None, y_test=None, w_type='opt', metric='corr
         axes_pred.axvline(tt[int(length/2)], color='black', linestyle='--')
         axes_pred.set_xlabel('(train set)  <-    Time (second)  ->     (dev set)', fontsize=12)
     else:
-        # axes_pred.axvline(tt[len(y_train[-int(length/2):])], color='black', linestyle='--')
+        axes_pred.axvline(tt[len(y_train[-int(length/2):])], color='black', linestyle='--')
         axes_pred.set_xlabel('Time (second)', fontsize=12)
         
     axes_pred.set_ylabel('Data')
