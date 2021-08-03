@@ -302,6 +302,7 @@ class GLM:
             raise ValueError(f'`{method}` is not supported.')
         
         # rename and repmat: stimulus filter to subunits filters
+        # subunit model only works with one stimulus.
         filter_names = self.filter_names.copy()
         if num_subunits != 1:
             filter_names.remove('stimulus')
@@ -565,11 +566,11 @@ class GLM:
             l2 = np.linalg.norm(w, 2)
             loss += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
         
-        # regularization: spline wiggliness
-        if penalize and self.penalize_S and kind == 'train':
+        # # regularization: spline wiggliness
+        # if penalize and self.penalize_S and kind == 'train':
             
-            energy = np.array([np.sum(p[name].T @ self.P[name] @ p[name]) for name in self.P]).sum()
-            loss += energy
+        #     energy = np.array([np.sum(p[name].T @ self.P[name] @ p[name]) for name in self.P]).sum()
+        #     loss += energy
  
         return np.squeeze(loss)
  
@@ -709,7 +710,7 @@ class GLM:
                 best = i
         
         else:
-            print('Provided `return_model` is not supported. Fallback to `best_dev_cost`') 
+            print('Provided `return_model` is not supported. Fell back to `best_dev_cost`') 
             best = np.argmin(np.asarray(cost_dev[:i+1])) 
         
         params = params_list[best]
