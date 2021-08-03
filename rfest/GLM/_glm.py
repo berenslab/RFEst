@@ -162,6 +162,10 @@ class GLM:
         smooth: None, or str
             Type of spline bases. If None, no basis is used.
 
+        lag: bool
+            If True, the design matrix will be build based on the dims[0].
+            If False, a instantaneous RF will be fitted.
+
         filter_nonlinearity: str
             Nonlinearity for the stimulus filter.
 
@@ -210,11 +214,11 @@ class GLM:
         if lag: 
             self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift)[self.burn_in:]
         else:
+            self.burn_in = 0 
             self.X[kind][name] = X # if not time lag, shoudn't it also be no burn in?  
                                 # TODO: might need different handlings for instantenous RF.
                                 # conflict: history filter burned-in but the stimulus filter didn't
-            self.has_burn_in = False
-
+            
         if smooth is None:
             # if train set exists and used spline as basis
             # automatically apply the same basis for dev/test set
