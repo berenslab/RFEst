@@ -266,6 +266,18 @@ class GLM:
         self.num_subunits = num_subunits
         self.compute_ci = compute_ci
 
+        # # check if y exists. Need y for MLE. 
+        # if y is not None:
+        #     if type(y) is dict:
+        #         y_train = y['train']
+        #         if len(y['train']) == 0:
+        #             raise ValueError('Training set is empty after burned in.')
+        #         if 'dev' in y:
+        #             y_dev = y['dev']
+        #     else:
+        #         y = {'train': y}
+        #         y_train = y['train']
+
         if method =='random':
 
             self.b['random'] = {}
@@ -374,29 +386,30 @@ class GLM:
             self.p[method].update({'intercept': self.intercept[method]}) 
             p0.update({'intercept': self.intercept[method]}) 
         
-        # get random variance
-        if method == 'random' and self.y:
-            self.y['train'] = y_train[self.burn_in:]
-            if len(self.y['train']) == 0:
-                raise ValueError('Training set is empty after burned in.')
-            # # get filter confidence interval
-            if self.compute_ci:
-                self._get_filter_variance(w_type='random')
-                self._get_response_variance(w_type='random', kind='train')
+        # # get random variance
+        # if method == 'random' and self.y:
+
+        #     self.y['train'] = y_train[self.burn_in:]
+        #     if len(self.y['train']) == 0:
+        #         raise ValueError('Training set is empty after burned in.')
+        #     # # get filter confidence interval
+        #     if self.compute_ci:
+        #         self._get_filter_variance(w_type='random')
+        #         self._get_response_variance(w_type='random', kind='train')
                 
-            if type(y) is dict and 'dev' in y:
-                self.y['dev'] = y_dev[self.burn_in:]
-                if len(self.y['dev']) == 0:
-                    raise ValueError('Dev set is empty after burned in.')
-                if self.compute_ci:
-                    self._get_response_variance(w_type='random', kind='dev')
+        #     if type(y) is dict and 'dev' in y:
+        #         self.y['dev'] = y_dev[self.burn_in:]
+        #         if len(self.y['dev']) == 0:
+        #             raise ValueError('Dev set is empty after burned in.')
+        #         if self.compute_ci:
+        #             self._get_response_variance(w_type='random', kind='dev')
 
         self.dt = dt
         self.p0 = p0
-        if np.array([np.array(self.P[name] == 0).all() for name in self.P]).all():
-            self.penalize_S = True
-        else:
-            self.penalize_S = False
+        # if np.array([np.array(self.P[name] == 0).all() for name in self.P]).all():
+        #     self.penalize_S = True
+        # else:
+        #     self.penalize_S = False
 
     def compute_mle(self, y, compute_ci=True):
 
@@ -430,8 +443,8 @@ class GLM:
         XtX = X.T @ X
         Xty = X.T @ y_train[self.burn_in:]
 
-        # if np.linalg.cond(XtX) < 1/sys.float_info.epsilon:
-        #     mle = np.linalg.solve(XtX, Xty)
+        # if np.linalg.cond(XtX) < 1/sys.float_info.epsilon: # not enough for idendifying singularity.
+        #     mle = np.linalg.solve(XtX, Xty) # using solve is unstable
         # else:
             # if the stimulus cov is singular, then use lstsq
         mle = np.linalg.lstsq(XtX, Xty, rcond=None)[0]
@@ -797,8 +810,6 @@ class GLM:
             else:
                 self.y['train'] = y[self.burn_in:]
         
-
-
         self.y_pred['opt'] = {}
             
         self.p['opt'] = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose, return_model)
