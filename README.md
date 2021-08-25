@@ -97,7 +97,7 @@ Tutorial notebooks can be found here: [https://github.com/huangziwei/notebooks_R
 
 ## Reference
 
-[1] Huang, Z., Ran, Y., Euler, T., & Berens, P. (2021). [Estimating smooth and sparse neural receptive fields with a flexible spline basis](https://www.biorxiv.org/content/10.1101/2021.03.31.437831v1). bioRxiv.
+[1] Huang, Z., Ran, Y., Oesterle, J., Euler, T., & Berens, P. (2021). [Estimating smooth and sparse neural receptive fields with a flexible spline basis](https://nbdt.scholasticahq.com/article/27578-estimating-smooth-and-sparse-neural-receptive-fields-with-a-flexible-spline-basis). Neurons, Behavior, Data Analysis, and Theory, 1–30. https://doi.org/10.51628/001c.27578
 
 [2] MacKay, D. J. (1994). Bayesian nonlinear modeling for the prediction competition. ASHRAE transactions, 100(2), 1053-1062.
 
