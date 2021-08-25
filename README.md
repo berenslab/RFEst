@@ -97,10 +97,11 @@ Tutorial notebooks can be found here: [https://github.com/huangziwei/notebooks_R
 
 ## Reference
 
-[1] Huang, Z., Ran, Y., Oesterle, J., Euler, T., & Berens, P. (2021). [Estimating smooth and sparse neural receptive fields with a flexible spline basis](https://nbdt.scholasticahq.com/article/27578-estimating-smooth-and-sparse-neural-receptive-fields-with-a-flexible-spline-basis). Neurons, Behavior, Data Analysis, and Theory, 1–30. https://doi.org/10.51628/001c.27578
+[1] Huang, Z., Ran, Y., Oesterle, J., Euler, T., & Berens, P. (2021). Estimating smooth and sparse neural receptive fields with a flexible spline basis. Neurons, Behavior, Data Analysis, and Theory, 5(3), 1–30. https://doi.org/10.51628/001c.27578
 
 [2] MacKay, D. J. (1994). Bayesian nonlinear modeling for the prediction competition. ASHRAE transactions, 100(2), 1053-1062.
 
 [3] Sahani, M., & Linden, J. F. (2003). Evidence optimization techniques for estimating stimulus-response functions. In Advances in neural information processing systems (pp. 317-324).
 
 [4] Park, M., & Pillow, J. W. (2011). Receptive field inference with localized priors. PLoS computational biology, 7(10), e1002219.
+
