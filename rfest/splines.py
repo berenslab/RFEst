@@ -214,7 +214,7 @@ def te(*args):
     return columnwise_product(te(*As[:-1]), As[-1])
 
 
-def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
+def build_spline_matrix(dims, df, smooth, lam=0., return_P=False, dtype=np.float64):
     
     """
     
@@ -321,7 +321,7 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False):
         # P = (Pt, Px, Py)
 
     if return_P:
-        return uvec(S), P
+        return uvec(S).astype(dtype), P.astype(dtype)
     else:
-        return uvec(S)
+        return uvec(S).astype(dtype)
 

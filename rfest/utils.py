@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.decomposition import randomized_svd
 
-def build_design_matrix(X, nlag, shift=0, n_c=1):
+def build_design_matrix(X, nlag, shift=0, n_c=1, dtype=np.float64):
 
     """
 
@@ -59,9 +59,9 @@ def build_design_matrix(X, nlag, shift=0, n_c=1):
     X_design = np.hstack([X_padded[i:n_sample+i] for i in range(nlag)])
     
     if n_c > 1:
-        return X_design.reshape(X_design.shape[0], -1, n_c)
+        return X_design.reshape(X_design.shape[0], -1, n_c).astype(dtype)
     else:
-        return X_design
+        return X_design.astype(dtype)
 
 def get_spatial_and_temporal_filters(w, dims):
 

@@ -6,7 +6,7 @@ from jax import value_and_grad
 from jax import jit, jacfwd, jacrev
 from jax.experimental import optimizers
 from jax.config import config
-config.update("jax_enable_x64", True)
+# config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
 import time
@@ -20,7 +20,7 @@ __all__ = ['GLM']
 
 class GLM:
     
-    def __init__(self, distr='poisson', output_nonlinearity='none'):
+    def __init__(self, distr='poisson', output_nonlinearity='none', dtype=np.float64):
 
         '''
         Initialize the GLM class with empty variables.
@@ -79,6 +79,7 @@ class GLM:
         self.scores = {} # prediction error metric scores
         self.r2pseudo = {}
         self.corrcoef = {}
+        self.dtype = dtype
         
     def fnl(self, x, kind, params=None):
 
@@ -212,7 +213,7 @@ class GLM:
             self.has_burn_in = True
 
         if lag: 
-            self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift)[self.burn_in:]
+            self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift, dtype=self.dtype)[self.burn_in:]
         else:
             self.burn_in = 0 
             self.X[kind][name] = X # if not time lag, shoudn't it also be no burn in?  
@@ -249,7 +250,7 @@ class GLM:
             
             self.df[name] = df if type(df) is not int else [df, ]
             self.lam[name] = lam if type(lam) is list else [lam,] * len(self.df[name])
-            S, P = build_spline_matrix(dims, self.df[name], smooth, self.lam[name], return_P=True)
+            S, P = build_spline_matrix(dims, self.df[name], smooth, self.lam[name], return_P=True, dtype=self.dtype)
             self.S[name] = S
             self.P[name] = P # penalty matrix, which absolved lamda already
 
@@ -294,10 +295,10 @@ class GLM:
                 self.intercept['random'][name] = 0.
                 key = random.PRNGKey(random_seed + i) # change random seed for each filter
                 if name in self.S:
-                    self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1))
+                    self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1)).astype(self.dtype)
                     self.w['random'][name] = self.S[name] @ self.b['random'][name] 
                 else:
-                    self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1))
+                    self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1)).astype(self.dtype)
             self.intercept['random']['global'] = 0.
         
             if verbose:
@@ -377,14 +378,14 @@ class GLM:
                 b = self.b[method][name]
                 key = random.PRNGKey(random_seed + i)
                 self.p[method].update({name: b})
-                noise = add_noise_to_mle * random.normal(key, shape=b.shape)
+                noise = add_noise_to_mle * random.normal(key, shape=b.shape).astype(self.dtype)
                 p0.update({name: b + noise})
                 
             else:
                 w = self.w[method][name]
                 key = random.PRNGKey(random_seed + i) 
                 self.p[method].update({name: w})
-                noise = add_noise_to_mle * random.normal(key, shape=w.shape)
+                noise = add_noise_to_mle * random.normal(key, shape=w.shape).astype(self.dtype)
                 p0.update({name: w + noise})
                 
             self.p[method].update({'intercept': self.intercept[method]}) 
@@ -463,7 +464,7 @@ class GLM:
         self.idx = idx
 
         for i, name in enumerate(self.filter_names):
-            mle_params = mle[idx[i][0]:idx[i][1]][:, np.newaxis]
+            mle_params = mle[idx[i][0]:idx[i][1]][:, np.newaxis].astype(self.dtype)
             self.intercept['mle'][name] = mle_params[0]
             if name in self.S:
                 self.b['mle'][name] = mle_params[1:]
@@ -535,7 +536,7 @@ class GLM:
             filters_output.append(output)
 
         filters_output = np.array(filters_output).sum(0)
-        final_output = self.fnl(filters_output + intercept['global'], kind=self.output_nonlinearity)
+        final_output = self.fnl(filters_output + intercept['global'], kind=self.output_nonlinearity).astype(self.dtype)
         # final_output = self.fnl(filters_output, kind=self.output_nonlinearity) 
         return final_output
                           
