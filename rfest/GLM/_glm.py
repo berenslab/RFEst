@@ -192,7 +192,9 @@ class GLM:
         
         # check X shape
         if len(X.shape) == 1:
-            X = X[:, np.newaxis]
+            X = X[:, np.newaxis].astype(self.dtype)
+        else:
+            X = X.astype(self.dtype)
 
         if kind not in self.X:
             self.X.update({kind: {}})
@@ -808,12 +810,11 @@ class GLM:
                raise ValueError(f'No `y` is provided.') 
         else:
             if type(y) is dict:
-                self.y['train'] = y['train'][self.burn_in:]
+                self.y['train'] = y['train'][self.burn_in:].astype(self.dtype)
                 if 'dev' in y:
-                    self.y['dev'] = y['dev'][self.burn_in:]
-
+                    self.y['dev'] = y['dev'][self.burn_in:].astype(self.dtype)
             else:
-                self.y['train'] = y[self.burn_in:]
+                self.y['train'] = y[self.burn_in:].astype(self.dtype)
         
         self.y_pred['opt'] = {}
             
