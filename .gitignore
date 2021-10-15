@@ -10,3 +10,5 @@
 
 *.egg-info/
 *.DS_Store
+
+rfest/GLM/_glmh.py
