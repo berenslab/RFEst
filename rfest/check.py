@@ -1252,3 +1252,306 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
 
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])
     fig.suptitle(f'{model_name}', fontsize=14)
+
+
+def plot3dn(model, w_type='opt',contour=0.1, pixel_size=30, figsize=None, return_stats=False):
+
+    '''
+    plot3dn(ew). 
+    
+    
+    Parameters
+    ----------
+
+    model: object
+        Model object
+
+    X_test: np.array, dict or None
+        Stimulus. Only the named filters in the dict will be used for prediction.
+        Other filters, even trained, will be ignored if no test set provided. 
+
+    y_test: np.array
+        Response.   
+
+    w_type: str
+        weight types. 'opt', 'mle' or 'init'.
+
+    metric: str
+        Method of model evaluation. Can be
+        `mse`, `corrcoeff`, `r2`
+
+    window: float or None
+        Length of prediction to be plotted. If None, the whole `y_test`
+        is used. If the window is longer than y_test, the length of `y_test`
+        is used.
+
+    contour: float
+        > 0. The contour level. Default is 0.015.
+
+    pixel_size: 
+        The size of pixel for calculating the contour size.
+
+    figsize: tuple
+        Figure size.
+
+    '''
+    
+    import matplotlib.gridspec as gridspec
+    import warnings
+    warnings.filterwarnings("ignore")
+
+    dt = model.dt
+    dims = model.dims
+    shift = model.shift
+
+    # rf
+    ws = model.w[w_type]
+    if model.compute_ci:
+        ws_se = model.w_se[w_type]
+    
+    ncols = 4
+    nrows = sum(['stimulus' in name for name in model.filter_names]) + 1
+    figsize = figsize if figsize is not None else (16 * ncols / 4, 4 * nrows)
+    fig = plt.figure(figsize=figsize)
+
+    spec = gridspec.GridSpec(ncols=ncols, nrows=nrows, figure=fig)
+
+    # plot RF and get stats
+    stats = {}
+    RF_data = {}
+    ax_data = {}
+    
+    if model.compute_ci:
+        W_score, p_values = significance(model, w_type)
+    
+    for i, name in enumerate(ws):
+
+        if 'stimulus' in name:
+
+            RF_data[name] = {
+
+                "sRFs_min": [],
+                "sRFs_max": [],
+                "tRFs_min": [],
+                "tRFs_max": [],
+                "sRFs_min_cntr": [],
+                "sRFs_max_cntr": [],
+            }
+            ax_data[name] = {
+                "axes_sRF_min": [],
+                "axes_sRF_max": [],
+                "axes_tRF": [],
+            }
+
+            stats[name] = {
+                'tRF_time_min': [],
+                'tRF_time_max': [],
+                'tRF_activation_min': [],
+                'tRF_activation_max': [],
+                'tRF_time_diff': [],
+                'tRF_activation_diff': [],
+                'sRF_size_min': [],
+                'sRF_size_max': [],
+                'sRF_size_diff': [],
+            }
+
+            t_tRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
+
+            w = ws[name].flatten()
+            w_uvec = uvec(ws[name].flatten())
+            if model.compute_ci:
+                w_se = ws_se[name].flatten()
+                wu = w + 2 * w_se
+                wl = w - 2 * w_se
+                vmax = np.max([np.abs(w.max()), np.abs(w.min()), np.abs(wu.max()), np.abs(wu.min()), np.abs(wl.max()), np.abs(wl.min())])
+            else:
+                vmax = np.max([np.abs(w.max()), np.abs(w.min())])
+
+
+            w = w.reshape(dims[name])
+            w_uvec = w_uvec.reshape(dims[name])
+            if model.compute_ci:
+                wu = wu.reshape(dims[name])
+                wl = wl.reshape(dims[name])
+
+            min_coord = np.hstack(np.where(w == w.min()))
+            max_coord = np.hstack(np.where(w == w.max()))
+
+            tRF_max = w[:, max_coord[1], max_coord[2]].flatten()
+            tRF_min = w[:, min_coord[1], min_coord[2]].flatten()
+            if model.compute_ci:
+                tRFu_max = wu[:, max_coord[1], max_coord[2]].flatten()
+                tRFl_max = wl[:, max_coord[1], max_coord[2]].flatten()
+                tRFu_min = wu[:, min_coord[1], min_coord[2]].flatten()
+                tRFl_min = wl[:, min_coord[1], min_coord[2]].flatten()
+            
+            sRF_max = w[max_coord[0]]
+            sRF_max_uvec = w_uvec[max_coord[0]]
+            sRF_min = w[min_coord[0]]
+            sRF_min_uvec = w_uvec[min_coord[0]]
+
+            RF_data[name]['sRFs_max'].append(sRF_max_uvec)
+            RF_data[name]['sRFs_min'].append(sRF_min_uvec)
+            RF_data[name]['tRFs_max'].append(tRF_max)
+            RF_data[name]['tRFs_min'].append(tRF_min)
+
+
+            ax_sRF_min = fig.add_subplot(spec[i, 0])
+            ax_data[name]['axes_sRF_min'].append(ax_sRF_min)
+
+            ax_sRF_min.imshow(sRF_min.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax, aspect="auto")
+            ax_sRF_min.set_xticks([])
+            ax_sRF_min.set_yticks([])
+
+            ax_sRF_max = fig.add_subplot(spec[i, 1])
+            ax_data[name]['axes_sRF_max'].append(ax_sRF_max)
+            ax_sRF_max.imshow(sRF_max.T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax, aspect="auto")
+            ax_sRF_max.set_xticks([])
+            ax_sRF_max.set_yticks([])
+
+            ax_tRF = fig.add_subplot(spec[i, 2])
+            ax_data[name]['axes_tRF'].append(ax_tRF)
+            ax_tRF.plot(t_tRF, tRF_max, color='red')
+            ax_tRF.plot(t_tRF, tRF_min, color='blue')
+            if model.compute_ci:
+                ax_tRF.fill_between(t_tRF, tRFu_max, tRFl_max, color='C3', alpha=0.5)
+                ax_tRF.fill_between(t_tRF, tRFu_min, tRFl_min, color='C0', alpha=0.5)
+                ax_tRF.set_yticks([tRFl_max.min(), 0, tRFu_max.max()])
+            else:
+                ax_tRF.set_yticks([tRF_max.min(), 0, tRF_max.max()])
+            
+            ax_tRF.axhline(0, color='gray', linestyle='--')
+            ax_tRF.axvline(t_tRF[max_coord[0]], color='C3', linestyle='--', alpha=0.6)
+            ax_tRF.axvline(t_tRF[min_coord[0]], color='C0', linestyle='--', alpha=0.6)
+            ax_tRF.spines['top'].set_visible(False)
+            ax_tRF.spines['right'].set_visible(False)
+            
+            
+            ax_tRF.set_ylim(-vmax, vmax)
+
+            stats[name]['tRF_time_min'].append(t_tRF[min_coord[0]])
+            stats[name]['tRF_time_max'].append(t_tRF[max_coord[0]])
+            stats[name]['tRF_activation_min'].append(float(tRF_min[min_coord[0]]))
+            stats[name]['tRF_activation_max'].append(float(tRF_max[max_coord[0]]))
+
+            stats[name]['tRF_time_diff'].append(np.abs(t_tRF[max_coord[0]] - t_tRF[min_coord[0]]))
+            stats[name]['tRF_activation_diff'].append(np.abs(tRF_max[max_coord[0]] - tRF_min[min_coord[0]]))
+
+            if i == 0:
+                ax_sRF_min.set_title('Spatial (min)', fontsize=14)
+                ax_sRF_max.set_title('Spatial (max)', fontsize=14)
+                ax_tRF.set_title('Temporal', fontsize=14)
+
+            if model.compute_ci:
+                p = p_values[name]
+                
+                stars = '*'
+                
+                if p < 0.001:
+                    stars *= 3
+                elif p<0.01:
+                    stars *= 2
+                elif p<0.05:
+                    stars *= 1
+                else:
+                    stars = '[n.s.]'
+                    
+                ax_sRF_min.set_ylabel(f'{name} \n p={p:.02f}{stars} ', fontsize=14)
+
+        else :
+            
+            h = ws[name].flatten()
+            h_se = ws_se[name].flatten()
+            
+            hu = h + 2 * h_se
+            hl = h - 2 * h_se
+            t_hRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
+            ax_hRF = fig.add_subplot(spec[0, -1])
+            ax_hRF.plot(t_hRF, h, color='black')
+            if model.compute_ci:
+                ax_hRF.fill_between(t_hRF, hu, hl, color='gray', alpha=0.5)
+                ax_hRF.set_yticks([hl.min(), 0, hu.max()])
+            else:
+                ax_hRF.set_yticks([h.min(), 0, h.max()]) 
+
+            ax_hRF.spines['top'].set_visible(False)
+            ax_hRF.spines['right'].set_visible(False)
+            ax_hRF.set_title(name.capitalize(), fontsize=14)
+
+    # contour and more stats
+
+    for name in ws:
+
+        if 'stimulus' in name:
+            sRFs_min = RF_data[name]["sRFs_min"]
+            sRFs_max = RF_data[name]["sRFs_max"]
+            tRFs_min = RF_data[name]["tRFs_min"]
+            tRFs_max = RF_data[name]["tRFs_max"]
+
+            axes_sRF_min = ax_data[name]["axes_sRF_min"]
+            axes_sRF_max = ax_data[name]["axes_sRF_max"]
+            axes_tRF = ax_data[name]["axes_tRF"]
+
+            color_min = 'lightsteelblue'
+            color_max = 'lightcoral'
+
+            contour_size_min = []
+            contour_size_max = []
+
+            i = 0
+            CS_min = axes_sRF_min[i].contour(sRFs_min[i].T, levels=[-contour], colors=[color_min], linestyles=['-'],
+                                             linewidths=3, alpha=1)
+            cntrs_min = [p.vertices for p in CS_min.collections[0].get_paths()]
+            cntrs_size_min = [cv2.contourArea(cntr.astype(np.float32)) * pixel_size ** 2 / 1000 for cntr in
+                              cntrs_min]
+
+            axes_sRF_min[i].set_xlabel(f'cntr size = {cntrs_size_min[0]:.03f} 10^3 μm^2')
+
+            CS_max = axes_sRF_max[i].contour(sRFs_max[i].T, levels=[contour], colors=[color_max], linestyles=['-'],
+                                             linewidths=3, alpha=1)
+            cntrs_max = [p.vertices for p in CS_max.collections[0].get_paths()]
+            cntrs_size_max = [cv2.contourArea(cntr.astype(np.float32)) * pixel_size ** 2 / 1000 for cntr in
+                              cntrs_max]
+
+            axes_sRF_max[i].set_xlabel(f'cntr size = {cntrs_size_max[0]:.03f} 10^3 μm^2')
+
+            contour_size_min += cntrs_size_min
+            contour_size_max += cntrs_size_max
+
+            RF_data[name]["sRFs_min_cntr"].append(cntrs_min[0])
+            RF_data[name]["sRFs_max_cntr"].append(cntrs_max[0])
+            stats[name]['sRF_size_min'].append(cntrs_size_min[0])
+            stats[name]['sRF_size_max'].append(cntrs_size_max[0])
+            stats[name]['sRF_size_diff'].append(np.abs(cntrs_size_min[0] - cntrs_size_max[0]))
+
+
+    fig.tight_layout()
+
+    if return_stats:
+        return RF_data, stats
+
+def plot3d_allframes(model, figsize=None, transpose=False):
+    
+    '''
+    Plot all frames of a 3D RF. Not for subunits yet.
+    '''
+    
+    dt = model.dt
+    dims = model.dims['stimulus']
+    w = model.w['opt']['stimulus'].reshape(dims)
+    tt = np.linspace(-dims[0] * dt, 0, dims[0])
+    vmax = np.max([np.abs(w.min()), w.max()])
+
+    fig, ax = plt.subplots(1, 25, figsize=figsize)
+    for i in range(25):
+        if transpose:
+            ax[i].imshow(w[i].T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+        else:
+            ax[i].imshow(w[i], cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+        ax[i].set_xticks([])
+        ax[i].set_yticks([])
+        if i == 0:
+            ax[i].set_title(f't={tt[i]:.02f}') 
+        else:
+            ax[i].set_title(f'{tt[i]:.02f}') 
+    fig.tight_layout()    
