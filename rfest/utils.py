@@ -235,21 +235,22 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
             print('Done.')
                 
         elif data == 2:
-        
-            if os.path.exists(datapath + 'rgc_whitenoise.h5') is True and overwrite is False:
+            import pickle
+            
+            if os.path.exists(datapath + 'mahesaranathan.pickle') is True and overwrite is False:
                 print('(Maheswaranathan et. al. 2018) is already downloaded. To re-download the same file, please set `overwrite=False`.')
             else:     
                 if overwrite is True:
                     print('Re-downloading (Maheswaranathan et. al. 2018)...')
                 else:
-                    print('Downloading (Maheswaranathan et. al. 2018)...')                
-                url = 'https://github.com/baccuslab/inferring-hidden-structure-retinal-circuits/blob/master/rgc_whitenoise.h5?raw=true'
-                urllib.request.urlretrieve(url, datapath + 'rgc_whitenoise.h5')
+                    print('Downloading Subset of (Maheswaranathan et. al. 2018)...\nFor the complete dataset, see https://github.com/baccuslab/inferring-hidden-structure-retinal-circuits/')                
+                url = 'https://github.com/huangziwei/data_RFEst/blob/master/mahesaranathan.pickle?raw=true'
+                urllib.request.urlretrieve(url, datapath + 'mahesaranathan.pickle')
                 print('Done.')
             
             print('Loading data...')
-            with h5py.File(datapath + 'rgc_whitenoise.h5', 'r') as f:
-                data = {key:f[key][:] for key in f.keys()}
+            with open(datapath + 'mahesaranathan.pickle', 'rb') as f:
+                data = pickle.load(f)
             print('Done.')
             
         elif data == 3:
