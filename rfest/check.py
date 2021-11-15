@@ -1542,8 +1542,8 @@ def plot3d_allframes(model, figsize=None, transpose=False):
     tt = np.linspace(-dims[0] * dt, 0, dims[0])
     vmax = np.max([np.abs(w.min()), w.max()])
 
-    fig, ax = plt.subplots(1, 25, figsize=figsize)
-    for i in range(25):
+    fig, ax = plt.subplots(1, dims[0], figsize=figsize)
+    for i in range(dims[0]):
         if transpose:
             ax[i].imshow(w[i].T, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
         else:
