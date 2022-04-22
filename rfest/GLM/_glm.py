@@ -532,7 +532,7 @@ class GLM:
         y = self.y[kind]
         r = self.forwardpass(p, kind) if precomputed is None else precomputed
 
-        # cost functions 
+        # cost functions
         if distr == 'gaussian':
             loss = 0.5 * jnp.sum((y - r) ** 2)
 
@@ -845,7 +845,8 @@ class GLM:
             self.XS['test'].pop('stimulus')
 
         y_pred = self.forwardpass(p, kind='test')
-        self._get_response_variance(w_type=w_type, kind='test')
+        if self.compute_ci:
+            self._get_response_variance(w_type=w_type, kind='test')
 
         return y_pred
 
