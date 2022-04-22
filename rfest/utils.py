@@ -302,7 +302,8 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
         elif data == 4:
 
             if os.path.exists(datapath + 'stnmf.zip') is True and overwrite is False:
-                print('(Liu, et al., 2017) is already downloaded. To re-download the same file, please set `overwrite=False`.')
+                print(
+                    '(Liu, et al., 2017) is already downloaded. To re-download the same file, please set `overwrite=False`.')
             else:
                 if overwrite is True:
                     print('Re-downloading (Liu, et al., 2017)...')
@@ -331,7 +332,8 @@ def fetch_data(data=None, datapath='./data/', overwrite=False):
             import pickle
 
             if os.path.exists(datapath + 'rgc_dendrites.pickle') is True and overwrite is False:
-                print('(Ran, et al. 2020) is already downloaded. To re-download the same file, please set `overwrite=False`.')
+                print(
+                    '(Ran, et al. 2020) is already downloaded. To re-download the same file, please set `overwrite=False`.')
             else:
                 if overwrite is True:
                     print('Re-downloading (Ran, et al. 2020)...')
@@ -353,45 +355,49 @@ def znorm(x):
     return (x - x.mean()) / x.std()
 
 
-def upsample_data(stim, stimtime, trace, tracetime, threshold=False):
+def upsample_data(stim, stimtime, trace, tracetime, gradient=False, threshold=False):
     """
     Upsampling the stimulus into the calcium trace sampling rate.
 
     Parameters
     ==========
-    stim : np.ndarray
+    stim : ndarray
         Stimulus
 
-    stimtime : np.ndarray
+    stimtime : ndarray
         Trigger time of the stimulus
 
-    trace : np.ndarray
-        Calcium trace
+    trace : ndarray
+        Trace of the response
 
-    tracetime : np.ndarray
-        Time of each recorded point of the calcium trace.
-    
-    threshold : bool
-        Apply threshold at zero
-    
+    tracetime : ndarray
+        Time of each recorded point trace
+
+    gradient : True
+        Apply gradient to data
+
+    threshold: bool
+        Clip y at 0
+
     Return
     ======
-    X : np.ndarray
+    X : array
         Upsampled Stimulus
-    
-    y : np.ndarray
-        Gradient of the calcium trace.
+
+    y : array
+        Trace that overlaps with stimulus, potentially the gradient and clipped.
 
     dt : float
         timebin size.
     """
 
     valid_duration = np.logical_and(tracetime > stimtime[0], tracetime < stimtime[-1])
-
     trace_valid = trace[valid_duration]
-    
+
     y = znorm(trace_valid.copy())
-    y = np.gradient(y)
+
+    if gradient:
+        y = np.gradient(y)
 
     frames = np.vstack([stimtime[:-1], stimtime[1:]]).T
 
@@ -404,35 +410,41 @@ def upsample_data(stim, stimtime, trace, tracetime, threshold=False):
     dt = np.mean(np.diff(tracetime))
 
     if threshold:
-        return X[:cut], np.maximum(y[:cut], 0), dt
-    else:
-        return X[:cut], y[:cut], dt
+        y = np.maximum(y, 0)
+
+    return X[:cut], y[:cut], dt
 
 
-def downsample_data(stim, stimtime, trace, tracetime, threshold=False):
+def downsample_data(stim, stimtime, trace, tracetime, gradient=False, threshold=False):
     """
     Downsampling the calcium trace to the stimulus refresh rate.
 
     Parameters
     ==========
-    stim : np.ndarray
+    stim : ndarray
         Stimulus
 
-    stimtime : np.ndarray
+    stimtime : ndarray
         Trigger time of the stimulus
 
-    trace : np.ndarray
-        Calcium trace
+    trace : ndarray
+        Trace of the response
 
-    tracetime : np.ndarray
+    tracetime : ndarray
         Time of each recorded point of the calcium trace.
-    
+
+    gradient : True
+        Apply gradient to data
+
+    threshold: bool
+        Clip y at 0
+
     Return
     ======
-    X : np.ndarray
+    X : array
         Stimulus
-    
-    y : np.ndarray
+
+    y : array
         Downsampled gradient of the calcium trace.
 
     dt : float
@@ -441,20 +453,23 @@ def downsample_data(stim, stimtime, trace, tracetime, threshold=False):
 
     from scipy.interpolate import interp1d
 
-    data_interp = interp1d(
+    y = interp1d(
         tracetime.flatten(), znorm(trace.flatten()), kind='linear', fill_value='extrapolate')(stimtime)
 
+    if gradient:
+        y = np.gradient(y)
+
     X = stim
-    y = znorm(np.gradient(data_interp))
+    y = znorm(y)
 
     cut = np.min([X.shape[0], y.shape[0]])
 
     dt = np.mean(np.diff(stimtime))
 
     if threshold:
-        return X[:cut], np.maximum(y[:cut], 0), dt
-    else:
-        return X[:cut], y[:cut], dt
+        y = np.maximum(y, 0)
+
+    return X[:cut], y[:cut], dt
 
 
 def resample_spikes(stim, stimtime, spiketime):
