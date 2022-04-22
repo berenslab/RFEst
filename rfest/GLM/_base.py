@@ -459,11 +459,11 @@ class Base:
 
                 if metric is not None:
 
-                    m_train = self.compute_score(self.X, self.y, y_pred_train, metric)
+                    m_train = self.compute_score(self.y, y_pred_train, metric)
                     metric_train[i] = m_train
 
                     if extra is not None:
-                        m_dev = self.compute_score(extra['X'], extra['y'], y_pred_dev, metric)
+                        m_dev = self.compute_score(extra['y'], y_pred_dev, metric)
                         metric_dev[i] = m_dev
 
                 time_elapsed = time.time() - time_start
@@ -723,8 +723,8 @@ class Base:
 
         return y_pred
 
-    def compute_score(self, y, y_pred, metric):
-
+    @staticmethod
+    def compute_score(y, y_pred, metric):
         if metric == 'r2':
             return r2(y, y_pred)
         elif metric == 'mse':
@@ -742,7 +742,7 @@ class Base:
         if metric == 'nll':
             return self.cost(p=self.p_opt, extra={'X': X, 'y': y}, precomputed=y_pred)
         else:
-            return self.compute_score(X, y, y_pred, metric)
+            return self.compute_score(y, y_pred, metric)
 
 
 class splineBase(Base):
