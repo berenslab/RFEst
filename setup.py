@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 with open('requirements.txt') as f:
     required = f.read().splitlines()
@@ -9,4 +9,4 @@ setup(name='RFEst',
       author='Ziwei Huang',
       author_email='huang-ziwei@outlook.com',
       install_requires=required,
-     )
+      )

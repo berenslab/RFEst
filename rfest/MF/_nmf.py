@@ -1,13 +1,13 @@
 import time
+
 import numpy as np
 
-from ._initialize import initialize_factors
 from ..splines import build_spline_matrix
 
 __all__ = ['NMF']
 
-class NMF:
 
+class NMF:
     """
 
     Nonnegative Matrix Factorization with spline-based factors.
@@ -28,25 +28,25 @@ class NMF:
         self.S = build_spline_matrix(self.dims, self.df, self.smooth) if self.df is not None else None
 
         # store input data
-        self.V = V # data
+        self.V = V  # data
 
         # data shape / dimension
         self.m, self.n = V.shape
-        self.k = k # number of subunits
+        self.k = k  # number of subunits
         self.b = self.S.shape[1] if self.S is not None else None
 
         # initialize W and H
 
         np.random.seed(random_seed)
-    
+
         if self.S is not None:
             self.B = np.abs(np.random.rand(self.b, self.k))
             self.W = self.S @ self.B
- 
+
         else:
             self.B = None
             self.W = np.abs(np.random.rand(self.m, self.k))
-        
+
         self.H = np.abs(np.random.rand(self.n, self.k))
 
     def update_W(self):
@@ -109,7 +109,7 @@ class NMF:
         H = self.H
         WHt = W @ H.T
 
-        return np.mean((V - WHt)**2)
+        return np.mean((V - WHt) ** 2)
 
     def fit(self, num_iters=300, verbose=0, tolerance=10):
 
@@ -136,10 +136,13 @@ class NMF:
                     if len(self.cost) >= tolerance and (np.abs(np.diff(self.cost[-tolerance:])) < 1e-7).all():
                         total_time_elapsed = time.time() - time_start
 
-                        print('Stop: cost has been changing so small in the last {0:03d} chechpoints. Final cost = {1:.03f}, total time elapsed = {2:.03f} s'.format(tolerance, self.cost[-1], total_time_elapsed))
+                        print(
+                            'Stop: cost has been changing so small in the last {0:03d} chechpoints. Final cost = {1:.03f}, total time elapsed = {2:.03f} s'.format(
+                                tolerance, self.cost[-1], total_time_elapsed))
                         break
         else:
             if verbose:
                 total_time_elapsed = time.time() - time_start
 
-                print('Stop: reached maximum iterations. Final cost = {0:.03f}, total time elapsed = {1:.03f} s'.format(self.cost[-1], total_time_elapsed))
+                print('Stop: reached maximum iterations. Final cost = {0:.03f}, total time elapsed = {1:.03f} s'.format(
+                    self.cost[-1], total_time_elapsed))

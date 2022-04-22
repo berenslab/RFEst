@@ -1,29 +1,32 @@
-import jax.numpy as np
+import time
+import jax.numpy as jnp
 import jax.random as random
 from jax import grad
 from jax import jit
-from jax.experimental import optimizers
-from jax.experimental import stax
-from jax.experimental.stax import Dense, BatchNorm, Relu
 from jax.config import config
+
+try:
+    from jax.example_libraries import optimizers
+    from jax.example_libraries import stax
+    from jax.example_libraries.stax import Dense, BatchNorm, Relu
+except ImportError:
+    from jax.experimental import optimizers
+    from jax.experimental import stax
+    from jax.experimental.stax import Dense, BatchNorm, Relu
+
+from rfest.utils import build_design_matrix, uvec
+from rfest.splines import build_spline_matrix, cr, cc, bs
+from rfest.metrics import r2, mse, corrcoef
+from rfest.nonlinearities import *
+from rfest.priors import smoothness_kernel
+
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
-import time
-import itertools
-
-from ..utils import build_design_matrix, uvec
-from ..splines import build_spline_matrix, cr, cc, bs
-from ..metrics import accuracy, r2, mse, corrcoef
-from ..nonlinearities import *
-from ..priors import smoothness_kernel
-
-from scipy.optimize import minimize
-
 __all__ = ['Base', 'splineBase']
 
-class Base:
 
+class Base:
     """
 
     Base class for all GLMs.
@@ -53,38 +56,36 @@ class Base:
         # store meta
 
         self.ndim = len(dims)
-        if self.ndim == 4: # [t, x, y, c]
-            self.n_samples, self.n_features, self.n_c = X.shape 
-            self.dims = dims[:-1] 
+        if self.ndim == 4:  # [t, x, y, c]
+            self.n_samples, self.n_features, self.n_c = X.shape
+            self.dims = dims[:-1]
         else:
             self.n_samples, self.n_features = X.shape
             self.n_c = 1
-            self.dims = dims # assumed order [t, y, x]
-        
-        self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1 # time bin size (for LNP and LNLN)
+            self.dims = dims  # assumed order [t, y, x]
+
+        self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1  # time bin size (for LNP and LNLN)
         self.compute_mle = compute_mle
 
         # compute sufficient statistics
 
         self.XtY = X.T @ y
-        if (y == y.astype(int)).all(): # if y is spike
+        if (y == y.astype(int)).all():  # if y is spikes
             self.w_sta = self.XtY / sum(y)
-        else:                                 # if y is not spike
+        else:  # if y is not spike
             self.w_sta = self.XtY / len(y)
 
-        
-        if self.n_c > 1: 
+        if self.n_c > 1:
             self.w_sta = self.w_sta.reshape(self.n_features, self.n_c)
 
         if compute_mle:
             self.XtX = X.T @ X
-            self.w_mle = np.linalg.lstsq(self.XtX, self.XtY, rcond=None)[0]
-            if self.n_c > 1: 
-                self.w_mle = self.w_mle.reshape(self.n_features, self.n_c)       
+            self.w_mle = jnp.linalg.lstsq(self.XtX, self.XtY, rcond=None)[0]
+            if self.n_c > 1:
+                self.w_mle = self.w_mle.reshape(self.n_features, self.n_c)
 
-        self.X = np.array(X) # stimulus design matrix
-        self.y = np.array(y) # response
-
+        self.X = jnp.array(X)  # stimulus design matrix
+        self.y = jnp.array(y)  # response
 
     def fit_STC(self, prewhiten=False, n_repeats=10, percentile=100., random_seed=2046, verbose=5):
 
@@ -94,6 +95,8 @@ class Base:
 
         Parameters
         ==========
+
+        prewhiten: bool
 
         transform: None or Str
             * None - Original X is used
@@ -106,16 +109,18 @@ class Base:
         percentile: float
             Valid range of STC significance test.
 
+        verbose: int
+        random_seed: int
         """
 
         def get_stc(X, y, w):
 
             n = len(X)
-            ste = X[y!=0]
+            ste = X[y != 0]
             proj = ste - ste * w * w.T
             stc = proj.T @ proj / (n - 1)
 
-            eigvec, eigval, _ = np.linalg.svd(stc)
+            eigvec, eigval, _ = jnp.linalg.svd(stc)
 
             return eigvec, eigval
 
@@ -127,9 +132,9 @@ class Base:
 
             if self.compute_mle is False:
                 self.XtX = self.X.T @ self.X
-                self.w_mle = np.linalg.solve(self.XtX, self.XtY)
-            
-            X = np.linalg.solve(self.XtX, self.X.T).T
+                self.w_mle = jnp.linalg.solve(self.XtX, self.XtY)
+
+            X = jnp.linalg.solve(self.XtX, self.X.T).T
             w = uvec(self.w_mle)
 
         else:
@@ -143,7 +148,7 @@ class Base:
             for counter in range(n_repeats):
                 if verbose:
                     if counter % int(verbose) == 0:
-                        print(f'  {counter+1:}/{n_repeats}')
+                        print(f'  {counter + 1:}/{n_repeats}')
 
                 y_randomize = random.permutation(key, y)
                 _, eigval_randomize = get_stc(X, y_randomize, w)
@@ -151,11 +156,11 @@ class Base:
             else:
                 if verbose:
                     print(f'Done.')
-            eigval_null = np.vstack(eigval_null)
-            max_null, min_null = np.percentile(eigval_null, percentile), np.percentile(eigval_null, 100-percentile)
+            eigval_null = jnp.vstack(eigval_null)
+            max_null, min_null = jnp.percentile(eigval_null, percentile), jnp.percentile(eigval_null, 100 - percentile)
             mask_sig_pos = eigval > max_null
             mask_sig_neg = eigval < min_null
-            mask_sig = np.logical_or(mask_sig_pos, mask_sig_neg)
+            mask_sig = jnp.logical_or(mask_sig_pos, mask_sig_neg)
 
             self.w_stc = eigvec
             self.w_stc_pos = eigvec[:, mask_sig_pos]
@@ -172,10 +177,9 @@ class Base:
         else:
             self.w_stc = eigvec
             self.w_stc_eigval = eigval
-            self.w_stc_eigval_mask = np.ones_like(eigval).astype(bool)
-        
-    def initialize_history_filter(self, dims, shift=1):
+            self.w_stc_eigval_mask = jnp.ones_like(eigval).astype(bool)
 
+    def initialize_history_filter(self, dims, shift=1):
         """
         Parameters
         ==========
@@ -188,11 +192,10 @@ class Base:
 
         """
         y = self.y
-        yh = np.array(build_design_matrix(y[:, np.newaxis], dims, shift=shift))
+        yh = jnp.array(build_design_matrix(y[:, jnp.newaxis], dims, shift=shift))
         self.shift_h = shift
-        self.yh = np.array(yh)
-        self.h_mle = np.linalg.solve(yh.T @ yh, yh.T @ y)
-
+        self.yh = jnp.array(yh)
+        self.h_mle = jnp.linalg.solve(yh.T @ yh, yh.T @ y)
 
     def fit_nonparametric_nonlinearity(self, nbins=50, w=None):
 
@@ -204,63 +207,63 @@ class Base:
             elif hasattr(self, 'w_sta'):
                 w = self.w_sta.flatten()
         else:
-            w = np.array(w)
+            w = jnp.array(w)
 
         X = self.X
         X = X.reshape(X.shape[0], -1)
         y = self.y
 
         output_raw = X @ uvec(w)
-        output_spk = X[y!=0] @ uvec(w)
+        output_spk = X[y != 0] @ uvec(w)
 
-        hist_raw, bins = np.histogram(output_raw, bins=nbins, density=True)
-        hist_spk, _ = np.histogram(output_spk, bins=bins, density=True)
+        hist_raw, bins = jnp.histogram(output_raw, bins=nbins, density=True)
+        hist_spk, _ = jnp.histogram(output_spk, bins=bins, density=True)
 
-        mask = ~(hist_raw ==0)
+        mask = ~(hist_raw == 0)
 
         yy0 = hist_spk[mask] / hist_raw[mask]
-    
+
         self.nl_bins = bins[1:]
-        self.fnl_nonparametric = interp1d(bins[1:][mask], yy0)        
+        self.fnl_nonparametric = interp1d(bins[1:][mask], yy0)
 
     def initialize_parametric_nonlinearity(self, init_to='exponential', method=None, params_dict=None):
 
-        if method is None: # if no methods specified, use defaults.
-                           # this piece of code is quite redundant.
-                           # need to refactor. 
+        if method is None:  # if no methods specified, use defaults.
+            # this piece of code is quite redundant.
+            # need to refactor.
             if hasattr(self, 'nonlinearity'):
                 method = self.nonlinearity
             else:
                 method = self.filter_nonlinearity
-        else: # overwrite the default nonlinearity
+        else:  # overwrite the default nonlinearity
             if hasattr(self, 'nonlinearity'):
                 self.nonlinearity = method
             else:
                 self.filter_nonlinearity = method
-                self.output_nonlinearity = method 
-         
-        # prepare data 
-        if params_dict is None: 
-           params_dict = {}
-        xrange = params_dict['xrange'] if 'xrange' in params_dict else 5 
+                self.output_nonlinearity = method
+
+                # prepare data
+        if params_dict is None:
+            params_dict = {}
+        xrange = params_dict['xrange'] if 'xrange' in params_dict else 5
         nx = params_dict['nx'] if 'nx' in params_dict else 1000
-        x0 = np.linspace(-xrange, xrange, nx)
+        x0 = jnp.linspace(-xrange, xrange, nx)
         if init_to == 'exponential':
-            y0 = np.exp(x0)
-            
+            y0 = jnp.exp(x0)
+
         elif init_to == 'softplus':
             y0 = softplus(x0)
 
         elif init_to == 'relu':
             y0 = relu(x0)
-            
+
         elif init_to == 'nonparametric':
             y0 = self.fnl_nonparametric(x0)
 
         elif init_to == 'gaussian':
             import scipy.signal
-            y0 = scipy.signal.gaussian(nx, nx/10)
-            
+            y0 = scipy.signal.gaussian(nx, nx / 10)
+
         # fit nonlin
         if method == 'spline':
             smooth = params_dict['smooth'] if 'smooth' in params_dict else 'cr'
@@ -272,32 +275,32 @@ class Base:
             elif smooth == 'bs':
                 deg = params_dict['degree'] if 'degree' in params_dict else 3
                 X = bs(x0, df, deg)
-            
-            opt_params = np.linalg.pinv(X.T @ X) @ X.T @ y0
+
+            opt_params = jnp.linalg.pinv(X.T @ X) @ X.T @ y0
 
             self.nl_basis = X
-            
+
             def _nl(opt_params, x_new):
-                return np.maximum(interp1d(x0, X @ opt_params)(x_new), 0)
-            
+                return jnp.maximum(interp1d(x0, X @ opt_params)(x_new), 0)
+
         elif method == 'nn':
-                
+
             def loss(params, data):
                 x = data['x']
                 y = data['y']
                 yhat = _predict(params, x)
-                return np.mean((y - yhat)**2)
-            
+                return jnp.mean((y - yhat) ** 2)
+
             @jit
             def step(i, opt_state, data):
                 p = get_params(opt_state)
                 g = grad(loss)(p, data)
                 return opt_update(i, g, opt_state)
 
-            random_seed = params_dict['random_seed'] if 'random_seed' in params_dict else 2046 
+            random_seed = params_dict['random_seed'] if 'random_seed' in params_dict else 2046
             key = random.PRNGKey(random_seed)
 
-            step_size = params_dict['step_size'] if 'step_size' in params_dict else 0.01 
+            step_size = params_dict['step_size'] if 'step_size' in params_dict else 0.01
             layer_sizes = params_dict['layer_sizes'] if 'layer_sizes' in params_dict else [10, 10, 1]
             layers = []
             for layer_size in layer_sizes:
@@ -310,42 +313,42 @@ class Base:
             init_random_params, _predict = stax.serial(
                 *layers)
 
-            num_subunits = params_dict['num_subunits'] if 'num_subunits' in params_dict else 1 
+            num_subunits = params_dict['num_subunits'] if 'num_subunits' in params_dict else 1
             _, init_params = init_random_params(key, (-1, num_subunits))
 
             opt_init, opt_update, get_params = optimizers.adam(step_size)
             opt_state = opt_init(init_params)
 
             num_iters = params_dict['num_iters'] if 'num_iters' in params_dict else 1000
-            if num_subunits == 1: 
-                data = {'x': x0.reshape(-1,1), 'y': y0.reshape(-1,1)}
+            if num_subunits == 1:
+                data = {'x': x0.reshape(-1, 1), 'y': y0.reshape(-1, 1)}
             else:
-                data = {'x': np.vstack([x0 for i in range(num_subunits)]).T, 'y': y0.reshape(-1,1)}
+                data = {'x': jnp.vstack([x0 for i in range(num_subunits)]).T, 'y': y0.reshape(-1, 1)}
 
             for i in range(num_iters):
                 opt_state = step(i, opt_state, data)
             opt_params = get_params(opt_state)
-            
+
             def _nl(opt_params, x_new):
                 if len(x_new.shape) == 1:
                     x_new = x_new.reshape(-1, 1)
-                return np.maximum(_predict(opt_params, x_new), 0)
-        
+                return jnp.maximum(_predict(opt_params, x_new), 0)
+
         self.nl_xrange = x0
         self.nl_params = opt_params
         self.fnl_fitted = _nl
 
     def fnl(self, x, nl, params=None):
 
-        '''
+        """
         Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
-        '''
+        """
 
-        if  nl == 'softplus':
+        if nl == 'softplus':
             return softplus(x)
 
         elif nl == 'exponential':
-            return np.exp(x)
+            return jnp.exp(x)
 
         elif nl == 'softmax':
             return softmax(x)
@@ -354,7 +357,7 @@ class Base:
             return sigmoid(x)
 
         elif nl == 'tanh':
-            return np.tanh(x)
+            return jnp.tanh(x)
 
         elif nl == 'relu':
             return relu(x)
@@ -387,6 +390,9 @@ class Base:
     def cost(self, w, extra):
         pass
 
+    def forwardpass(self, *args, **kwargs):
+        y_pred = jnp.zeros(0)
+        return y_pred
 
     def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model):
 
@@ -403,10 +409,10 @@ class Base:
             return opt_update(i, g, opt_state)
 
         # preallocation
-        cost_train = [0] * num_iters 
+        cost_train = [0] * num_iters
         cost_dev = [0] * num_iters
         metric_train = [0] * num_iters
-        metric_dev = [0] * num_iters    
+        metric_dev = [0] * num_iters
         params_list = [0] * num_iters
 
         if verbose:
@@ -414,16 +420,19 @@ class Base:
                 if metric is None:
                     print('{0}\t{1:>10}\t{2:>10}'.format('Iters', 'Time (s)', 'Cost (train)'))
                 else:
-                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Metric (train)')) 
+                    print(
+                        '{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Metric (train)'))
             else:
                 if metric is None:
                     print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Cost (dev)'))
                 else:
-                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}\t{4:>10}\t{5:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Cost (dev)', 'Metric (train)', 'Metric (dev)')) 
+                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}\t{4:>10}\t{5:>10}'.format('Iters', 'Time (s)', 'Cost (train)',
+                                                                                    'Cost (dev)', 'Metric (train)',
+                                                                                    'Metric (dev)'))
 
         time_start = time.time()
 
-        for epoch in range(num_epochs):   
+        for epoch in range(num_epochs):
 
             opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
             if epoch == 0:
@@ -432,30 +441,29 @@ class Base:
                 opt_state = opt_init(params)
 
             if verbose and num_epochs > 1:
-                
                 print('\n===Epoch {0}==='.format(epoch))
-            
+
             for i in range(num_iters):
 
                 opt_state = step(i, opt_state)
                 params_list[i] = get_params(opt_state)
 
-                y_pred_train = self.forward_pass(p=params_list[i], extra=None)
+                y_pred_train = self.forwardpass(p=params_list[i], extra=None)
                 c_train = self.cost(p=params_list[i], precomputed=y_pred_train)
-                cost_train[i] = c_train 
-                
+                cost_train[i] = c_train
+
                 if extra is not None:
-                    y_pred_dev = self.forward_pass(p=params_list[i], extra=extra)
+                    y_pred_dev = self.forwardpass(p=params_list[i], extra=extra)
                     c_dev = self.cost(p=params_list[i], extra=extra, precomputed=y_pred_dev)
                     cost_dev[i] = c_dev
 
                 if metric is not None:
-                    
-                    m_train = self._score(self.X, self.y, y_pred_train, metric)
+
+                    m_train = self.compute_score(self.y, y_pred_train, metric)
                     metric_train[i] = m_train
 
                     if extra is not None:
-                        m_dev = self._score(extra['X'], extra['y'], y_pred_dev, metric)
+                        m_dev = self.compute_score(extra['y'], y_pred_dev, metric)
                         metric_dev[i] = m_dev
 
                 time_elapsed = time.time() - time_start
@@ -465,36 +473,43 @@ class Base:
                             if metric is None:
                                 print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}'.format(i, time_elapsed, c_train))
                             else:
-                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, c_train, m_train)) 
+                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(
+                                    i, time_elapsed, c_train, m_train))
 
                         else:
                             if metric is None:
-                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, c_train, c_dev))
+                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(
+                                    i, time_elapsed, c_train, c_dev))
                             else:
-                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}\t{4:>10.3f}\t{5:>10.3f}'.format(i, time_elapsed, c_train, c_dev, m_train, m_dev))
+                                print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}\t{4:>10.3f}\t{5:>10.3f}'.format(
+                                    i, time_elapsed, c_train, c_dev, m_train, m_dev))
 
-                if tolerance and i > 300: # tolerance = 0: no early stop.
+                if tolerance and i > 300:  # tolerance = 0: no early stop.
 
                     total_time_elapsed = time.time() - time_start
-                    cost_train_slice = np.array(cost_train[i-tolerance:i])
-                    cost_dev_slice = np.array(cost_dev[i-tolerance:i])
-                    
-                    if np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
+                    cost_train_slice = jnp.array(cost_train[i - tolerance:i])
+                    cost_dev_slice = jnp.array(cost_dev[i - tolerance:i])
+
+                    if jnp.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
                         # params = params_list[i-tolerance]
                         # metric_dev_opt = metric_dev[i-tolerance]
                         if verbose:
-                            print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(i, tolerance))
+                            print(
+                                'Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.\n'.format(
+                                    i, tolerance))
                         stop = 'dev_stop'
                         break
-                    
-                    if np.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
+
+                    if jnp.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
                         # params = params_list[i]
                         # metric_dev_opt = metric_dev[i]
                         if verbose:
-                            print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.\n'.format(i, tolerance))
+                            print(
+                                'Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.\n'.format(
+                                    i, tolerance))
                         stop = 'train_stop'
                         break
-            
+
             else:
                 # params = params_list[i]
                 # metric_dev_opt = metric_dev[i]
@@ -503,55 +518,54 @@ class Base:
 
                 if verbose:
                     print('Stop: reached {0} steps.\n'.format(num_iters))
-            
-        else:    
+
+        else:
             print('Total time elapsed: {0:.3f} s.'.format(total_time_elapsed))
-            
 
         if return_model == 'best_dev_cost':
-            best = np.argmin(np.asarray(cost_dev[:i+1]))     
+            best = jnp.argmin(jnp.asarray(cost_dev[:i + 1]))
 
         elif return_model == 'best_train_cost':
-            best = np.argmin(np.asarray(cost_train[:i+1]))  
+            best = jnp.argmin(jnp.asarray(cost_train[:i + 1]))
 
         elif return_model == 'best_dev_metric':
             if metric in ['mse', 'gcv']:
-                best = np.argmin(np.asarray(metric_dev[:i+1]))
+                best = jnp.argmin(jnp.asarray(metric_dev[:i + 1]))
             else:
-                best = np.argmax(np.asarray(metric_dev[:i+1]))
+                best = jnp.argmax(jnp.asarray(metric_dev[:i + 1]))
 
         elif return_model == 'best_train_metric':
-            if metric in ['mse', 'gcv']: 
-                best = np.argmin(np.asarray(metric_train[:i+1]))
+            if metric in ['mse', 'gcv']:
+                best = jnp.argmin(jnp.asarray(metric_train[:i + 1]))
             else:
-                best = np.argmax(np.asarray(metric_train[:i+1])) 
+                best = jnp.argmax(jnp.asarray(metric_train[:i + 1]))
 
         elif return_model == 'last':
             if stop == 'dev_stop':
-                best = i-tolerance
+                best = i - tolerance
             else:
                 best = i
-        
-        else:
-            print('Provided `return_model` is not supported. Fallback to `best_dev_cost`') 
-            best = np.argmin(np.asarray(cost_dev[:i+1])) 
-        
-        params = params_list[best]
-        metric_dev_opt = metric_dev[best]   
 
-        self.cost_train = np.hstack(cost_train[:i+1])
-        self.cost_dev = np.hstack(cost_dev[:i+1])
-        self.metric_train = np.hstack(metric_train[:i+1])
-        self.metric_dev = np.hstack(metric_dev[:i+1])
-        self.metric_dev_opt = metric_dev_opt 
-        self.total_time_elapsed = total_time_elapsed 
-        
+        else:
+            print('Provided `return_model` is not supported. Fallback to `best_dev_cost`')
+            best = jnp.argmin(jnp.asarray(cost_dev[:i + 1]))
+
+        params = params_list[best]
+        metric_dev_opt = metric_dev[best]
+
+        self.cost_train = jnp.hstack(cost_train[:i + 1])
+        self.cost_dev = jnp.hstack(cost_dev[:i + 1])
+        self.metric_train = jnp.hstack(metric_train[:i + 1])
+        self.metric_dev = jnp.hstack(metric_dev[:i + 1])
+        self.metric_dev_opt = metric_dev_opt
+        self.total_time_elapsed = total_time_elapsed
+
         return params
 
     def fit(self, p0=None, extra=None, initialize='random',
-            num_epochs=1, num_iters=5, metric=None, alpha=1, beta=0.05, 
+            num_epochs=1, num_iters=5, metric=None, alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
-            fit_history_filter=False, fit_nonlinearity=False, 
+            fit_history_filter=False, fit_nonlinearity=False,
             step_size=1e-2, tolerance=10, verbose=1, random_seed=2046, return_model='best_dev_cost'):
 
         """
@@ -602,14 +616,14 @@ class Base:
 
         """
 
-        self.metric = metric # metric for cross-validation and prediction
+        self.metric = metric  # metric for cross-validation and prediction
 
         self.alpha = alpha
-        self.beta = beta # elastic net parameter - global penalty weight for linear filter
+        self.beta = beta  # elastic net parameter - global penalty weight for linear filter
         self.num_iters = num_iters
 
         self.fit_R = fit_R
-        self.fit_linear_filter = fit_linear_filter, 
+        self.fit_linear_filter = fit_linear_filter,
         self.fit_history_filter = fit_history_filter
         self.fit_nonlinearity = fit_nonlinearity
         self.fit_intercept = fit_intercept
@@ -624,25 +638,25 @@ class Base:
                 p0.update({'w': self.w_sta})
             elif initialize == 'random':
                 key = random.PRNGKey(random_seed)
-                w0 = 0.01 * random.normal(key, shape=(self.w_sta.shape[0], )).flatten()
+                w0 = 0.01 * random.normal(key, shape=(self.w_sta.shape[0],)).flatten()
                 p0.update({'w': w0})
 
         if 'intercept' not in dict_keys:
-            p0.update({'intercept': np.array([0.])})
+            p0.update({'intercept': jnp.array([0.])})
 
         if 'R' not in dict_keys and self.fit_R:
-            p0.update({'R': np.array([1.])})
+            p0.update({'R': jnp.array([1.])})
 
         if 'h' not in dict_keys:
             if initialize is None and hasattr(self, 'h_mle'):
-                p0.update({'h': self.h_mle})            
+                p0.update({'h': self.h_mle})
 
             elif initialize == 'random' and hasattr(self, 'h_mle'):
-                    key = random.PRNGKey(random_seed)
-                    h0 = 0.01 * random.normal(key, shape=(self.h_mle.shape[0], )).flatten()
-                    p0.update({'h': h0})
+                key = random.PRNGKey(random_seed)
+                h0 = 0.01 * random.normal(key, shape=(self.h_mle.shape[0],)).flatten()
+                p0.update({'h': h0})
             else:
-                p0.update({'h': None}) 
+                p0.update({'h': None})
 
         if 'nl_params' not in dict_keys:
             if hasattr(self, 'nl_params'):
@@ -651,27 +665,28 @@ class Base:
                 p0.update({'nl_params': None})
 
         if extra is not None:
-            
-            if hasattr(self, 'h_mle'):
-                yh = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.yh.shape[1], shift=1))
-                extra.update({'yh': yh}) 
 
-            extra = {key: np.array(extra[key]) for key in extra.keys()}
+            if hasattr(self, 'h_mle'):
+                yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.yh.shape[1], shift=1))
+                extra.update({'yh': yh})
+
+            extra = {key: jnp.array(extra[key]) for key in extra.keys()}
 
         # store optimized parameters
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
-        self.R = self.p_opt['R'] if fit_R else np.array([1.])
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose,
+                                          return_model)
+        self.R = self.p_opt['R'] if fit_R else jnp.array([1.])
 
         if fit_linear_filter:
             self.w_opt = self.p_opt['w']
-        
+
         if fit_history_filter:
             self.h_opt = self.p_opt['h']
-        
+
         if fit_nonlinearity:
             self.nl_params_opt = self.p_opt['nl_params']
-        
+
         if fit_intercept:
             self.intercept = self.p_opt['intercept']
 
@@ -693,23 +708,23 @@ class Base:
             during training.
 
         """
-        
+
         extra = {'X': X, 'y': y}
         if hasattr(self, 'h_mle'):
 
             if y is None:
                 raise ValueError('`y` is needed for calculating response history.')
-            
-            yh = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.yh.shape[1], shift=self.shift_h))
-            extra.update({'yh': yh}) 
+
+            yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.yh.shape[1], shift=self.shift_h))
+            extra.update({'yh': yh})
 
         params = self.p_opt if p is None else p
-        y_pred = self.forward_pass(params, extra=extra)
+        y_pred = self.forwardpass(params, extra=extra)
 
         return y_pred
 
-    def _score(self, X, y, y_pred, metric):
-
+    @staticmethod
+    def compute_score(y, y_pred, metric):
         if metric == 'r2':
             return r2(y, y_pred)
         elif metric == 'mse':
@@ -722,17 +737,15 @@ class Base:
     def score(self, X, y, p=None, metric='corrcoef'):
 
         # Performance measure.
-
         y_pred = self.predict(X, y, p)
 
         if metric == 'nll':
             return self.cost(p=self.p_opt, extra={'X': X, 'y': y}, precomputed=y_pred)
         else:
-            return self._score(X, y, y_pred, metric)
-        
+            return self.compute_score(y, y_pred, metric)
+
 
 class splineBase(Base):
-
     """
 
     Base class for spline-based GLMs.
@@ -769,48 +782,47 @@ class splineBase(Base):
 
         """
 
-        super().__init__(X, y, dims, compute_mle, **kwargs) 
-        
-        self.df = df # number basis / degree of freedom
-        self.smooth = smooth # type of basis
+        super().__init__(X, y, dims, compute_mle, **kwargs)
 
-        S = np.array(build_spline_matrix(self.dims, df, smooth)) # for w
-        
+        self.df = df  # number basis / degree of freedom
+        self.smooth = smooth  # type of basis
+
+        S = jnp.array(build_spline_matrix(self.dims, df, smooth))  # for w
+
         if self.n_c > 1:
-            XS = np.dstack([self.X[:, :, i] @ S for i in range(self.n_c)]).reshape(self.n_samples, -1)
+            XS = jnp.dstack([self.X[:, :, i] @ S for i in range(self.n_c)]).reshape(self.n_samples, -1)
         else:
             XS = self.X @ S
 
-        self.S = S # spline matrix
+        self.S = S  # spline matrix
         self.XS = XS
 
-        self.n_b = S.shape[1] # num:ber of spline coefficients
+        self.n_b = S.shape[1]  # num:ber of spline coefficients
 
         # compute spline-based maximum likelihood
-        self.b_spl = np.linalg.lstsq(XS.T @ XS, XS.T @ y, rcond=None)[0]
+        self.b_spl = jnp.linalg.lstsq(XS.T @ XS, XS.T @ y, rcond=None)[0]
 
-        if self.n_c > 1: 
+        if self.n_c > 1:
             self.w_spl = S @ self.b_spl.reshape(self.n_b, self.n_c)
         else:
-            self.w_spl = S @ self.b_spl 
-        
+            self.w_spl = S @ self.b_spl
+
     def initialize_Cinv(self, params):
-        
+
         df = self.df
         Cinvs = [smoothness_kernel([params[i], ], df[i])[1] for i in range(len(df))]
-        
+
         if len(Cinvs) == 1:
             self.Cinv = Cinvs[0]
-        
+
         elif len(Cinvs) == 2:
-            self.Cinv = np.kron(*Cinvs)
-        
+            self.Cinv = jnp.kron(*Cinvs)
+
         else:
-            self.Cinv = np.kron(Cinvs[0], np.kron(Cinvs[1], Cinvs[2]))
-        
+            self.Cinv = jnp.kron(Cinvs[0], jnp.kron(Cinvs[1], Cinvs[2]))
+
     def cost(self, b, extra):
         pass
-
 
     def initialize_history_filter(self, dims, df, smooth='cr', shift=1):
 
@@ -832,24 +844,23 @@ class splineBase(Base):
             Should be 1 or larger. 
 
         """
-        
+
         y = self.y
-        Sh = np.array(build_spline_matrix([dims, ], [df, ], smooth)) # for h
-        yh = np.array(build_design_matrix(self.y[:, np.newaxis], Sh.shape[0], shift=shift))
+        Sh = jnp.array(build_spline_matrix([dims, ], [df, ], smooth))  # for h
+        yh = jnp.array(build_design_matrix(self.y[:, jnp.newaxis], Sh.shape[0], shift=shift))
         yS = yh @ Sh
 
         self.shift_h = shift
-        self.yh = np.array(yh)
-        self.Sh = Sh # spline basis for spike-history
+        self.yh = jnp.array(yh)
+        self.Sh = Sh  # spline basis for spike-history
         self.yS = yS
-        self.bh_spl = np.linalg.solve(yS.T @ yS, yS.T @ y)
+        self.bh_spl = jnp.linalg.solve(yS.T @ yS, yS.T @ y)
         self.h_spl = Sh @ self.bh_spl
 
-
     def fit(self, p0=None, extra=None, initialize='random',
-            num_epochs=1, num_iters=3000, metric=None, alpha=1, beta=0.05, 
+            num_epochs=1, num_iters=3000, metric=None, alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
-            fit_history_filter=False, fit_nonlinearity=False, 
+            fit_history_filter=False, fit_nonlinearity=False,
             step_size=1e-2, tolerance=10, verbose=100, random_seed=2046, return_model='best_dev_cost'):
 
         """
@@ -899,7 +910,7 @@ class splineBase(Base):
         self.metric = metric
 
         self.alpha = alpha
-        self.beta = beta # elastic net parameter - global penalty weight for linear filter
+        self.beta = beta  # elastic net parameter - global penalty weight for linear filter
         self.num_iters = num_iters
 
         self.fit_R = fit_R
@@ -911,8 +922,8 @@ class splineBase(Base):
         # initial parameters
 
         if p0 is None:
-            p0 = {}    
-                       
+            p0 = {}
+
         dict_keys = p0.keys()
         if 'b' not in dict_keys:
             if initialize is None:
@@ -920,24 +931,24 @@ class splineBase(Base):
             else:
                 if initialize == 'random':
                     key = random.PRNGKey(random_seed)
-                    b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c, )).flatten()
+                    b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c,)).flatten()
                     p0.update({'b': b0})
 
         if 'intercept' not in dict_keys:
-            p0.update({'intercept': np.array([0.])})
+            p0.update({'intercept': jnp.array([0.])})
 
         if 'R' not in dict_keys:
-            p0.update({'R': np.array([1.])})
+            p0.update({'R': jnp.array([1.])})
 
         if 'bh' not in dict_keys:
             if initialize is None and hasattr(self, 'bh_spl'):
-                p0.update({'bh': self.bh_spl})  
+                p0.update({'bh': self.bh_spl})
             elif initialize == 'random' and hasattr(self, 'bh_spl'):
                 key = random.PRNGKey(random_seed)
                 bh0 = 0.01 * random.normal(key, shape=(len(self.bh_spl),)).flatten()
                 p0.update({'bh': bh0})
             else:
-                p0.update({'bh': None})  
+                p0.update({'bh': None})
 
         if 'nl_params' not in dict_keys:
             if hasattr(self, 'nl_params'):
@@ -948,40 +959,41 @@ class splineBase(Base):
         if extra is not None:
 
             if self.n_c > 1:
-                XS_ext = np.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(extra['X'].shape[0], -1)
-                extra.update({'XS': XS_ext}) 
+                XS_ext = jnp.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(extra['X'].shape[0],
+                                                                                                    -1)
+                extra.update({'XS': XS_ext})
             else:
                 extra.update({'XS': extra['X'] @ self.S})
-            
-            if hasattr(self, 'h_spl'):
-                
-                yh_ext = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.Sh.shape[0], shift=1))
-                yS_ext = yh_ext @ self.Sh
-                extra.update({'yS': yS_ext}) 
-            
-            extra = {key: np.array(extra[key]) for key in extra.keys()}
 
-            self.extra = extra # store for cross-validation
+            if hasattr(self, 'h_spl'):
+                yh_ext = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.Sh.shape[0], shift=1))
+                yS_ext = yh_ext @ self.Sh
+                extra.update({'yS': yS_ext})
+
+            extra = {key: jnp.array(extra[key]) for key in extra.keys()}
+
+            self.extra = extra  # store for cross-validation
 
         # store optimized parameters
         self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
-        self.R = self.p_opt['R'] if fit_R else np.array([1.])
+        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose,
+                                          return_model)
+        self.R = self.p_opt['R'] if fit_R else jnp.array([1.])
 
         if fit_linear_filter:
-            self.b_opt = self.p_opt['b'] # optimized RF basis coefficients
+            self.b_opt = self.p_opt['b']  # optimized RF basis coefficients
             if self.n_c > 1:
-                self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_c)  
+                self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_c)
             else:
-                self.w_opt = self.S @ self.b_opt # optimized RF
-        
+                self.w_opt = self.S @ self.b_opt  # optimized RF
+
         if fit_history_filter:
             self.bh_opt = self.p_opt['bh']
             self.h_opt = self.Sh @ self.bh_opt
 
         if fit_nonlinearity:
             self.nl_params_opt = self.p_opt['nl_params']
-       
+
         if fit_intercept:
             self.intercept = self.p_opt['intercept']
 
@@ -1003,55 +1015,54 @@ class splineBase(Base):
             during training.
 
         """
-        
+
         if self.n_c > 1:
-            XS = np.dstack([X[:, :, i] @ self.S for i in range(self.n_c)]).reshape(X.shape[0], -1)
+            XS = jnp.dstack([X[:, :, i] @ self.S for i in range(self.n_c)]).reshape(X.shape[0], -1)
         else:
             XS = X @ self.S
-        
+
         extra = {'X': X, 'XS': XS, 'y': y}
 
         if hasattr(self, 'h_spl'):
 
             if y is None:
                 raise ValueError('`y` is needed for calculating response history.')
-            
-            yh = np.array(build_design_matrix(extra['y'][:, np.newaxis], self.Sh.shape[0], shift=self.shift_h))
+
+            yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.Sh.shape[0], shift=self.shift_h))
             yS = yh @ self.Sh
-            extra.update({'yS': yS}) 
+            extra.update({'yS': yS})
 
         params = self.p_opt if p is None else p
-        y_pred = self.forward_pass(params, extra=extra)
+        y_pred = self.forwardpass(params, extra=extra)
 
         return y_pred
 
-class interp1d:
 
+class interp1d:
     """
     1D linear intepolation.
     usage:
-        x = np.linspace(-5, 5, 10)
-        y = np.cos(x)
+        x = jnp.linspace(-5, 5, 10)
+        y = jnp.cos(x)
         f = interp1d(x, y)
-        new_x = np.linspace(-5, 5, 100)
+        new_x = jnp.linspace(-5, 5, 100)
         new_y = f(new_x)
     """
 
     def __init__(self, x, y):
-
         self.x = x
         self.y = y
-        self.slopes = np.diff(y) / np.diff(x)
+        self.slopes = jnp.diff(y) / jnp.diff(x)
 
     def __call__(self, x_new):
-
-        i = np.searchsorted(self.x, x_new) - 1
-        i = np.where(i == -1, 0, i)
-        i = np.where(i == len(self.x) - 1, -1, i)
+        i = jnp.searchsorted(self.x, x_new) - 1
+        i = jnp.where(i == -1, 0, i)
+        i = jnp.where(i == len(self.x) - 1, -1, i)
 
         return self.y[i] + self.slopes[i] * (x_new - self.x[i])
 
-if __name__ == "__main__": 
 
+if __name__ == "__main__":
     import doctest
+
     doctest.testmod(verbose=True)
