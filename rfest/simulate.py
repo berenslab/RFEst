@@ -146,6 +146,8 @@ def flickerbar(n_samples, dims, shift=0, beta=None, noise='gaussian', design_mat
 
     nt, nx = dims
 
+    np.random.seed(random_seed)
+
     if noise == 'gaussian':
         X = np.random.randn(n_samples, nx)
     elif noise == 'binary':
