@@ -24,7 +24,7 @@ class LNLN(Base):
         self.filter_nonlinearity = filter_nonlinearity
         self.fit_subunits_weight = kwargs['fit_subunits_weight'] if 'fit_subunits_weight' in kwargs.keys() else False
 
-    def forward_pass(self, p, extra):
+    def forwardpass(self, p, extra):
 
         dt = self.dt
         X = self.X if extra is None else extra['X']
@@ -91,7 +91,7 @@ class LNLN(Base):
     def cost(self, p, extra=None, precomputed=None):
 
         y = self.y if extra is None else extra['y']
-        r = self.forward_pass(p, extra) if precomputed is None else precomputed
+        r = self.forwardpass(p, extra) if precomputed is None else precomputed
         r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
         dt = self.dt
 

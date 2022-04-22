@@ -18,7 +18,7 @@ class splineLNLN(splineBase):
         self.filter_nonlinearity = filter_nonlinearity
         self.output_nonlinearity = output_nonlinearity
 
-    def forward_pass(self, p, extra=None):
+    def forwardpass(self, p, extra=None):
 
         dt = self.dt
         XS = self.XS if extra is None else extra['XS']
@@ -85,7 +85,7 @@ class splineLNLN(splineBase):
         """
 
         y = self.y if extra is None else extra['y']
-        r = self.forward_pass(p, extra) if precomputed is None else precomputed
+        r = self.forwardpass(p, extra) if precomputed is None else precomputed
         r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
         dt = self.dt
 

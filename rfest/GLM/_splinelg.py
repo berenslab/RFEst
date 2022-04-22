@@ -14,7 +14,7 @@ class splineLG(splineBase):
         super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
 
-    def forward_pass(self, p, extra=None):
+    def forwardpass(self, p, extra=None):
 
         XS = self.XS if extra is None else extra['XS']
 
@@ -68,7 +68,7 @@ class splineLG(splineBase):
         """
 
         y = self.y if extra is None else extra['y']
-        yhat = self.forward_pass(p, extra) if precomputed is None else precomputed
+        yhat = self.forwardpass(p, extra) if precomputed is None else precomputed
 
         mse = jnp.nanmean((y - yhat) ** 2)
 

@@ -19,7 +19,7 @@ class LNP(Base):
         super().__init__(X, y, dims, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
 
-    def forward_pass(self, p, extra=None):
+    def forwardpass(self, p, extra=None):
 
         """
         Model ouput with current estimated parameters.
@@ -87,7 +87,7 @@ class LNP(Base):
         Negetive Log Likelihood.
         """
         y = self.y if extra is None else extra['y']
-        r = self.forward_pass(p, extra) if precomputed is None else precomputed
+        r = self.forwardpass(p, extra) if precomputed is None else precomputed
         r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
         dt = self.dt
 
