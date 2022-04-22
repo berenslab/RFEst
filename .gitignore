@@ -7,7 +7,7 @@
 *.ipynb_checkpoints/
 
 # others
-
+*.idea/
 *.egg-info/
 *.DS_Store
 
