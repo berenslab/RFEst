@@ -4,12 +4,15 @@ import jax.random as random
 from jax import grad
 from jax import jit
 from jax.config import config
-from jax.experimental import stax
-from jax.experimental.stax import Dense, BatchNorm, Relu
+
 try:
     from jax.example_libraries import optimizers
+    from jax.example_libraries import stax
+    from jax.example_libraries.stax import Dense, BatchNorm, Relu
 except ImportError:
     from jax.experimental import optimizers
+    from jax.experimental import stax
+    from jax.experimental.stax import Dense, BatchNorm, Relu
 
 from rfest.utils import build_design_matrix, uvec
 from rfest.splines import build_spline_matrix, cr, cc, bs
