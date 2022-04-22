@@ -2,7 +2,11 @@ import jax.numpy as jnp
 from jax import grad
 from jax import jit
 from jax.config import config
-from jax.experimental import optimizers
+try:
+    from jax.example_libraries import optimizers
+except ImportError:
+    from jax.experimental import optimizers
+
 from rfest.priors import *
 
 config.update("jax_enable_x64", True)

@@ -2,7 +2,10 @@ import jax.numpy as np
 from jax import grad
 from jax import jit
 from jax.config import config
-from jax.experimental import optimizers
+try:
+    from jax.example_libraries import optimizers
+except ImportError:
+    from jax.experimental import optimizers
 
 from rfest.priors import sparsity_kernel
 from rfest.splines import build_spline_matrix
