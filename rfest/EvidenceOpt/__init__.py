@@ -1,7 +1,7 @@
-from ._base import EmpiricalBayes
-from ._ridge import Ridge, RidgeFixedPoint
-from ._ard import ARD, ARDFixedPoint
-from ._asd import ASD
-from ._ald import ALD
-from ._fasd import fASD
-from ._sard import sARD
+from rfest.EvidenceOpt._ald import ALD
+from rfest.EvidenceOpt._ard import ARD, ARDFixedPoint
+from rfest.EvidenceOpt._asd import ASD
+from rfest.EvidenceOpt._base import EmpiricalBayes
+from rfest.EvidenceOpt._fasd import fASD
+from rfest.EvidenceOpt._ridge import Ridge, RidgeFixedPoint
+from rfest.EvidenceOpt._sard import sARD

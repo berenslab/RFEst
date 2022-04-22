@@ -1,28 +1,25 @@
-from jaxlib.xla_client import PaddingType
-import numpy as onp
-import jax.numpy as np
-import jax.random as random
-from jax import value_and_grad
-from jax import jit, jacfwd, jacrev
-from jax.experimental import optimizers
-from jax.config import config
-# config.update("jax_enable_x64", True)
-config.update("jax_debug_nans", True)
-
 import time
-import scipy.linalg
+import jax.numpy as jnp
+import jax.random as random
+from jax import jit
+from jax import value_and_grad
+from jax.config import config
+from jax.experimental import optimizers
 
-from ..utils import build_design_matrix
-from ..splines import build_spline_matrix
-from ..metrics import r2, r2adj, mse, corrcoef, gcv
+from rfest.utils import build_design_matrix
+from rfest.splines import build_spline_matrix
+from rfest.metrics import r2, r2adj, mse, corrcoef, gcv
+
+config.update("jax_debug_nans", True)
 
 __all__ = ['GLM']
 
-class GLM:
-    
-    def __init__(self, distr='poisson', output_nonlinearity='none', dtype=np.float64):
 
-        '''
+class GLM:
+
+    def __init__(self, distr='poisson', output_nonlinearity='none', dtype=jnp.float64):
+
+        """
         Initialize the GLM class with empty variables.
 
         Parameters
@@ -32,134 +29,133 @@ class GLM:
             Noise distribution. Either `gaussian` or `poisson`.
 
         output_nonlinearity: str
-            Nonlinearity for the output layer. 
-        ''' 
+            Nonlinearity for the output layer.
+        """
 
         # initilize variables
 
         ## Data
-        self.X = {} # design matrix
-        self.S = {} # spline matrix
-        self.P = {} # penalty matrix
-        self.XS = {} # dot product of X and S
-        self.XtX = {} # input covariance
-        self.Xty = {} # cross-covariance
-        self.y = {} # response
-        self.y_pred = {} # predicted response
-        self.y_pred_upper = {} # predicted response upper limit
-        self.y_pred_lower = {} # predicted response lower limit 
-        
-        ## Model parameters
-        self.p = {} # all model paremeters
-        self.b = {} # spline weights        
-        self.b_se = {} # spline weights standard error
-        self.w = {} # filter weights
-        self.w_se = {} # filter weights standard error
-        self.V = {} # weights covariance
-        self.intercept = {} # intercept
+        self.X = {}  # design matrix
+        self.S = {}  # spline matrix
+        self.P = {}  # penalty matrix
+        self.XS = {}  # dot product of X and S
+        self.XtX = {}  # input covariance
+        self.Xty = {}  # cross-covariance
+        self.y = {}  # response
+        self.y_pred = {}  # predicted response
+        self.y_pred_upper = {}  # predicted response upper limit
+        self.y_pred_lower = {}  # predicted response lower limit
 
+        ## Model parameters
+        self.p = {}  # all model paremeters
+        self.b = {}  # spline weights
+        self.b_se = {}  # spline weights standard error
+        self.w = {}  # filter weights
+        self.w_se = {}  # filter weights standard error
+        self.V = {}  # weights covariance
+        self.intercept = {}  # intercept
 
         ## Model hypterparameters
-        self.df = {} # number of bases for each filter
-        self.edf = {} # effective degree of freedom given lam 
-        self.dims = {} # filter shapes
-        self.n_features = {} # number of features for each filter
-        self.filter_names = [] # filter names
-        
-        self.shift = {} # time shift of the design matrix
+        self.df = {}  # number of bases for each filter
+        self.edf = {}  # effective degree of freedom given lam
+        self.dims = {}  # filter shapes
+        self.n_features = {}  # number of features for each filter
+        self.filter_names = []  # filter names
+
+        self.shift = {}  # time shift of the design matrix
         self.filter_nonlinearity = {}
         self.output_nonlinearity = output_nonlinearity
-        
+
         # Noise distribution, either gaussian or poisson
-        self.distr = distr 
-        
+        self.distr = distr
+
         # others
         self.mle_computed = False
-        self.lam = {} # smoothness regularization weight
-        self.scores = {} # prediction error metric scores
+        self.lam = {}  # smoothness regularization weight
+        self.scores = {}  # prediction error metric scores
         self.r2pseudo = {}
         self.corrcoef = {}
         self.dtype = dtype
-        
-    def fnl(self, x, kind, params=None):
 
-        '''
+    def fnl(self, x, kind, params=None):
+        """
         Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
 
         Parameters
         ----------
 
-        x: np.array, (n_samples, )
+        x: jnp.array, (n_samples, )
             Sum of filter outputs.
 
         kind: str
             Choice of nonlinearity.
-            
-        params: None or np.array.
+
+        params: None or jnp.array.
             For flexible nonlinearity. To be implemented.
 
-        Return 
+        Return
         ------
             Transformed sum of filter outputs.
-        '''
+        """
 
-        if  kind == 'softplus':
+        if kind == 'softplus':
             def softplus(x):
-                return np.log(1 + np.exp(x))
+                return jnp.log(1 + jnp.exp(x))
+
             return softplus(x) + 1e-7
 
         elif kind == 'exponential':
-            return np.exp(x)
+            return jnp.exp(x)
 
         elif kind == 'softmax':
             def softmax(x):
-                z = np.exp(x)
+                z = jnp.exp(x)
                 return z / z.sum()
+
             return softmax(x)
 
         elif kind == 'sigmoid':
             def sigmoid(x):
-                return 1 / (1 + np.exp(-x))
+                return 1 / (1 + jnp.exp(-x))
+
             return sigmoid(x)
 
         elif kind == 'tanh':
-            return np.tanh(x)
+            return jnp.tanh(x)
 
         elif kind == 'relu':
             def relu(x):
-                return np.where(x > 0., x, 1e-7)
+                return jnp.where(x > 0., x, 1e-7)
             return relu(x)
 
         elif kind == 'leaky_relu':
             def leaky_relu(x):
-                return np.where(x > 0., x, x * 0.01)
+                return jnp.where(x > 0., x, x * 0.01)
             return leaky_relu(x)
-
         elif kind == 'none':
             return x
-
         else:
-            raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
+            raise NotImplementedError(f'Input filter nonlinearity `{kind}` is not supported.')
 
     def add_design_matrix(self, X, dims=None, df=None, smooth=None, lag=True,
                           lam=0., filter_nonlinearity='none',
                           kind='train', name='stimulus', shift=0, burn_in=None):
 
-        '''
+        """
         Add input desgin matrix to the model.
 
         Parameters
         ----------
 
-        X: np.array, shape=(n_samples, ) or (n_samples, n_pixels)
-            Original input. 
-        
-        dims: int, or list / np.array, shape=dim_t, or (dim_t, dim_x, dim_y)
+        X: jnp.array, shape=(n_samples, ) or (n_samples, n_pixels)
+            Original input.
+
+        dims: int, or list / jnp.array, shape=dim_t, or (dim_t, dim_x, dim_y)
             Filter shape.
 
-        df: None, int, or list / np.array
+        df: None, int, or list / jnp.array
             Number of spline bases. Should be the same shape as dims.
-        
+
         smooth: None, or str
             Type of spline bases. If None, no basis is used.
 
@@ -171,28 +167,28 @@ class GLM:
             Nonlinearity for the stimulus filter.
 
         kind: str
-            Datset type, should be one of `train` (training set), 
+            Datset type, should be one of `train` (training set),
             `dev` (validation set) or `test` (testing set).
 
         name: str
-            Name of the corresponding filter. 
-            A receptive field (stimulus) filter should have `stimulus` in the name. 
+            Name of the corresponding filter.
+            A receptive field (stimulus) filter should have `stimulus` in the name.
             A response-history filter should have `history` in the name.
 
         shift: int
-            Time offset for the design matrix, positive number will shift the design 
+            Time offset for the design matrix, positive number will shift the design
             matrix to the past, negative number will shift it to the future.
 
         burn_in: int or None
             Number of samples / frames to be ignore for prediction.
-            (Because the first few frames in the design matrix are full of zero, which 
+            (Because the first few frames in the design matrix are full of zero, which
             tend to predict poorly.)
 
-        '''
-        
+        """
+
         # check X shape
         if len(X.shape) == 1:
-            X = X[:, np.newaxis].astype(self.dtype)
+            X = X[:, jnp.newaxis].astype(self.dtype)
         else:
             X = X.astype(self.dtype)
 
@@ -200,28 +196,28 @@ class GLM:
             self.X.update({kind: {}})
 
         if kind == 'train':
-            self.filter_nonlinearity[name] = filter_nonlinearity 
+            self.filter_nonlinearity[name] = filter_nonlinearity
             self.filter_names.append(name)
 
-            dims = dims if type(dims) is not int else [dims, ]  
-            self.dims[name] = dims 
+            dims = dims if type(dims) is not int else [dims, ]
+            self.dims[name] = dims
             self.shift[name] = shift
         else:
             dims = self.dims[name]
-            shift = self.shift[name] 
-            
-        if not hasattr(self, 'burn_in'): # if exists, ignore
-            self.burn_in = dims[0]-1 if burn_in is None else burn_in # number of first few frames to ignore
+            shift = self.shift[name]
+
+        if not hasattr(self, 'burn_in'):  # if exists, ignore
+            self.burn_in = dims[0] - 1 if burn_in is None else burn_in  # number of first few frames to ignore
             self.has_burn_in = True
 
-        if lag: 
+        if lag:
             self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift, dtype=self.dtype)[self.burn_in:]
         else:
-            self.burn_in = 0 
-            self.X[kind][name] = X # if not time lag, shoudn't it also be no burn in?  
-                                # TODO: might need different handlings for instantenous RF.
-                                # conflict: history filter burned-in but the stimulus filter didn't
-            
+            self.burn_in = 0
+            self.X[kind][name] = X  # if not time lag, shouldn't it also be no burn in?
+            # TODO: might need different handlings for instantenous RF.
+            # conflict: history filter burned-in but the stimulus filter didn't
+
         if smooth is None:
             # if train set exists and used spline as basis
             # automatically apply the same basis for dev/test set
@@ -229,11 +225,11 @@ class GLM:
                 if kind not in self.XS:
                     self.XS.update({kind: {}})
                 S = self.S[name]
-                self.XS[kind][name] = self.X[kind][name] @ S 
+                self.XS[kind][name] = self.X[kind][name] @ S
 
-            elif kind == 'test':                                        
+            elif kind == 'test':
                 if kind not in self.XS:
-                   self.XS.update({kind: {}})
+                    self.XS.update({kind: {}})
                 if hasattr(self, 'num_subunits') and self.num_subunits > 1:
                     S = self.S['stimulus_s0']
                 else:
@@ -244,48 +240,36 @@ class GLM:
                 if kind == 'train':
                     self.n_features[name] = self.X['train'][name].shape[1]
                     self.edf[name] = self.n_features[name]
-        
-        else: # use spline
 
+        else:  # use spline
             if kind not in self.XS:
                 self.XS.update({kind: {}})
-            
+
             self.df[name] = df if type(df) is not int else [df, ]
-            self.lam[name] = lam if type(lam) is list else [lam,] * len(self.df[name])
+            self.lam[name] = lam if type(lam) is list else [lam, ] * len(self.df[name])
             S, P = build_spline_matrix(dims, self.df[name], smooth, self.lam[name], return_P=True, dtype=self.dtype)
             self.S[name] = S
-            self.P[name] = P # penalty matrix, which absolved lamda already
+            self.P[name] = P  # penalty matrix, which absolved lamda already
 
             XS = self.X[kind][name] @ S
             self.XS[kind][name] = XS
 
-            if kind =='train': 
+            if kind == 'train':
                 self.n_features[name] = self.XS['train'][name].shape[1]
                 if (P == 0).all():
                     self.edf[name] = self.n_features[name]
                 else:
-                    edf =(XS.T * (np.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
-                    self.edf[name] = edf 
+                    edf = (XS.T * (jnp.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
+                    self.edf[name] = edf
 
-    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046, verbose=0, add_noise_to_mle=0):
-    
-        self.init_method = method # store meta            
+    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046,
+                   verbose=0, add_noise_to_mle=0):
+
+        self.init_method = method  # store meta
         self.num_subunits = num_subunits
         self.compute_ci = compute_ci
 
-        # # check if y exists. Need y for MLE. 
-        # if y is not None:
-        #     if type(y) is dict:
-        #         y_train = y['train']
-        #         if len(y['train']) == 0:
-        #             raise ValueError('Training set is empty after burned in.')
-        #         if 'dev' in y:
-        #             y_dev = y['dev']
-        #     else:
-        #         y = {'train': y}
-        #         y_train = y['train']
-
-        if method =='random':
+        if method == 'random':
 
             self.b['random'] = {}
             self.w['random'] = {}
@@ -295,72 +279,74 @@ class GLM:
 
             for i, name in enumerate(self.filter_names):
                 self.intercept['random'][name] = 0.
-                key = random.PRNGKey(random_seed + i) # change random seed for each filter
+                key = random.PRNGKey(random_seed + i)  # change random seed for each filter
                 if name in self.S:
-                    self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1)).astype(self.dtype)
-                    self.w['random'][name] = self.S[name] @ self.b['random'][name] 
+                    self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1)).astype(
+                        self.dtype)
+                    self.w['random'][name] = self.S[name] @ self.b['random'][name]
                 else:
-                    self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1)).astype(self.dtype)
+                    self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1)).astype(
+                        self.dtype)
             self.intercept['random']['global'] = 0.
-        
+
             if verbose:
                 print('Finished.')
-            
+
         elif method == 'mle':
-            
+
             if verbose:
                 print('Initializing model paraemters with maximum likelihood...')
-                
+
             if not self.mle_computed:
-                self.compute_mle(y) 
-                
+                self.compute_mle(y)
+
             if verbose:
                 print('Finished.')
-                
+
         else:
             raise ValueError(f'`{method}` is not supported.')
-        
+
         # rename and repmat: stimulus filter to subunits filters
         # subunit model only works with one stimulus.
         filter_names = self.filter_names.copy()
         if num_subunits != 1:
             filter_names.remove('stimulus')
             filter_names = [f'stimulus_s{i}' for i in range(num_subunits)] + filter_names
-            
+
             for name in filter_names:
                 if 'stimulus' in name:
                     self.dims[name] = self.dims['stimulus']
                     self.df[name] = self.dims['stimulus']
                     self.shift[name] = self.shift['stimulus']
                     self.filter_nonlinearity[name] = self.filter_nonlinearity['stimulus']
-                    self.intercept[method][name] = self.intercept[method]['stimulus'] 
+                    self.intercept[method][name] = self.intercept[method]['stimulus']
                     self.w[method][name] = self.w[method]['stimulus']
-                    
-                    if method in self.w_se: 
+
+                    if method in self.w_se:
                         self.w_se[method][name] = self.w_se[method]['stimulus']
                     self.X['train'][name] = self.X['train']['stimulus']
                     self.edf[name] = self.edf['stimulus']
-            
+
                     if 'dev' in self.X:
                         self.X['dev'][name] = self.X['dev']['stimulus']
-                        
+
                     if 'stimulus' in self.S:
                         self.b[method][name] = self.b[method]['stimulus']
                         if method in self.b_se:
                             self.b_se[method][name] = self.b_se[method]['stimulus']
                         self.XS['train'][name] = self.XS['train']['stimulus']
-                        
+
                         if 'dev' in self.XS:
                             self.XS['dev'][name] = self.XS['dev']['stimulus']
-                        
+
                         self.P[name] = self.P['stimulus']
                         self.S[name] = self.S['stimulus']
-                        
+
             try:
                 self.b[method].pop('stimulus')
             except:
                 pass
-            
+
             self.w[method].pop('stimulus')
             self.intercept[method].pop('stimulus')
             self.X['train'].pop('stimulus')
@@ -370,10 +356,10 @@ class GLM:
                 self.XS['dev'].pop('stimulus')
                 self.S.pop('stimulus')
                 self.P.pop('stimulus')
-                
+
             self.filter_names = filter_names
 
-        self.p[method] = {} 
+        self.p[method] = {}
         p0 = {}
         for i, name in enumerate(self.filter_names):
             if name in self.S:
@@ -382,57 +368,34 @@ class GLM:
                 self.p[method].update({name: b})
                 noise = add_noise_to_mle * random.normal(key, shape=b.shape).astype(self.dtype)
                 p0.update({name: b + noise})
-                
+
             else:
                 w = self.w[method][name]
-                key = random.PRNGKey(random_seed + i) 
+                key = random.PRNGKey(random_seed + i)
                 self.p[method].update({name: w})
                 noise = add_noise_to_mle * random.normal(key, shape=w.shape).astype(self.dtype)
                 p0.update({name: w + noise})
-                
-            self.p[method].update({'intercept': self.intercept[method]}) 
-            p0.update({'intercept': self.intercept[method]}) 
-        
-        # # get random variance
-        # if method == 'random' and self.y:
 
-        #     self.y['train'] = y_train[self.burn_in:]
-        #     if len(self.y['train']) == 0:
-        #         raise ValueError('Training set is empty after burned in.')
-        #     # # get filter confidence interval
-        #     if self.compute_ci:
-        #         self._get_filter_variance(w_type='random')
-        #         self._get_response_variance(w_type='random', kind='train')
-                
-        #     if type(y) is dict and 'dev' in y:
-        #         self.y['dev'] = y_dev[self.burn_in:]
-        #         if len(self.y['dev']) == 0:
-        #             raise ValueError('Dev set is empty after burned in.')
-        #         if self.compute_ci:
-        #             self._get_response_variance(w_type='random', kind='dev')
+            self.p[method].update({'intercept': self.intercept[method]})
+            p0.update({'intercept': self.intercept[method]})
 
         self.dt = dt
         self.p0 = p0
-        # if np.array([np.array(self.P[name] == 0).all() for name in self.P]).all():
-        #     self.penalize_S = True
-        # else:
-        #     self.penalize_S = False
 
     def compute_mle(self, y, compute_ci=True):
 
-        '''Compute maximum likelihood estimates.
-        
+        """Compute maximum likelihood estimates.
+
         Parameter
         ---------
-        
-        y: np.array or dict, (n_samples)
-            Response. if dict is 
-        '''
-        import sys
+
+        y: jnp.array or dict, (n_samples)
+            Response. if dict is
+        """
 
         if not hasattr(self, 'compute_ci'):
             self.compute_ci = compute_ci
-        
+
         if type(y) is dict:
             y_train = y['train']
             if len(y['train']) == 0:
@@ -444,36 +407,38 @@ class GLM:
             y_train = y['train']
 
         n_samples = len(y_train) - self.burn_in
-        X = np.hstack([np.hstack([np.ones(n_samples)[:, np.newaxis], self.XS['train'][name]]) if name in self.S else np.hstack([np.ones(n_samples)[:, np.newaxis], self.X['train'][name]]) for name in self.filter_names])   
-        X = np.hstack([np.ones(n_samples)[:, np.newaxis], X])
+        X = jnp.hstack([jnp.hstack(
+            [jnp.ones(n_samples)[:, jnp.newaxis], self.XS['train'][name]]) if name in self.S else jnp.hstack(
+            [jnp.ones(n_samples)[:, jnp.newaxis], self.X['train'][name]]) for name in self.filter_names])
+        X = jnp.hstack([jnp.ones(n_samples)[:, jnp.newaxis], X])
 
         XtX = X.T @ X
         Xty = X.T @ y_train[self.burn_in:]
 
-        # if np.linalg.cond(XtX) < 1/sys.float_info.epsilon: # not enough for idendifying singularity.
-        #     mle = np.linalg.solve(XtX, Xty) # using solve is unstable
+        # if jnp.linalg.cond(XtX) < 1/sys.float_info.epsilon: # not enough for idendifying singularity.
+        #     mle = jnp.linalg.solve(XtX, Xty) # using solve is unstable
         # else:
-            # if the stimulus cov is singular, then use lstsq
-        mle = np.linalg.lstsq(XtX, Xty, rcond=None)[0]
+        # if the stimulus cov is singular, then use lstsq
+        mle = jnp.linalg.lstsq(XtX, Xty, rcond=None)[0]
 
         self.b['mle'] = {}
         self.w['mle'] = {}
         self.intercept['mle'] = {}
 
         # slicing the mle matrix into each filter
-        l = np.cumsum(np.hstack([0, [self.n_features[name] + 1 for name in self.n_features]]))
-        idx = [np.array((l[i], l[i+1])) for i in range(len(l)-1)]
+        l = jnp.cumsum(jnp.hstack([0, [self.n_features[name] + 1 for name in self.n_features]]))
+        idx = [jnp.array((l[i], l[i + 1])) for i in range(len(l) - 1)]
         self.idx = idx
 
         for i, name in enumerate(self.filter_names):
-            mle_params = mle[idx[i][0]:idx[i][1]][:, np.newaxis].astype(self.dtype)
+            mle_params = mle[idx[i][0]:idx[i][1]][:, jnp.newaxis].astype(self.dtype)
             self.intercept['mle'][name] = mle_params[0]
             if name in self.S:
                 self.b['mle'][name] = mle_params[1:]
                 self.w['mle'][name] = self.S[name] @ self.b['mle'][name]
             else:
                 self.w['mle'][name] = mle_params[1:]
-    
+
         self.intercept['mle']['global'] = mle[0]
 
         self.p['mle'] = {}
@@ -497,22 +462,22 @@ class GLM:
         if self.compute_ci:
             self._get_filter_variance(w_type='mle')
             self._get_response_variance(w_type='mle', kind='train')
-            
+
         if type(y) is dict and 'dev' in y:
             self.y['dev'] = y_dev[self.burn_in:]
             if len(self.y['dev']) == 0:
                 raise ValueError('Dev set is empty after burned in.')
 
-            self.y_pred['mle']['dev'] = self.forwardpass(self.p['mle'], kind='dev') 
+            self.y_pred['mle']['dev'] = self.forwardpass(self.p['mle'], kind='dev')
             if self.compute_ci:
-               self._get_response_variance(w_type='mle', kind='dev')
+                self._get_response_variance(w_type='mle', kind='dev')
 
         self.mle_computed = True
 
     def forwardpass(self, p, kind):
 
-        '''Forward pass of the model.
-        
+        """Forward pass of the model.
+
         Parameters
         ----------
 
@@ -521,11 +486,10 @@ class GLM:
 
         kind: str
             Dataset type, can be `train`, `dev` or `test`.
-        
-        '''
-        
+        """
+
         intercept = p['intercept']
-                
+
         filters_output = []
         for name in self.X[kind]:
             if name in self.S:
@@ -533,19 +497,17 @@ class GLM:
             else:
                 input_term = self.X[kind][name]
 
-            output = self.fnl(np.squeeze(input_term @ p[name]) + intercept[name], kind=self.filter_nonlinearity[name])
-            # output = self.fnl(np.squeeze(input_term @ p[name]), kind=self.filter_nonlinearity[name]) 
+            output = self.fnl(jnp.squeeze(input_term @ p[name]) + intercept[name], kind=self.filter_nonlinearity[name])
             filters_output.append(output)
 
-        filters_output = np.array(filters_output).sum(0)
+        filters_output = jnp.array(filters_output).sum(0)
         final_output = self.fnl(filters_output + intercept['global'], kind=self.output_nonlinearity).astype(self.dtype)
-        # final_output = self.fnl(filters_output, kind=self.output_nonlinearity) 
         return final_output
-                          
+
     def cost(self, p, kind='train', precomputed=None, penalize=True):
 
-        '''Cost function.
-        
+        """Cost function.
+
         Parameters
         ----------
 
@@ -555,51 +517,50 @@ class GLM:
         kind: str
             Dataset type, can be `train`, `dev` or `test`.
 
-        precomputed: None or np.array
-            Precomputed forward pass output. For avoding duplicate computation. 
-        '''
-        
+        precomputed: None or jnp.array
+            Precomputed forward pass output. For avoding duplicate computation.
+
+        penalize : bool
+            Add l1 and/or penality to loss
+
+        """
+
         distr = self.distr
         y = self.y[kind]
         r = self.forwardpass(p, kind) if precomputed is None else precomputed
 
         # cost functions 
         if distr == 'gaussian':
-            loss = 0.5 * np.sum((y - r)**2)
-        
+            loss = 0.5 * jnp.sum((y - r) ** 2)
+
         elif distr == 'poisson':
-            
-            r = np.where(r!=np.inf, r, 0.) # remove inf
-            r = np.maximum(r, 1e-20) # remove zero to avoid nan in log.
-            
-            term0 = - np.log(r) @ y # spike term from poisson log-likelihood
-            term1 = np.sum(r) # non-spike term            
+
+            r = jnp.where(r != jnp.inf, r, 0.)  # remove inf
+            r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
+
+            term0 = - jnp.log(r) @ y  # spike term from poisson log-likelihood
+            term1 = jnp.sum(r)  # non-spike term
             loss = term0 + term1
+        else:
+            raise NotImplementedError(distr)
 
         # regularization: elasticnet
         if penalize and (hasattr(self, 'beta') or self.beta != 0) and kind == 'train':
-
             # regularized all filters parameters
-            w = np.hstack([p[name].flatten() for name in self.filter_names])
+            w = jnp.hstack([p[name].flatten() for name in self.filter_names])
 
-            l1 = np.linalg.norm(w, 1)
-            l2 = np.linalg.norm(w, 2)
+            l1 = jnp.linalg.norm(w, 1)
+            l2 = jnp.linalg.norm(w, 2)
             loss += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
-        
-        # # regularization: spline wiggliness
-        # if penalize and self.penalize_S and kind == 'train':
-            
-        #     energy = np.array([np.sum(p[name].T @ self.P[name] @ p[name]) for name in self.P]).sum()
-        #     loss += energy
- 
-        return np.squeeze(loss)
- 
+
+        return jnp.squeeze(loss)
+
     def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model):
 
-        '''Workhorse of optimization.
+        """Workhorse of optimization.
 
         p0: dict
-            A dictionary of the initial model parameters to be optimized.  
+            A dictionary of the initial model parameters to be optimized.
 
         num_iters: int
             Maximum number of iteration.
@@ -611,7 +572,7 @@ class GLM:
 
         step_size: float or jax scheduler
             Learning rate.
-        
+
         tolerance: int
             Tolerance for early stop. If the training cost doesn't change more than 1e-5
             in the last (tolerance) steps, or the dev cost monotonically increase, stop.
@@ -621,8 +582,8 @@ class GLM:
 
         return_model: str
             Return the 'best' model on dev set metrics or the 'last' model.
-        '''
-        
+        """
+
         @jit
         def step(i, opt_state):
             p = get_params(opt_state)
@@ -632,36 +593,38 @@ class GLM:
         opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
         opt_state = opt_init(p0)
 
-        cost_train = [0] * num_iters 
+        cost_train = [0] * num_iters
         cost_dev = [0] * num_iters
         metric_train = [0] * num_iters
-        metric_dev = [0] * num_iters    
+        metric_dev = [0] * num_iters
         params_list = [0] * num_iters
         if verbose:
             if 'dev' not in self.y:
                 if metric is None:
                     print('{0}\t{1:>10}\t{2:>10}'.format('Iters', 'Time (s)', 'Cost (train)'))
                 else:
-                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)', f'{metric} (train)')) 
+                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)',
+                                                                  f'{metric} (train)'))
             else:
                 if metric is None:
                     print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Cost (dev)'))
                 else:
-                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}\t{4:>10}\t{5:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Cost (dev)', f'{metric} (train)', f'{metric} (dev)')) 
+                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}\t{4:>10}\t{5:>10}'.format('Iters', 'Time (s)', 'Cost (train)',
+                                                                                    'Cost (dev)', f'{metric} (train)',
+                                                                                    f'{metric} (dev)'))
 
-        
         time_start = time.time()
         for i in range(num_iters):
             cost_train[i], opt_state = step(i, opt_state)
             params_list[i] = get_params(opt_state)
             y_pred_train = self.forwardpass(p=params_list[i], kind='train')
-            metric_train[i] = self._score(self.y['train'], y_pred_train, metric)
-                     
+            metric_train[i] = self.compute_score(self.y['train'], y_pred_train, metric)
+
             if 'dev' in self.y:
                 y_pred_dev = self.forwardpass(p=params_list[i], kind='dev')
                 cost_dev[i] = self.cost(p=params_list[i], kind='dev', precomputed=y_pred_dev, penalize=False)
-                metric_dev[i] = self._score(self.y['dev'], y_pred_dev, metric)      
-                
+                metric_dev[i] = self.compute_score(self.y['dev'], y_pred_dev, metric)
+
             time_elapsed = time.time() - time_start
             if verbose:
                 if i % int(verbose) == 0:
@@ -669,114 +632,112 @@ class GLM:
                         if metric is None:
                             print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}'.format(i, time_elapsed, cost_train[i]))
                         else:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, cost_train[i], metric_train[i])) 
+                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(
+                                i, time_elapsed, cost_train[i], metric_train[i]))
 
                     else:
                         if metric is None:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(i, time_elapsed, cost_train[i], cost_dev[i]))
+                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(
+                                i, time_elapsed, cost_train[i], cost_dev[i]))
                         else:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}\t{4:>10.3f}\t{5:>10.3f}'.format(i, time_elapsed, 
-                                                                                                              cost_train[i], cost_dev[i], 
-                                                                                                              metric_train[i], metric_dev[i]))
-            if tolerance and i > 300: # tolerance = 0: no early stop.
+                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}\t{4:>10.3f}\t{5:>10.3f}'.format(
+                                i, time_elapsed, cost_train[i], cost_dev[i], metric_train[i], metric_dev[i]))
+            if tolerance and i > 300:  # tolerance = 0: no early stop.
 
                 total_time_elapsed = time.time() - time_start
-                cost_train_slice = np.array(cost_train[i-tolerance:i])
-                cost_dev_slice = np.array(cost_dev[i-tolerance:i])
+                cost_train_slice = jnp.array(cost_train[i - tolerance:i])
+                cost_dev_slice = jnp.array(cost_dev[i - tolerance:i])
 
-                if 'dev' in self.y and np.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
+                if 'dev' in self.y and jnp.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
                     if verbose:
-                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.'.format(i, tolerance))
+                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.'.format(i,
+                                                                                                                      tolerance))
                         print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                     stop = 'dev_stop'
                     break
 
-                if np.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
+                if jnp.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
                     if verbose:
-                        print('Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.'.format(i, tolerance))
+                        print(
+                            'Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.'.format(i,
+                                                                                                                     tolerance))
                         print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                     stop = 'train_stop'
                     break
-                    
+
         else:
             total_time_elapsed = time.time() - time_start
             stop = 'maxiter_stop'
             if verbose:
                 print('Stop: reached {0} steps.'.format(num_iters))
                 print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
-                
+
         if return_model == 'best_dev_cost':
-            best = np.argmin(np.asarray(cost_dev[:i+1]))     
+            best = jnp.argmin(jnp.asarray(cost_dev[:i + 1]))
 
         elif return_model == 'best_train_cost':
-            best = np.argmin(np.asarray(cost_train[:i+1]))  
+            best = jnp.argmin(jnp.asarray(cost_train[:i + 1]))
 
         elif return_model == 'best_dev_metric':
             if metric in ['mse', 'gcv']:
-                best = np.argmin(np.asarray(metric_dev[:i+1]))
+                best = jnp.argmin(jnp.asarray(metric_dev[:i + 1]))
             else:
-                best = np.argmax(np.asarray(metric_dev[:i+1]))
+                best = jnp.argmax(jnp.asarray(metric_dev[:i + 1]))
 
         elif return_model == 'best_train_metric':
-            if metric in ['mse', 'gcv']: 
-                best = np.argmin(np.asarray(metric_train[:i+1]))
+            if metric in ['mse', 'gcv']:
+                best = jnp.argmin(jnp.asarray(metric_train[:i + 1]))
             else:
-                best = np.argmax(np.asarray(metric_train[:i+1])) 
+                best = jnp.argmax(jnp.asarray(metric_train[:i + 1]))
 
         elif return_model == 'last':
             if stop == 'dev_stop':
-                best = i-tolerance
+                best = i - tolerance
             else:
                 best = i
-        
+
         else:
-            print('Provided `return_model` is not supported. Fell back to `best_dev_cost`') 
-            best = np.argmin(np.asarray(cost_dev[:i+1])) 
-        
+            print('Provided `return_model` is not supported. Fell back to `best_dev_cost`')
+            best = jnp.argmin(jnp.asarray(cost_dev[:i + 1]))
+
         params = params_list[best]
-        metric_dev_opt = metric_dev[best]                
+        metric_dev_opt = metric_dev[best]
 
-        self.cost_train = np.hstack(cost_train[:i+1])
-        self.cost_dev = np.hstack(cost_dev[:i+1])
-        self.metric_train = np.hstack(metric_train[:i+1])
-        self.metric_dev = np.hstack(metric_dev[:i+1])
+        self.cost_train = jnp.hstack(cost_train[:i + 1])
+        self.cost_dev = jnp.hstack(cost_dev[:i + 1])
+        self.metric_train = jnp.hstack(metric_train[:i + 1])
+        self.metric_dev = jnp.hstack(metric_dev[:i + 1])
         self.metric_dev_opt = metric_dev_opt
-        self.total_time_elapsed = total_time_elapsed 
+        self.total_time_elapsed = total_time_elapsed
 
-        self.all_params = params_list[:i+1] # not sure if this will occupy a lot of RAM.
-        
+        self.all_params = params_list[:i + 1]  # not sure if this will occupy a lot of RAM.
+
         self.y_pred['opt'].update({'train': y_pred_train})
         if 'dev' in self.y:
             self.y_pred['opt'].update({'dev': y_pred_dev})
-                
+
         return params
-                       
-    def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, lam=0., metric='corrcoef', step_size=1e-3, 
-        tolerance=10, verbose=True, var_names=None, return_model='best_dev_cost'):
-        
-        '''Fit model.
-        
+
+    def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, metric='corrcoef', step_size=1e-3,
+            tolerance=10, verbose=True, return_model='best_dev_cost'):
+        """
+        Fit model.
+
         Parameters
         ----------
-        
-        y: np.array, (n_samples)
-            Response. 
-        
+
+        y: jnp.array, (n_samples)
+            Response.
+
         num_iters: int
             Maximum number of iteration.
-        
+
         alpha: float
-            Balance weight for L1 and L2 regularization. 
+            Balance weight for L1 and L2 regularization.
             If alpha=1, only L1 applys. Otherwise, only L2 apply.
-        
+
         beta: float
             Overall weight for L1 and L2 regularization.
-
-        lam: float
-            Weight for controlling spline wiggliness.
-
-        droput: float
-            Droput probability.
 
         metric: str
             Method of model evaluation. Can be
@@ -784,7 +745,7 @@ class GLM:
 
         step_size: float or jax scheduler
             Learning rate.
-        
+
         tolerance: int
             Tolerance for early stop. If the training cost doesn't change more than 1e-5
             in the last (tolerance) steps, or the dev cost monotonically increase, stop.
@@ -792,12 +753,11 @@ class GLM:
         verbose: int
             Print progress. If verbose=0, no progress will be print.
 
-        var_names: list of str
-            Name of variables to be fitted.
-        
-        '''
+        return_model : str
+            Model to be returned
 
-        
+        """
+
         self.alpha = alpha
         self.beta = beta
         self.metric = metric
@@ -807,7 +767,7 @@ class GLM:
 
         if y is None:
             if not 'train' in self.y:
-               raise ValueError(f'No `y` is provided.') 
+                raise ValueError(f'No `y` is provided.')
         else:
             if type(y) is dict:
                 self.y['train'] = y['train'][self.burn_in:].astype(self.dtype)
@@ -815,45 +775,41 @@ class GLM:
                     self.y['dev'] = y['dev'][self.burn_in:].astype(self.dtype)
             else:
                 self.y['train'] = y[self.burn_in:].astype(self.dtype)
-        
+
         self.y_pred['opt'] = {}
-            
+
         self.p['opt'] = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose, return_model)
-        self._extract_opt_params() 
+        self._extract_opt_params()
 
     def _extract_opt_params(self):
         self.b['opt'] = {}
-        self.w['opt'] = {}         
+        self.w['opt'] = {}
         for name in self.filter_names:
             if name in self.S:
                 self.b['opt'][name] = self.p['opt'][name]
                 self.w['opt'][name] = self.S[name] @ self.b['opt'][name]
             else:
                 self.w['opt'][name] = self.p['opt'][name]
-        
+
         self.intercept['opt'] = self.p['opt']['intercept']
         # get filter confidence interval
         if self.compute_ci:
             self._get_filter_variance(w_type='opt')
             # get prediction confidence interval
             self._get_response_variance(w_type='opt', kind='train')
-            if 'dev' in self.y: 
+            if 'dev' in self.y:
                 self._get_response_variance(w_type='opt', kind='dev')
 
     def predict(self, X, w_type='opt'):
-        
-        '''
-        Prediction on Test set. 
+        """
+        Prediction on Test set.
 
         Parameters
         ----------
-        
-        X: np.array or dict
+
+        X: jnp.array or dict
             Stimulus. Only the named filters in the dict will be used for prediction.
             Other filters, even trained, will be ignored if no test set provided.
-
-        dropout: float or None
-            Dropout probability
 
         w_type: str
             either `opt` or `mle`
@@ -861,8 +817,8 @@ class GLM:
         Note
         ----
         Use self.forwardpass() for prediction on Training / Dev set.
-        '''
-        
+        """
+
         p = self.p[w_type]
 
         self.X['test'] = {}
@@ -872,9 +828,10 @@ class GLM:
             for name in X:
                 self.add_design_matrix(X[name], dims=self.dims[name], shift=self.shift[name], name=name, kind='test')
         else:
-            # if X is np.array, assumed it's the stimulus.
-            self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus', kind='test')
-        
+            # if X is jnp.array, assumed it's the stimulus.
+            self.add_design_matrix(X, dims=self.dims['stimulus'], shift=self.shift['stimulus'], name='stimulus',
+                                   kind='test')
+
         # rename and repmat for test set
         if self.num_subunits != 1:
             for name in self.filter_names:
@@ -885,17 +842,14 @@ class GLM:
             self.XS['test'].pop('stimulus')
 
         y_pred = self.forwardpass(p, kind='test')
-
-        # self.y_pred[w_type]['test'] = y_pred
         self._get_response_variance(w_type=w_type, kind='test')
 
         return y_pred
 
-    def _score(self, y, y_pred, metric):
-
-        '''
+    def compute_score(self, y, y_pred, metric):
+        """
         Metric score for evaluating model prediction.
-        '''
+        """
 
         if metric == 'r2':
             return r2(y, y_pred)
@@ -913,16 +867,16 @@ class GLM:
 
         else:
             print(f'Metric `{metric}` is not supported.')
- 
+
     def score(self, X_test, y_test, metric='corrcoef', w_type='opt', return_prediction=False):
+        """
+        Metric score for evaluating model prediction.
 
-        '''Metric score for evaluating model prediction.
-        
-        X_test: np.array or dict
+        X_test: jnp.array or dict
             Stimulus. Only the named filters in the dict will be used for prediction.
-            Other filters, even trained, will be ignored if no test set provided. 
+            Other filters, even trained, will be ignored if no test set provided.
 
-        y_test: np.array
+        y_test: jnp.array
             Response.
 
         metric: str
@@ -937,10 +891,9 @@ class GLM:
         s: float
             Metric score.
 
-        y_pred: np.array.
-            The predicted response. Optional. 
-
-        '''
+        y_pred: jnp.array.
+            The predicted response. Optional.
+        """
 
         y_test = y_test[self.burn_in:].flatten()
 
@@ -949,34 +902,32 @@ class GLM:
         else:
             y_pred = self.predict({'stimulus': X_test}, w_type)
 
-        s = self._score(y_test, y_pred, metric)
+        s = self.compute_score(y_test, y_pred, metric)
 
         if return_prediction:
-            return s, y_pred 
+            return s, y_pred
         else:
-            return s 
+            return s
 
     def _get_filter_variance(self, w_type='opt'):
-
         """
         Compute the variance and standard error of the weight of each filters.
         """
-        
+
         P = self.P
         S = self.S
         if 'train' in self.XS:
-            XS = self.XS['train'] 
+            XS = self.XS['train']
         X = self.X['train']
-        
-        # trA = {name: (XS[name].T * (np.linalg.inv(XS[name].T @ XS[name] + P[name]) @ XS[name].T)).sum(0) for name in self.P}
+
         edf = self.edf
 
         if self.distr == 'gaussian':
-            
+
             y = self.y['train']
             y_pred = self.y_pred[w_type]['train']
-            rsd = y - y_pred# residuals    
-            rss = np.sum(rsd ** 2) # residul sum of squares
+            rsd = y - y_pred  # residuals
+            rss = jnp.sum(rsd ** 2)  # residul sum of squares
             rss_var = {name: rss / (len(y) - edf[name]) for name in self.filter_names}
 
             V = {}
@@ -989,27 +940,27 @@ class GLM:
                         print('Sample size is too small for getting reasonable confidence interval.')
                     # compute weight covariance
                     try:
-                        V[name] = np.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
+                        V[name] = jnp.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
                     except:
                         # if inv failed, use pinv
-                        V[name] = np.linalg.pinv(XS[name].T @ XS[name] + P[name]) * rss_var[name] 
-                    
-                    # remove negative correlation?
+                        V[name] = jnp.linalg.pinv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
+
+                        # remove negative correlation?
                     # https://math.stackexchange.com/q/4018326
-                    V[name] = np.abs(V[name])
-                    
-                    b_se[name] = np.sqrt(np.diag(V[name]))
+                    V[name] = jnp.abs(V[name])
+
+                    b_se[name] = jnp.sqrt(jnp.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
-                
+
                 else:
-                    if len(X[name]) < np.product(np.array(self.dims[name])):
+                    if len(X[name]) < jnp.product(jnp.array(self.dims[name])):
                         print('Sample size is too small for getting reasonable confidence interval.')
-                    V[name] = np.linalg.inv(X[name].T @ X[name]) * rss_var[name]
-                    V[name] = np.abs(V[name])
-                    w_se[name] = np.sqrt(np.diag(V[name])) 
+                    V[name] = jnp.linalg.inv(X[name].T @ X[name]) * rss_var[name]
+                    V[name] = jnp.abs(V[name])
+                    w_se[name] = jnp.sqrt(jnp.diag(V[name]))
 
         else:
-            
+
             b = {}
             w = {}
             u = {}
@@ -1022,36 +973,35 @@ class GLM:
                     # check sample size
                     if len(XS[name]) < self.edf[name]:
                         print('Sample size is too small for getting reasonable confidence interval.')
-                    
+
                     b[name] = self.b[w_type][name]
                     u[name] = self.fnl(XS[name] @ b[name], self.filter_nonlinearity[name])
                     U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten() ** 2
-                    
+
                     try:
-                        V[name] = np.linalg.inv(XS[name].T * U[name] @ XS[name] + P[name])
+                        V[name] = jnp.linalg.inv(XS[name].T * U[name] @ XS[name] + P[name])
                     except:
-                        V[name] = np.linalg.pinv(XS[name].T * U[name] @ XS[name] + P[name]) 
-                    
-                    V[name] = np.abs(V[name])
-                    b_se[name] = np.sqrt(np.diag(V[name]))
+                        V[name] = jnp.linalg.pinv(XS[name].T * U[name] @ XS[name] + P[name])
+
+                    V[name] = jnp.abs(V[name])
+                    b_se[name] = jnp.sqrt(jnp.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
                 else:
 
-                    if len(X[name]) < np.product(np.array(self.dims[name])):
+                    if len(X[name]) < jnp.product(jnp.array(self.dims[name])):
                         print('Sample size is too small for getting reasonable confidence interval.')
-                    
+
                     w[name] = self.w[w_type][name]
                     u[name] = self.fnl(X[name] @ w[name], self.filter_nonlinearity[name])
                     U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten() ** 2
-                    
+
                     try:
-                        V[name] = np.linalg.inv(X[name].T * U[name] @ X[name])
+                        V[name] = jnp.linalg.inv(X[name].T * U[name] @ X[name])
                     except:
-                        V[name] = np.linalg.pinv(X[name].T * U[name] @ X[name]) 
-                    V[name] = np.abs(V[name])
-                    w_se[name] = np.sqrt(np.diag(V[name])) 
-        
-        
+                        V[name] = jnp.linalg.pinv(X[name].T * U[name] @ X[name])
+                    V[name] = jnp.abs(V[name])
+                    w_se[name] = jnp.sqrt(jnp.diag(V[name]))
+
         self.V[w_type] = V
         self.b_se[w_type] = b_se
         self.w_se[w_type] = w_se
@@ -1060,8 +1010,8 @@ class GLM:
 
         """
         Compute the variance and standard error of the predicted response.
-        """ 
-        
+        """
+
         P = self.P
         S = self.S
         X = self.X[kind]
@@ -1078,33 +1028,32 @@ class GLM:
         intercept = self.intercept[w_type]
         for name in X:
             if name in S:
-                y_se[name] = np.sqrt(np.sum(XS[name] @ V[name] * XS[name], 1))
-                y_pred_filters[name] = self.fnl((XS[name] @ b[name] + intercept[name]).flatten(), kind=self.filter_nonlinearity[name])
+                y_se[name] = jnp.sqrt(jnp.sum(XS[name] @ V[name] * XS[name], 1))
+                y_pred_filters[name] = self.fnl((XS[name] @ b[name] + intercept[name]).flatten(),
+                                                kind=self.filter_nonlinearity[name])
 
             else:
-                y_se[name] = np.sqrt(np.sum(self.X[kind][name] @ V[name] * self.X[kind][name], 1))   
-                y_pred_filters[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten(), kind=self.filter_nonlinearity[name])
- 
-            y_pred_filters_upper[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten() + 2 * y_se[name], kind=self.filter_nonlinearity[name])
-            y_pred_filters_lower[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten() - 2 * y_se[name], kind=self.filter_nonlinearity[name])
+                y_se[name] = jnp.sqrt(jnp.sum(self.X[kind][name] @ V[name] * self.X[kind][name], 1))
+                y_pred_filters[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten(),
+                                                kind=self.filter_nonlinearity[name])
 
-        y_pred = self.fnl(np.array([y_pred_filters[name] for name in X]).sum(0) + intercept['global'], kind=self.output_nonlinearity)
-        y_pred_upper = self.fnl(np.array([y_pred_filters_upper[name] for name in X]).sum(0) + intercept['global'], kind=self.output_nonlinearity)
-        y_pred_lower = self.fnl(np.array([y_pred_filters_lower[name] for name in X]).sum(0) + intercept['global'], kind=self.output_nonlinearity)
-        
-        if not w_type in self.y_pred_lower:
+            y_pred_filters_upper[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten() + 2 * y_se[name],
+                                                  kind=self.filter_nonlinearity[name])
+            y_pred_filters_lower[name] = self.fnl((X[name] @ w[name] + intercept[name]).flatten() - 2 * y_se[name],
+                                                  kind=self.filter_nonlinearity[name])
+
+        y_pred = self.fnl(jnp.array([y_pred_filters[name] for name in X]).sum(0) + intercept['global'],
+                          kind=self.output_nonlinearity)
+        y_pred_upper = self.fnl(jnp.array([y_pred_filters_upper[name] for name in X]).sum(0) + intercept['global'],
+                                kind=self.output_nonlinearity)
+        y_pred_lower = self.fnl(jnp.array([y_pred_filters_lower[name] for name in X]).sum(0) + intercept['global'],
+                                kind=self.output_nonlinearity)
+
+        if w_type not in self.y_pred_lower:
             self.y_pred_lower[w_type] = {}
             self.y_pred_upper[w_type] = {}
-        
+
         self.y_pred[w_type][kind] = y_pred
         self.y_pred_upper[w_type][kind] = y_pred_upper
         self.y_pred_lower[w_type][kind] = y_pred_lower
-        
-# def elementwise_add(A):
-    
-#     if len(A) == 1:
-#         return A[0]
-#     elif len(A) == 2:
-#         return np.add(*A)
-#     elif len(A) == 3:
-#         return np.add(*[np.add(*A[:2]), A[-1]])
+
