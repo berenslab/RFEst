@@ -15,9 +15,7 @@ class ALD(EmpiricalBayes):
     """
 
     def __init__(self, X, Y, dims, compute_mle=True):
-        super().__init__(X, Y, dims, compute_mle,
-                         time='ald', space='ald',
-                         n_hp_time=4, n_hp_space=4)
+        super().__init__(X, Y, dims, compute_mle, time='ald', space='ald', n_hp_time=4, n_hp_space=4)
 
     @staticmethod
     def print_progress_header(params):

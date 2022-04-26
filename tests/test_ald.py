@@ -1,11 +1,11 @@
-from generate_data import generate_small_rf_and_data
+from rfest.generate_data import generate_2d_rf_data
 from rfest import ALD
-from rfest.utils import uvec
 from rfest.metrics import mse
+from rfest.utils import uvec
 
 
 def test_ald_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     sigma0 = [1.3]
     rho0 = [0.8]

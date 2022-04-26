@@ -92,46 +92,46 @@ def cc(x, df):
 
     """
 
-    def _map_cyclic(x, lbound, ubound):
-        x = np.copy(x)
-        x[x > ubound] = lbound + (x[x > ubound] - ubound) % (ubound - lbound)
-        x[x < lbound] = ubound - (lbound - x[x < lbound]) % (ubound - lbound)
+    def _map_cyclic(_x, lbound, ubound):
+        _x = np.copy(_x)
+        _x[_x > ubound] = lbound + (_x[_x > ubound] - ubound) % (ubound - lbound)
+        _x[_x < lbound] = ubound - (lbound - _x[_x < lbound]) % (ubound - lbound)
 
-        return x
+        return _x
 
-    def _get_all_sorted_knots(x, df):
-        n_inner_knots = df - 2
+    def _get_all_sorted_knots(_x, _df):
+        n_inner_knots = _df - 2
 
         knot_quantiles = np.linspace(0, 1, n_inner_knots + 2)[1:-1] * 100
-        inner_knots = np.percentile(np.unique(x), knot_quantiles)
+        inner_knots = np.percentile(np.unique(_x), knot_quantiles)
 
-        all_knots = np.concatenate(([np.min(x), np.max(x)], inner_knots))
+        all_knots = np.concatenate(([np.min(_x), np.max(_x)], inner_knots))
         all_knots = np.unique(all_knots)
 
         return all_knots
 
-    def _get_cyclic_f(knots):
-        h = knots[1:] - knots[:-1]
-        n = knots.size - 1
+    def _get_cyclic_f(_knots):
+        kd = _knots[1:] - _knots[:-1]
+        n = _knots.size - 1
         b = np.zeros((n, n))
         d = np.zeros((n, n))
 
-        b[0, 0] = (h[n - 1] + h[0]) / 3.
-        b[0, n - 1] = h[n - 1] / 6.
-        b[n - 1, 0] = h[n - 1] / 6.
+        b[0, 0] = (kd[n - 1] + kd[0]) / 3.
+        b[0, n - 1] = kd[n - 1] / 6.
+        b[n - 1, 0] = kd[n - 1] / 6.
 
-        d[0, 0] = -1. / h[0] - 1. / h[n - 1]
-        d[0, n - 1] = 1. / h[n - 1]
-        d[n - 1, 0] = 1. / h[n - 1]
+        d[0, 0] = -1. / kd[0] - 1. / kd[n - 1]
+        d[0, n - 1] = 1. / kd[n - 1]
+        d[n - 1, 0] = 1. / kd[n - 1]
 
         for i in range(1, n):
-            b[i, i] = (h[i - 1] + h[i]) / 3.
-            b[i, i - 1] = h[i - 1] / 6.
-            b[i - 1, i] = h[i - 1] / 6.
+            b[i, i] = (kd[i - 1] + kd[i]) / 3.
+            b[i, i - 1] = kd[i - 1] / 6.
+            b[i - 1, i] = kd[i - 1] / 6.
 
-            d[i, i] = -1. / h[i - 1] - 1. / h[i]
-            d[i, i - 1] = 1. / h[i - 1]
-            d[i - 1, i] = 1. / h[i - 1]
+            d[i, i] = -1. / kd[i - 1] - 1. / kd[i]
+            d[i, i - 1] = 1. / kd[i - 1]
+            d[i - 1, i] = 1. / kd[i - 1]
 
         return np.linalg.solve(b, d)
 
@@ -154,12 +154,9 @@ def cc(x, df):
     j1 = j + 1
     j1[j1 == df] = 0
 
-    basis = ajm * i[j, :].T + ajp * i[j1, :].T + \
-            cjm * f[j, :].T + cjp * f[j1, :].T
+    basis = ajm * i[j, :].T + ajp * i[j1, :].T + cjm * f[j, :].T + cjp * f[j1, :].T
 
-    P = (D.T @ np.linalg.inv(B) @ D)
-
-    return uvec(basis.T), P
+    return uvec(basis.T)
 
 
 def tp(x, df):

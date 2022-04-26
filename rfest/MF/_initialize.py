@@ -112,12 +112,7 @@ def initialize_factors(V, k, method='nndsvd', **kwargs):
     m, n = V.shape
 
     if method == 'random':
-
-        try:
-            random_seed = kwargs['random_seed']
-        except:
-            random_seed = 2046
-
+        random_seed = kwargs.get('random_seed', 2046)
         np.random.seed(random_seed)
 
         W = np.maximum(np.random.randn(m, k), 0)
@@ -129,20 +124,11 @@ def initialize_factors(V, k, method='nndsvd', **kwargs):
         H = np.ones([k, n])
 
     elif method == 'nndsvd':
-
-        try:
-            option = kwargs['nndsvd_option']
-        except:
-            option = 0
-
+        option = kwargs.get('nndsvd_option', 0)
         W, H = nndsvd(V, k, option)
 
     elif method == 'kmeans':
-
-        try:
-            random_seed = kwargs['random_seed']
-        except:
-            random_seed = 2046
+        random_seed = kwargs.get('random_seed', 2046)
 
         pca = PCA(n_components=30).fit(V)
 
@@ -152,5 +138,8 @@ def initialize_factors(V, k, method='nndsvd', **kwargs):
         WtW = np.maximum(WtW, WtW.T)
         WtV = W.T @ V
         H = np.maximum(np.linalg.solve(WtW, WtV), 0)
+
+    else:
+        raise NotADirectoryError(method)
 
     return W, H.T

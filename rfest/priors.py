@@ -1,11 +1,12 @@
 import jax.numpy as jnp
+import numpy as np
+
+__all__ = ["ridge_kernel", "sparsity_kernel", "smoothness_kernel", "locality_kernel", "realfftbasis"]
 
 
 def ridge_kernel(params, ncoeff):
     """
-    
     Prior for ridge regression.
-    
     """
 
     theta = jnp.abs(params[0])
@@ -17,7 +18,6 @@ def ridge_kernel(params, ncoeff):
 
 def sparsity_kernel(params, ncoeff):
     """
-    
     Sparse prior for ARD.
 
     See: Section 4 of Sahani & Linden (2003).
@@ -84,22 +84,22 @@ def realfftbasis(nx):
     https://github.com/leaduncker/SimpleEvidenceOpt/blob/master/util/realfftbasis.m
     
     """
-    import numpy as jnp
+
     nn = nx
 
-    ncos = jnp.ceil((nn + 1) / 2)
-    nsin = jnp.floor((nn - 1) / 2)
+    ncos = np.ceil((nn + 1) / 2)
+    nsin = np.floor((nn - 1) / 2)
 
-    wvec = jnp.hstack([jnp.arange(start=0., stop=ncos), jnp.arange(start=-nsin, stop=0.)])
+    wvec = np.hstack([np.arange(start=0., stop=ncos), np.arange(start=-nsin, stop=0.)])
 
     wcos = wvec[wvec >= 0]
     wsin = wvec[wvec < 0]
 
-    x = jnp.arange(nx)
+    x = np.arange(nx)
 
-    t0 = jnp.cos(jnp.outer(wcos * 2 * jnp.pi / nn, x))
-    t1 = jnp.sin(jnp.outer(wsin * 2 * jnp.pi / nn, x))
+    t0 = np.cos(np.outer(wcos * 2 * np.pi / nn, x))
+    t1 = np.sin(np.outer(wsin * 2 * np.pi / nn, x))
 
-    B = jnp.vstack([t0, t1]) / jnp.sqrt(nn * 0.5)
+    B = np.vstack([t0, t1]) / np.sqrt(nn * 0.5)
 
     return B, wvec

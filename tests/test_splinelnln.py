@@ -1,11 +1,11 @@
-from generate_data import generate_small_rf_and_data
+from rfest.generate_data import generate_2d_rf_data
 from rfest import splineLNLN
-from rfest.utils import uvec
 from rfest.metrics import mse
+from rfest.utils import uvec
 
 
 def test_splinelnln_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     df = [3, 4]
     model = splineLNLN(X, y, dims=dims, dt=dt, df=df)
@@ -15,7 +15,7 @@ def test_splinelnln_small_rf():
 
 
 def test_splinelnln_mle_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     df = [3, 4]
     model = splineLNLN(X, y, dims=dims, dt=dt, df=df, compute_mle=True)

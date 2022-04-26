@@ -174,6 +174,9 @@ class EmpiricalBayes:
             C = rho * jnp.kron(C_t, C_s)
             C_inv = (1 / rho) * jnp.kron(C_t_inv, C_s_inv)
 
+        else:
+            raise NotImplementedError(len(self.dims))
+
         return C, C_inv
 
     def update_C_posterior(self, params, C_prior_inv):

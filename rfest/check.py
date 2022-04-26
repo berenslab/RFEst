@@ -63,6 +63,7 @@ def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
 def significance(model, w_type='opt', show_results=False):
     W_values = {}
     p_values = {}
+
     for name in model.filter_names:
         W = np.squeeze(model.p[w_type][name].T @ np.linalg.inv(model.V[w_type][name]) @ model.p[w_type][name])
         p_value = 1 - scipy.stats.chi2.cdf(x=W, df=model.edf[name])
@@ -388,7 +389,7 @@ def plot1d(model, w_type='opt', w_true=None, figsize=None, ):
     fig.tight_layout()
 
 
-def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return_stats=False):
+def plot2d(model, w_type='opt', figsize=None, return_stats=False):
     """
     Parameters
     ----------
@@ -396,33 +397,14 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
     model: object
         Model object
 
-    X_test: np.array, dict or None
-        Stimulus. Only the named filters in the dict will be used for prediction.
-        Other filters, even trained, will be ignored if no test set provided.
-
-    y_test: np.array
-        Response.
-
     w_type: str
         weight types. 'opt', 'mle' or 'init'.
 
-    metric: str
-        Method of model evaluation. Can be
-        `mse`, `corrcoeff`, `r2`
-
-    window: float or None
-        Length of prediction to be plotted. If None, the whole `y_test`
-        is used. If the window is longer than y_test, the length of `y_test`
-        is used.
-
-    contour: float
-        > 0. The contour level. Default is 0.015.
-
-    pixel_size:
-        The size of pixel for calculating the contour size.
-
     figsize: tuple
         Figure size.
+
+    return_stats : bool
+        Return RF statistics?
 
     """
 
@@ -432,11 +414,12 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
 
     dt = model.dt
     dims = model.dims
-    shift = model.shift
+    shift = model.shift if hasattr(model, "shift") else 0
+    compute_ci = model.shift if hasattr(model, "compute_ci") else False
 
     # rf
     ws = model.w[w_type]
-    if model.compute_ci:
+    if compute_ci:
         ws_se = model.w_se[w_type]
 
     ncols = 4
@@ -451,7 +434,7 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
     RF_data = {}
     ax_data = {}
 
-    if model.compute_ci:
+    if compute_ci:
         W_score, p_values = significance(model, w_type)
 
     for i, name in enumerate(ws):
@@ -489,7 +472,7 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
             w = ws[name].flatten()
             w_uvec = uvec(ws[name].flatten())
 
-            if model.compute_ci:
+            if compute_ci:
                 w_se = ws_se[name].flatten()
                 wu = w + 2 * w_se
                 wl = w - 2 * w_se
@@ -501,7 +484,7 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
             w = w.reshape(dims[name])
             w_uvec = w_uvec.reshape(dims[name])
 
-            if model.compute_ci:
+            if compute_ci:
                 wu = wu.reshape(dims[name])
                 wl = wl.reshape(dims[name])
 
@@ -514,21 +497,21 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
 
             tRF = w[:, max_coord].flatten()
 
-            if model.compute_ci:
+            if compute_ci:
                 tRFu = wu[:, max_coord].flatten()
                 tRFl = wl[:, max_coord].flatten()
 
             tRF_max = np.argmax(tRF)
             sRF_max = w[tRF_max]
             sRF_max_uvec = w_uvec[tRF_max]
-            if model.compute_ci:
+            if compute_ci:
                 sRF_max_u = wu[tRF_max]
                 sRF_max_l = wl[tRF_max]
 
             tRF_min = np.argmin(tRF)
             sRF_min = w[tRF_min]
             sRF_min_uvec = w_uvec[tRF_min]
-            if model.compute_ci:
+            if compute_ci:
                 sRF_min_u = wu[tRF_min]
                 sRF_min_l = wl[tRF_min]
 
@@ -542,7 +525,7 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
             ax_data[name]['axes_sRF_min'].append(ax_sRF_min)
 
             ax_sRF_min.plot(xrnge, sRF_min, color='C0')
-            if model.compute_ci:
+            if compute_ci:
                 ax_sRF_min.fill_between(xrnge, sRF_min_u, sRF_min_l, color='C0', alpha=0.5)
             ax_sRF_min.axhline(0, color='gray', linestyle='--')
             ax_sRF_min.axvline(xrnge[np.argmin(sRF_min)], color='gray', linestyle='--')
@@ -550,7 +533,7 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
             ax_sRF_max = fig.add_subplot(spec[i, 2])
             ax_data[name]['axes_sRF_max'].append(ax_sRF_max)
             ax_sRF_max.plot(xrnge, sRF_max, color='C3')
-            if model.compute_ci:
+            if compute_ci:
                 ax_sRF_max.fill_between(xrnge, sRF_max_u, sRF_max_l, color='C3', alpha=0.5)
             ax_sRF_max.axhline(0, color='gray', linestyle='--')
             ax_sRF_max.axvline(xrnge[np.argmax(sRF_max)], color='gray', linestyle='--')
@@ -563,7 +546,7 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
             ax_tRF.axhline(0, color='gray', linestyle='--')
             ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
             ax_tRF.axvline(t_tRF[tRF_min], color='C0', linestyle='--', alpha=0.6)
-            if model.compute_ci:
+            if compute_ci:
                 ax_tRF.set_yticks([tRFl.min(), 0, tRFu.max()])
             else:
                 ax_tRF.set_yticks([tRF.min(), 0, tRF.max()])
@@ -582,7 +565,7 @@ def plot2d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
                 ax_sRF_max.set_title('Spatial (max)', fontsize=14)
                 ax_tRF.set_title('Temporal', fontsize=14)
 
-            if model.compute_ci:
+            if compute_ci:
                 p = p_values[name]
 
                 stars = '*'
@@ -1051,7 +1034,8 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     sRFs_max = np.stack(sRFs_max)
     sRFs_min = np.stack(sRFs_min)
 
-    vmax = np.max([np.abs(sRFs_max.max()), np.abs(sRFs_max.min()), np.abs(sRFs_min.max()), np.abs(sRFs_min.min())])
+    vmax = np.max([np.abs(np.max(sRFs_max)), np.abs(np.min(sRFs_max)),
+                   np.abs(np.max(sRFs_min)), np.abs(np.min(sRFs_min))])
 
     # fig = plt.figure(figsize=(8, 4))
 

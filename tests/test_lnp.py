@@ -1,11 +1,11 @@
-from generate_data import generate_small_rf_and_data, generate_spike_train
+from rfest.generate_data import generate_2d_rf_data, generate_spike_train
 from rfest import LNP
-from rfest.utils import uvec, split_data
 from rfest.metrics import mse
+from rfest.utils import uvec, split_data
 
 
 def test_lnp_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     model = LNP(X, y, dims=dims, dt=dt)
     model.fit(metric='corrcoef', num_iters=100, verbose=0, tolerance=10, beta=0.01)
@@ -14,7 +14,7 @@ def test_lnp_small_rf():
 
 
 def test_lnp_mle_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     model = LNP(X, y, dims=dims, dt=dt, compute_mle=True)
 

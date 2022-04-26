@@ -29,6 +29,9 @@ def build_design_matrix(X, nlag, shift=0, n_c=1, dtype=np.float64):
     n_c : int
         Number of color channels.
 
+    dtype : type
+        Datatype of design matrix
+
     Return
     ======
     
@@ -38,8 +41,8 @@ def build_design_matrix(X, nlag, shift=0, n_c=1, dtype=np.float64):
     Examples
     ========
 
-    >>> X = np.array([0, 1, 2])[:, np.newaxis]
-    >>> np.allclose(get_stimulus_design_matrix(X, 2), np.array([[0, 0], [0, 1], [1, 2]]))
+    >>> stim = np.array([0, 1, 2])[:, np.newaxis]
+    >>> np.allclose(build_design_matrix(stim, 2), np.array([[0, 0], [0, 1], [1, 2]]))
     True
 
     """
@@ -59,7 +62,7 @@ def build_design_matrix(X, nlag, shift=0, n_c=1, dtype=np.float64):
     X_design = np.hstack([X_padded[i:n_sample + i] for i in range(nlag)])
 
     if n_c > 1:
-        return X_design.reshape(X_design.shape[0], -1, n_c).astype(dtype)
+        return X_design.reshape((X_design.shape[0], -1, n_c)).astype(dtype)
     else:
         return X_design.astype(dtype)
 

@@ -4,7 +4,6 @@ from sklearn.metrics import mean_squared_error
 from rfest.EvidenceOpt._base import EmpiricalBayes
 from rfest.priors import sparsity_kernel
 
-
 __all__ = ['ARD', 'ARDFixedPoint']
 
 
@@ -97,7 +96,8 @@ class ARDFixedPoint:
             print('Iter\tσ\tθ0\tθ1')
             print('{0}\t{1:.3f}\t{2:.3f}\t{2:.3f}'.format(0, params[0], params[1], params[2]))
 
-        for iteration in np.arange(1, num_iters + 1):
+        i = 0
+        for i in np.arange(1, num_iters + 1):
 
             params0 = params
 
@@ -110,17 +110,17 @@ class ARDFixedPoint:
 
             if dparams < threshold:
                 if verbose:
-                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-                    print('Finished: Converged in {} steps'.format(iteration))
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
+                    print('Finished: Converged in {} steps'.format(i))
                 break
             elif (params[1:] > MAXALPHA).any():
                 if verbose:
-                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
                     print('Finished: Theta reached maximum threshold.')
                 break
         else:
             if verbose:
-                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
                 print('Stop: reached {0} steps.'.format(num_iters))
 
         self.optimized_params = params

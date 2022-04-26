@@ -75,7 +75,8 @@ class RidgeFixedPoint:
             print('Iter\tσ\tθ')
             print('{0}\t{1:.3f}\t{2:.3f}'.format(0, params[0], params[1]))
 
-        for iteration in np.arange(1, num_iters + 1):
+        i = 0
+        for i in np.arange(1, num_iters + 1):
 
             params0 = params
 
@@ -88,17 +89,17 @@ class RidgeFixedPoint:
 
             if dparams < threshold:
                 if verbose:
-                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
-                    print('Finished: Converged in {} steps'.format(iteration))
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
+                    print('Finished: Converged in {} steps'.format(i))
                 break
             elif params[1] > MAXTHETA:
                 if verbose:
-                    print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                    print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
                     print('Finished: ridge regression: filter is all-zeros.')
                 break
         else:
             if verbose:
-                print('{0}\t{1:.3f}\t{2:.3f}'.format(iteration, params[0], params[1]))
+                print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
                 print('Finished: reached maxiter = {}.'.format(num_iters))
 
         self.optimized_params = params
@@ -115,7 +116,8 @@ class RidgeFixedPoint:
         self.optimized_C_post = optimized_C_post
         self.w_opt = optimized_m_post
 
-    def _rcv(self, w, wSTA_test, X_test, y_test):
+    @staticmethod
+    def _rcv(w, wSTA_test, X_test, y_test):
 
         """Relative Mean Squared Error"""
 
