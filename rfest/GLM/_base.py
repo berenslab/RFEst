@@ -265,7 +265,7 @@ class Base:
             smooth = params_dict['smooth'] if 'smooth' in params_dict else 'cr'
             df = params_dict['df'] if 'df' in params_dict else 7
             if smooth == 'cr':
-                X = cr(x0, df, return_P=False)
+                X = cr(x0, df)
             elif smooth == 'cc':
                 X = cc(x0, df)
             elif smooth == 'bs':
