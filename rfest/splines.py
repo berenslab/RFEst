@@ -254,9 +254,9 @@ def build_spline_matrix(dims, df, smooth, dtype=np.float64):
     elif smooth == 'cc':
         basis = cc  # cyclic cubic regression spline
     elif smooth == 'bs':
-        basis = bs  # cyclic cubic regression spline
+        basis = bs  # b-spline
     elif smooth == 'tp':
-        basis = tp  # cyclic cubic regression spline
+        basis = tp  # thin-plate spline
     else:
         raise ValueError("Input method `{}` is not supported.".format(smooth))
 
@@ -286,7 +286,7 @@ def build_spline_matrix(dims, df, smooth, dtype=np.float64):
         Sx = basis(g1.ravel(), df[1])
         Sy = basis(g2.ravel(), df[2])
 
-        S = np.kron(St, np.kron(Sx, Sy))  #
+        S = np.kron(St, np.kron(Sx, Sy))
 
     else:
         raise NotImplementedError(ndim)
