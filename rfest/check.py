@@ -394,7 +394,7 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
     Parameters
     ----------
 
-    model: object
+    model: Base
         Model object
 
     w_type: str
@@ -442,7 +442,6 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
         if 'stimulus' in name:
 
             RF_data[name] = {
-
                 "sRFs_min": [],
                 "sRFs_max": [],
                 "tRFs": [],
@@ -470,7 +469,6 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
             t_tRF = np.linspace(-(dims[name][0] + shift[name]) * dt, -shift[name] * dt, dims[name][0] + 1)[1:]
 
             w = ws[name].flatten()
-            w_uvec = uvec(ws[name].flatten())
 
             if compute_ci:
                 w_se = ws_se[name].flatten()
@@ -481,16 +479,9 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
             else:
                 vmax = np.max([np.abs(w.max()), np.abs(w.min())])
 
+            w_uvec = uvec(ws[name].flatten()).reshape(dims[name])
+
             w = w.reshape(dims[name])
-            w_uvec = w_uvec.reshape(dims[name])
-
-            if compute_ci:
-                wu = wu.reshape(dims[name])
-                wl = wl.reshape(dims[name])
-
-            ax_RF = fig.add_subplot(spec[i, 0])
-            ax_RF.imshow(w, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
-
             sRF, tRF = get_spatial_and_temporal_filters(w, model.dims[name])
             ref = [sRF[2:-2].max(), sRF[2:-2].min()][np.argmax([np.abs(sRF.max()), np.abs(sRF.min())])]
             max_coord = np.where(sRF == ref)
@@ -498,22 +489,21 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
             tRF = w[:, max_coord].flatten()
 
             if compute_ci:
+                wu = wu.reshape(dims[name])
+                wl = wl.reshape(dims[name])
                 tRFu = wu[:, max_coord].flatten()
                 tRFl = wl[:, max_coord].flatten()
+            else:
+                tRFu = None
+                tRFl = None
 
             tRF_max = np.argmax(tRF)
             sRF_max = w[tRF_max]
             sRF_max_uvec = w_uvec[tRF_max]
-            if compute_ci:
-                sRF_max_u = wu[tRF_max]
-                sRF_max_l = wl[tRF_max]
 
             tRF_min = np.argmin(tRF)
             sRF_min = w[tRF_min]
             sRF_min_uvec = w_uvec[tRF_min]
-            if compute_ci:
-                sRF_min_u = wu[tRF_min]
-                sRF_min_l = wl[tRF_min]
 
             RF_data[name]['sRFs_max'].append(sRF_max_uvec)
             RF_data[name]['sRFs_min'].append(sRF_min_uvec)
@@ -521,12 +511,15 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
 
             xrnge = np.linspace(-len(sRF_min) / 2, len(sRF_min) / 2, len(sRF_min))
 
+            ax_RF = fig.add_subplot(spec[i, 0])
+            ax_RF.imshow(w, cmap=plt.cm.bwr, vmin=-vmax, vmax=vmax)
+
             ax_sRF_min = fig.add_subplot(spec[i, 1])
             ax_data[name]['axes_sRF_min'].append(ax_sRF_min)
 
             ax_sRF_min.plot(xrnge, sRF_min, color='C0')
             if compute_ci:
-                ax_sRF_min.fill_between(xrnge, sRF_min_u, sRF_min_l, color='C0', alpha=0.5)
+                ax_sRF_min.fill_between(xrnge, wu[tRF_min], wl[tRF_min], color='C0', alpha=0.5)
             ax_sRF_min.axhline(0, color='gray', linestyle='--')
             ax_sRF_min.axvline(xrnge[np.argmin(sRF_min)], color='gray', linestyle='--')
 
@@ -534,14 +527,15 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
             ax_data[name]['axes_sRF_max'].append(ax_sRF_max)
             ax_sRF_max.plot(xrnge, sRF_max, color='C3')
             if compute_ci:
-                ax_sRF_max.fill_between(xrnge, sRF_max_u, sRF_max_l, color='C3', alpha=0.5)
+                ax_sRF_max.fill_between(xrnge, wu[tRF_max], wl[tRF_max], color='C3', alpha=0.5)
             ax_sRF_max.axhline(0, color='gray', linestyle='--')
             ax_sRF_max.axvline(xrnge[np.argmax(sRF_max)], color='gray', linestyle='--')
 
             ax_tRF = fig.add_subplot(spec[i, 3])
             ax_data[name]['axes_tRF'].append(ax_tRF)
             ax_tRF.plot(t_tRF, tRF, color='black')
-            ax_tRF.fill_between(t_tRF, tRFu, tRFl, color='gray', alpha=0.5)
+            if compute_ci:
+                ax_tRF.fill_between(t_tRF, tRFu, tRFl, color='gray', alpha=0.5)
 
             ax_tRF.axhline(0, color='gray', linestyle='--')
             ax_tRF.axvline(t_tRF[tRF_max], color='C3', linestyle='--', alpha=0.6)
@@ -616,7 +610,7 @@ def plot3d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
     Parameters
     ----------
 
-    model: object
+    model: Base
         Model object
 
     w_type: str
@@ -630,6 +624,9 @@ def plot3d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
 
     figsize: tuple
         Figure size.
+
+    return_stats: bool
+        Return model stats?
 
     """
 

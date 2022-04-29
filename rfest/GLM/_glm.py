@@ -860,24 +860,20 @@ class GLM:
 
         return y_pred
 
-    def compute_score(self, y, y_pred, metric):
+    @staticmethod
+    def compute_score(y, y_pred, metric):
         """
         Metric score for evaluating model prediction.
         """
 
         if metric == 'r2':
             return r2(y, y_pred)
-        elif metric == 'r2adj':
-            return r2adj(y, y_pred, p=self.edf_tot)
 
         elif metric == 'mse':
             return mse(y, y_pred)
 
         elif metric == 'corrcoef':
             return corrcoef(y, y_pred)
-
-        elif metric == 'gcv':
-            return gcv(y, y_pred, edf=self.edf_tot)
 
         else:
             print(f'Metric `{metric}` is not supported.')

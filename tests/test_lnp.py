@@ -30,6 +30,16 @@ def test_lnp_spikes():
     assert model.w_opt.size == w_true.size
 
 
+def test_lnp_STC():
+    w_true, X, y, dims, dt = generate_spike_train(noise='white')
+
+    model = LNP(X, y, dims=dims, dt=dt)
+    model.fit_STC(n_repeats=100, verbose=10)
+
+    assert model.w_stc is not None
+    assert model.w_stc is not None
+
+
 def test_lnp_spikes_split_data():
     w_true, X, y, dims, dt = generate_spike_train(noise='white')
 

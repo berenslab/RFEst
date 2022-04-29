@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from ..splines import build_spline_matrix
+from rfest.splines import build_spline_matrix
 
 __all__ = ['NMF']
 

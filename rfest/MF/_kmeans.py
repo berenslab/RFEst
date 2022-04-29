@@ -3,7 +3,7 @@ import time
 import numpy as np
 from scipy.spatial.distance import cdist
 
-from ..splines import build_spline_matrix
+from rfest.splines import build_spline_matrix
 
 __all__ = ['KMeans']
 

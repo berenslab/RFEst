@@ -100,11 +100,6 @@ class Base:
 
         prewhiten: bool
 
-        transform: None or Str
-            * None - Original X is used
-            * 'whiten' - pre-whiten X
-            * 'spline' - pre-whiten and smooth X by spline
-
         n_repeats: int
             Number of repeats for STC significance test.
 
@@ -270,7 +265,7 @@ class Base:
             smooth = params_dict['smooth'] if 'smooth' in params_dict else 'cr'
             df = params_dict['df'] if 'df' in params_dict else 7
             if smooth == 'cr':
-                X = cr(x0, df)
+                X = cr(x0, df, return_P=False)
             elif smooth == 'cc':
                 X = cc(x0, df)
             elif smooth == 'bs':
