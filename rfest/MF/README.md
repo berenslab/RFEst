@@ -23,8 +23,9 @@ and their corresponding spline-based versions.
 K-means clustering with spline-based cluster centroids:
 
 ```python
+from rfest.MF import KMeans
 
-kms = KMenas(V, k, build_S=True, dims=[20, 20], df=11)
+kms = KMeans(V, k, build_S=True, dims=[20, 20], df=11)
 kms.fit(num_iters=100, verbose=10)
 
 ```
@@ -32,6 +33,7 @@ kms.fit(num_iters=100, verbose=10)
 NMF with spline-based left factor:
 
 ```python
+from rfest.MF import NMF
 
 nmf = NMF(V, k, build_L=True, dims_L=[5, 20, 15], df_L=7)
 nmf.fit(num_iters=100, verbose=10)

@@ -24,7 +24,7 @@ lnp.add_design_matrix(X_dev, name='stimulus')  # basis will automatically apply 
 lnp.add_design_matrix(y_dev, name='history')
 
 # intialize model parameters
-lnp.initialize(num_subunits=1, dt=dt, kind='random', random_seed=2046)
+lnp.initialize(num_subunits=1, dt=dt, method='random', random_seed=2046)
 
 # fit model
 lnp.fit(y={'train': y_train, 'dev': y_dev},

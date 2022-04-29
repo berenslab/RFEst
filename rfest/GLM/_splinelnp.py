@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 from jax.config import config
+
 from rfest.GLM._base import splineBase
 
 config.update("jax_enable_x64", True)
@@ -63,7 +64,6 @@ class splineLNP(splineBase):
             history_output = yS @ p['bh']
         else:
             if hasattr(self, 'bh_opt'):
-
                 history_output = yS @ self.bh_opt
             elif hasattr(self, 'bh_spl'):
                 history_output = yS @ self.bh_spl

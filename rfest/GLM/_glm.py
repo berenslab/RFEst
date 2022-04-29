@@ -1,9 +1,12 @@
 import time
+
 import jax.numpy as jnp
 import jax.random as random
+import numpy as np
 from jax import jit
 from jax import value_and_grad
 from jax.config import config
+
 try:
     from jax.example_libraries import optimizers
 except ImportError:
@@ -37,7 +40,7 @@ class GLM:
 
         # initilize variables
 
-        ## Data
+        # Data
         self.X = {}  # design matrix
         self.S = {}  # spline matrix
         self.P = {}  # penalty matrix
@@ -49,7 +52,7 @@ class GLM:
         self.y_pred_upper = {}  # predicted response upper limit
         self.y_pred_lower = {}  # predicted response lower limit
 
-        ## Model parameters
+        # Model parameters
         self.p = {}  # all model paremeters
         self.b = {}  # spline weights
         self.b_se = {}  # spline weights standard error
@@ -58,7 +61,7 @@ class GLM:
         self.V = {}  # weights covariance
         self.intercept = {}  # intercept
 
-        ## Model hypterparameters
+        # Model hypterparameters
         self.df = {}  # number of bases for each filter
         self.edf = {}  # effective degree of freedom given lam
         self.dims = {}  # filter shapes
@@ -418,10 +421,6 @@ class GLM:
         XtX = X.T @ X
         Xty = X.T @ y_train[self.burn_in:]
 
-        # if jnp.linalg.cond(XtX) < 1/sys.float_info.epsilon: # not enough for idendifying singularity.
-        #     mle = jnp.linalg.solve(XtX, Xty) # using solve is unstable
-        # else:
-        # if the stimulus cov is singular, then use lstsq
         mle = jnp.linalg.lstsq(XtX, Xty, rcond=None)[0]
 
         self.b['mle'] = {}
@@ -558,6 +557,32 @@ class GLM:
 
         return jnp.squeeze(loss)
 
+    @staticmethod
+    def print_progress(i, time_elapsed, c_train=None, c_dev=None, m_train=None, m_dev=None):
+        opt_info = f"{i}".ljust(13) + f"{time_elapsed:>.3f}".ljust(13)
+        if c_train is not None and np.isfinite(c_train):
+            opt_info += f"{c_train:.3g}".ljust(16)
+        if c_dev is not None and np.isfinite(c_dev):
+            opt_info += f"{c_dev:.3g}".ljust(16)
+        if m_train is not None and np.isfinite(m_train):
+            opt_info += f"{m_train:.3g}".ljust(16)
+        if m_dev is not None and np.isfinite(m_dev):
+            opt_info += f"{m_dev:.3g}".ljust(16)
+        print(opt_info)
+
+    @staticmethod
+    def print_progress_header(c_train=False, c_dev=False, m_train=False, m_dev=False):
+        opt_title = "Iters".ljust(13) + "Time (s)".ljust(13)
+        if c_train:
+            opt_title += "Cost (train)".ljust(16)
+        if c_dev:
+            opt_title += "Cost (dev)".ljust(16)
+        if m_train:
+            opt_title += "Metric (train)".ljust(16)
+        if m_dev:
+            opt_title += "Metric (dev)".ljust(16)
+        print(opt_title)
+
     def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model):
 
         """Workhorse of optimization.
@@ -588,84 +613,69 @@ class GLM:
         """
 
         @jit
-        def step(i, opt_state):
-            p = get_params(opt_state)
+        def step(_i, _opt_state):
+            p = get_params(_opt_state)
             l, g = value_and_grad(self.cost)(p)
-            return l, opt_update(i, g, opt_state)
+            return l, opt_update(_i, g, _opt_state)
 
         opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)
         opt_state = opt_init(p0)
 
-        cost_train = [0] * num_iters
-        cost_dev = [0] * num_iters
-        metric_train = [0] * num_iters
-        metric_dev = [0] * num_iters
-        params_list = [0] * num_iters
+        cost_train = np.full(num_iters, np.nan)
+        cost_dev = np.full(num_iters, np.nan)
+        metric_train = np.full(num_iters, np.nan)
+        metric_dev = np.full(num_iters, np.nan)
+        params_list = []
+
+        extra = 'dev' in self.y
+
         if verbose:
-            if 'dev' not in self.y:
-                if metric is None:
-                    print('{0}\t{1:>10}\t{2:>10}'.format('Iters', 'Time (s)', 'Cost (train)'))
-                else:
-                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)',
-                                                                  f'{metric} (train)'))
-            else:
-                if metric is None:
-                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}'.format('Iters', 'Time (s)', 'Cost (train)', 'Cost (dev)'))
-                else:
-                    print('{0}\t{1:>10}\t{2:>10}\t{3:>10}\t{4:>10}\t{5:>10}'.format('Iters', 'Time (s)', 'Cost (train)',
-                                                                                    'Cost (dev)', f'{metric} (train)',
-                                                                                    f'{metric} (dev)'))
+            self.print_progress_header(
+                c_train=True, c_dev=extra, m_train=metric is not None, m_dev=metric is not None and extra)
 
         time_start = time.time()
+        i = 0
+
         for i in range(num_iters):
             cost_train[i], opt_state = step(i, opt_state)
-            params_list[i] = get_params(opt_state)
-            y_pred_train = self.forwardpass(p=params_list[i], kind='train')
+
+            params = get_params(opt_state)
+            params_list.append(params)
+
+            y_pred_train = self.forwardpass(p=params, kind='train')
             metric_train[i] = self.compute_score(self.y['train'], y_pred_train, metric)
 
             if 'dev' in self.y:
-                y_pred_dev = self.forwardpass(p=params_list[i], kind='dev')
-                cost_dev[i] = self.cost(p=params_list[i], kind='dev', precomputed=y_pred_dev, penalize=False)
+                y_pred_dev = self.forwardpass(p=params, kind='dev')
+                cost_dev[i] = self.cost(p=params, kind='dev', precomputed=y_pred_dev, penalize=False)
                 metric_dev[i] = self.compute_score(self.y['dev'], y_pred_dev, metric)
 
             time_elapsed = time.time() - time_start
             if verbose:
                 if i % int(verbose) == 0:
-                    if 'dev' not in self.y:
-                        if metric is None:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}'.format(i, time_elapsed, cost_train[i]))
-                        else:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(
-                                i, time_elapsed, cost_train[i], metric_train[i]))
+                    self.print_progress(
+                        i, time_elapsed, c_train=cost_train[i], c_dev=cost_dev[i],
+                        m_train=metric_train[i], m_dev=metric_dev[i])
 
-                    else:
-                        if metric is None:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}'.format(
-                                i, time_elapsed, cost_train[i], cost_dev[i]))
-                        else:
-                            print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}\t{3:>10.3f}\t{4:>10.3f}\t{5:>10.3f}'.format(
-                                i, time_elapsed, cost_train[i], cost_dev[i], metric_train[i], metric_dev[i]))
             if tolerance and i > 300:  # tolerance = 0: no early stop.
 
                 total_time_elapsed = time.time() - time_start
-                cost_train_slice = jnp.array(cost_train[i - tolerance:i])
-                cost_dev_slice = jnp.array(cost_dev[i - tolerance:i])
 
-                if 'dev' in self.y and jnp.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
-                    if verbose:
-                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.'.format(i,
-                                                                                                                      tolerance))
-                        print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
+                if 'dev' in self.y and np.all(np.diff(cost_dev[i - tolerance:i]) > 0):
                     stop = 'dev_stop'
+                    if verbose:
+                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.'.format(
+                            i, tolerance))
+                        print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                     break
 
-                if jnp.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
+                if np.all(np.diff(cost_train[i - tolerance:i]) < 1e-5):
+                    stop = 'train_stop'
                     if verbose:
                         print(
-                            'Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.'.format(i,
-                                                                                                                     tolerance))
+                            'Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.'.format(
+                                i, tolerance))
                         print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
-                    stop = 'train_stop'
                     break
 
         else:
@@ -676,22 +686,22 @@ class GLM:
                 print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
 
         if return_model == 'best_dev_cost':
-            best = jnp.argmin(jnp.asarray(cost_dev[:i + 1]))
+            best = np.argmin(cost_dev[:i + 1])
 
         elif return_model == 'best_train_cost':
-            best = jnp.argmin(jnp.asarray(cost_train[:i + 1]))
+            best = np.argmin(cost_train[:i + 1])
 
         elif return_model == 'best_dev_metric':
             if metric in ['mse', 'gcv']:
-                best = jnp.argmin(jnp.asarray(metric_dev[:i + 1]))
+                best = np.argmin(metric_dev[:i + 1])
             else:
-                best = jnp.argmax(jnp.asarray(metric_dev[:i + 1]))
+                best = np.argmax(metric_dev[:i + 1])
 
         elif return_model == 'best_train_metric':
             if metric in ['mse', 'gcv']:
-                best = jnp.argmin(jnp.asarray(metric_train[:i + 1]))
+                best = np.argmin(metric_train[:i + 1])
             else:
-                best = jnp.argmax(jnp.asarray(metric_train[:i + 1]))
+                best = np.argmax(metric_train[:i + 1])
 
         elif return_model == 'last':
             if stop == 'dev_stop':
@@ -701,15 +711,15 @@ class GLM:
 
         else:
             print('Provided `return_model` is not supported. Fell back to `best_dev_cost`')
-            best = jnp.argmin(jnp.asarray(cost_dev[:i + 1]))
+            best = np.argmin(cost_dev[:i + 1])
 
         params = params_list[best]
         metric_dev_opt = metric_dev[best]
 
-        self.cost_train = jnp.hstack(cost_train[:i + 1])
-        self.cost_dev = jnp.hstack(cost_dev[:i + 1])
-        self.metric_train = jnp.hstack(metric_train[:i + 1])
-        self.metric_dev = jnp.hstack(metric_dev[:i + 1])
+        self.cost_train = cost_train[:i + 1]
+        self.cost_dev = cost_dev[:i + 1]
+        self.metric_train = metric_train[:i + 1]
+        self.metric_dev = metric_dev[:i + 1]
         self.metric_dev_opt = metric_dev_opt
         self.total_time_elapsed = total_time_elapsed
 
@@ -850,24 +860,20 @@ class GLM:
 
         return y_pred
 
-    def compute_score(self, y, y_pred, metric):
+    @staticmethod
+    def compute_score(y, y_pred, metric):
         """
         Metric score for evaluating model prediction.
         """
 
         if metric == 'r2':
             return r2(y, y_pred)
-        elif metric == 'r2adj':
-            return r2adj(y, y_pred, p=self.edf_tot)
 
         elif metric == 'mse':
             return mse(y, y_pred)
 
         elif metric == 'corrcoef':
             return corrcoef(y, y_pred)
-
-        elif metric == 'gcv':
-            return gcv(y, y_pred, edf=self.edf_tot)
 
         else:
             print(f'Metric `{metric}` is not supported.')
@@ -920,8 +926,7 @@ class GLM:
 
         P = self.P
         S = self.S
-        if 'train' in self.XS:
-            XS = self.XS['train']
+        XS = self.XS.get('train', None)
         X = self.X['train']
 
         edf = self.edf

@@ -2,8 +2,8 @@ import time
 
 import numpy as np
 
-from ._initialize import initialize_factors
-from ..splines import build_spline_matrix
+from rfest.MF._initialize import initialize_factors
+from rfest.splines import build_spline_matrix
 
 __all__ = ['semiNMF']
 

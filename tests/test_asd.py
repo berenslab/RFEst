@@ -1,11 +1,11 @@
-from generate_data import generate_small_rf_and_data
+from rfest.generate_data import generate_2d_rf_data
 from rfest import ASD
-from rfest.utils import uvec
 from rfest.metrics import mse
+from rfest.utils import uvec
 
 
 def test_asd_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     model = ASD(X, y, dims=dims)
     model.fit(p0=[1., 1., 6., 6., ], num_iters=10, verbose=10)

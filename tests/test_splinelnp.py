@@ -1,11 +1,11 @@
-from generate_data import generate_small_rf_and_data, generate_spike_train
+from rfest.generate_data import generate_2d_rf_data, generate_spike_train
 from rfest import splineLNP
-from rfest.utils import uvec, split_data
 from rfest.metrics import mse
+from rfest.utils import uvec, split_data
 
 
 def test_splinelnp_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     df = [3, 4]
     model = splineLNP(X, y, dims=dims, dt=dt, df=df)
@@ -15,7 +15,7 @@ def test_splinelnp_small_rf():
 
 
 def test_splinelnp_mle_small_rf():
-    w_true, X, y, dims, dt = generate_small_rf_and_data(noise='white')
+    w_true, X, y, dims, dt = generate_2d_rf_data(noise='white')
 
     df = [3, 4]
     model = splineLNP(X, y, dims=dims, dt=dt, df=df, compute_mle=True)

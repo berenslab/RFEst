@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import jax.random as random
 from jax.config import config
+
 from rfest.GLM._base import splineBase
 from rfest.utils import build_design_matrix
 

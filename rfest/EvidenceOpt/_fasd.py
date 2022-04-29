@@ -222,18 +222,16 @@ class fASD:
         """
         Parameters
         ==========
-        p0 : list or array_like, shape (n_hp_time, ) for 1D
-                                       (n_hp_time + n_hp_space) for 2D
-                                       (n_hp_time + n_hp_space*2) for 3D
-            Initial Gaussian prior hyperparameters
         num_iters : int
             Max number of optimization iterations.
+
         step_size : float
             Initial step size for Jax optimizer.
-            
+
         tolerance : int
             Set early stop tolerance. Optimization stops when cost monotonically 
             increases or stop increases for tolerance=n steps.
+
         verbose: int
             When `verbose=0`, progress is not printed. When `verbose=n`,
             progress will be printed in every n steps.

@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 from jax.config import config
+
 from rfest.GLM._base import Base
 
 config.update("jax_enable_x64", True)
@@ -9,9 +10,7 @@ __all__ = ['LNP']
 
 class LNP(Base):
     """
-
     Linear-Nonliear-Poisson model.
-
     """
 
     def __init__(self, X, y, dims, compute_mle=False, nonlinearity='softplus', **kwargs):
@@ -20,7 +19,6 @@ class LNP(Base):
         self.nonlinearity = nonlinearity
 
     def forwardpass(self, p, extra=None):
-
         """
         Model ouput with current estimated parameters.
         """
@@ -33,6 +31,8 @@ class LNP(Base):
                 yh = extra['yh']
             else:
                 yh = self.yh
+        else:
+            yh = None
 
         if self.fit_intercept:
             intercept = p['intercept']
@@ -53,10 +53,12 @@ class LNP(Base):
         if self.fit_linear_filter:
             filter_output = X @ p['w'].flatten()
         else:
-            if hasattr(self, 'b_opt'):
+            if hasattr(self, 'w_opt'):
                 filter_output = X @ self.w_opt.flatten()
+            elif hasattr(self, 'w_mle'):
+                filter_output = X @ self.w_mle.flatten()
             else:
-                filter_output = X @ self.w_spl.flatten()
+                filter_output = X @ self.w_sta.flatten()
 
         if self.fit_history_filter:
             history_output = yh @ p['h']
@@ -84,7 +86,7 @@ class LNP(Base):
     def cost(self, p, extra=None, precomputed=None):
 
         """
-        Negetive Log Likelihood.
+        Negative Log Likelihood.
         """
         y = self.y if extra is None else extra['y']
         r = self.forwardpass(p, extra) if precomputed is None else precomputed

@@ -54,7 +54,7 @@ class EmpiricalBayes:
         self.XtY = X.T @ y
         self.YtY = y.T @ y
 
-        if jnp.array_equal(y, y.astype(bool)):  # if y is spikes
+        if jnp.array_equal(y, y.astype(int)):  # if y is spikes
             self.w_sta = self.XtY / sum(y)
         else:  # if y is not spike
             self.w_sta = self.XtY / len(y)
@@ -173,6 +173,9 @@ class EmpiricalBayes:
             # Build 3D Covariance Matrix
             C = rho * jnp.kron(C_t, C_s)
             C_inv = (1 / rho) * jnp.kron(C_t_inv, C_s_inv)
+
+        else:
+            raise NotImplementedError(len(self.dims))
 
         return C, C_inv
 
