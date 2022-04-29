@@ -1,3 +1,5 @@
+from rfest.version import __version__
+
 from rfest.EvidenceOpt import *
 from rfest.GLM import *
 from rfest.splines import build_spline_matrix

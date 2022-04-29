@@ -36,7 +36,7 @@ def bs(x, df, degree=3):
     return uvec(basis)
 
 
-def cr(x, df, return_P=False):
+def cr(x, df):
     """
     
     Natural cubic regression splines. Knots placed equally by percentile. 
@@ -77,14 +77,10 @@ def cr(x, df, return_P=False):
 
     basis = ajm * i[j, :].T + ajp * i[j + 1, :].T + cjm * f[j, :].T + cjp * f[j + 1, :].T
 
-    if return_P:
-        P = (D.T @ np.linalg.inv(B) @ D)
-        return uvec(basis.T), P
-    else:
-        return uvec(basis.T)
+    return uvec(basis.T)
 
 
-def cc(x, df, return_P=False):
+def cc(x, df):
     """
 
     Cyclic cubic regression splines. Knots placed equally by percentile.
@@ -93,9 +89,6 @@ def cc(x, df, return_P=False):
     https://github.com/pydata/patsy/blob/master/patsy/mgcv_cubic_splines.py
 
     """
-
-    if return_P:
-        raise NotImplementedError('Penalty matrix P is not implemented')
 
     def _map_cyclic(_x, lbound, ubound):
         _x = np.copy(_x)
@@ -203,7 +196,7 @@ def te(*args):
     return columnwise_product(te(*As[:-1]), As[-1])
 
 
-def build_spline_matrix(dims, df, smooth, lam=0., return_P=False, dtype=np.float64):
+def build_spline_matrix(dims, df, smooth, dtype=np.float64):
     """
     
     Building spline matrix for n-dimensional RF (n=[1,2,3]) with tensor product smooth.
@@ -222,24 +215,15 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False, dtype=np.float
         * `bs`: B-spline
         * `cr`: Cubic Regression spline
         * `tp`: (Simplified) Thin Plate regression spline 
-    
-    lam: list
-        Weight for penalty matrix
-
-    return_P : bool
-        Return penalty matrix P
 
     dtype : dtype
-        Data type S and P will be cast to before returning
+        Data type S will be cast to before returning
 
     Return
     ======
     
     S : array_like, shape (n_features, n_spline_coef)
         Spline matrix. Each column is one basis. 
-
-    P (optional): array_like
-        Penality matrix
 
     Note
     ====
@@ -265,13 +249,14 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False, dtype=np.float
     if len(df) != ndim:
         raise ValueError("`df` must have the same length as `dims`")
 
-    if type(lam) is not list:
-        lam = [lam, ] * ndim
-
     if smooth == 'cr':
         basis = cr  # Natural cubic regression spline
     elif smooth == 'cc':
         basis = cc  # cyclic cubic regression spline
+    elif smooth == 'bs':
+        basis = bs  # b-spline
+    elif smooth == 'tp':
+        basis = tp  # thin-plate spline
     else:
         raise ValueError("Input method `{}` is not supported.".format(smooth))
 
@@ -279,25 +264,17 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False, dtype=np.float
     if ndim == 1:
 
         g0 = np.arange(dims[0])
-        S, P = basis(g0.ravel(), df[0], return_P=True)
-        P *= lam[0]
-        # P = (P,)
+        S = basis(g0.ravel(), df[0])
 
     elif ndim == 2:
 
         g0 = np.arange(dims[0])
         g1 = np.arange(dims[1])
 
-        St, Pt = basis(g0.ravel(), df[0], return_P=True)
-        Sx, Px = basis(g1.ravel(), df[1], return_P=True)
+        St = basis(g0.ravel(), df[0])
+        Sx = basis(g1.ravel(), df[1])
 
         S = np.kron(St, Sx)
-
-        Pt = lam[0] * np.kron(Pt, np.eye(df[1]))
-        Px = lam[1] * np.kron(np.eye(df[0]), Px)
-
-        # P = (Pt, Px)
-        P = Pt + Px
 
     elif ndim == 3:
 
@@ -305,22 +282,13 @@ def build_spline_matrix(dims, df, smooth, lam=0., return_P=False, dtype=np.float
         g1 = np.arange(dims[1])
         g2 = np.arange(dims[2])
 
-        St, Pt = basis(g0.ravel(), df[0], return_P=True)
-        Sx, Px = basis(g1.ravel(), df[1], return_P=True)
-        Sy, Py = basis(g2.ravel(), df[2], return_P=True)
+        St = basis(g0.ravel(), df[0])
+        Sx = basis(g1.ravel(), df[1])
+        Sy = basis(g2.ravel(), df[2])
 
-        S = np.kron(St, np.kron(Sx, Sy))  #
+        S = np.kron(St, np.kron(Sx, Sy))
 
-        Pt = lam[0] * np.kron(Pt, np.kron(np.eye(df[1]), np.eye(df[2])))
-        Px = lam[1] * np.kron(np.eye(df[0]), np.kron(Px, np.eye(df[2])))
-        Py = lam[2] * np.kron(np.eye(df[0]), np.kron(np.eye(df[1]), Py))
-
-        P = Pt + Px + Py
-        # P = (Pt, Px, Py)
     else:
         raise NotImplementedError(ndim)
 
-    if return_P:
-        return uvec(S).astype(dtype), P.astype(dtype)
-    else:
-        return uvec(S).astype(dtype)
+    return uvec(S).astype(dtype)

@@ -14,7 +14,7 @@ except ImportError:
 
 from rfest.utils import build_design_matrix
 from rfest.splines import build_spline_matrix
-from rfest.metrics import r2, r2adj, mse, corrcoef, gcv
+from rfest.metrics import r2, mse, corrcoef
 
 config.update("jax_debug_nans", True)
 
@@ -43,7 +43,6 @@ class GLM:
         # Data
         self.X = {}  # design matrix
         self.S = {}  # spline matrix
-        self.P = {}  # penalty matrix
         self.XS = {}  # dot product of X and S
         self.XtX = {}  # input covariance
         self.Xty = {}  # cross-covariance
@@ -63,7 +62,6 @@ class GLM:
 
         # Model hypterparameters
         self.df = {}  # number of bases for each filter
-        self.edf = {}  # effective degree of freedom given lam
         self.dims = {}  # filter shapes
         self.n_features = {}  # number of features for each filter
         self.filter_names = []  # filter names
@@ -77,7 +75,6 @@ class GLM:
 
         # others
         self.mle_computed = False
-        self.lam = {}  # smoothness regularization weight
         self.scores = {}  # prediction error metric scores
         self.r2pseudo = {}
         self.corrcoef = {}
@@ -144,7 +141,7 @@ class GLM:
             raise NotImplementedError(f'Input filter nonlinearity `{kind}` is not supported.')
 
     def add_design_matrix(self, X, dims=None, df=None, smooth=None, lag=True,
-                          lam=0., filter_nonlinearity='none',
+                          filter_nonlinearity='none',
                           kind='train', name='stimulus', shift=0, burn_in=None):
 
         """
@@ -245,28 +242,20 @@ class GLM:
             else:
                 if kind == 'train':
                     self.n_features[name] = self.X['train'][name].shape[1]
-                    self.edf[name] = self.n_features[name]
 
         else:  # use spline
             if kind not in self.XS:
                 self.XS.update({kind: {}})
 
             self.df[name] = df if type(df) is not int else [df, ]
-            self.lam[name] = lam if type(lam) is list else [lam, ] * len(self.df[name])
-            S, P = build_spline_matrix(dims, self.df[name], smooth, self.lam[name], return_P=True, dtype=self.dtype)
+            S = build_spline_matrix(dims=dims, df=self.df[name], smooth=smooth, dtype=self.dtype)
             self.S[name] = S
-            self.P[name] = P  # penalty matrix, which absolved lamda already
 
             XS = self.X[kind][name] @ S
             self.XS[kind][name] = XS
 
             if kind == 'train':
                 self.n_features[name] = self.XS['train'][name].shape[1]
-                if (P == 0).all():
-                    self.edf[name] = self.n_features[name]
-                else:
-                    edf = (XS.T * (jnp.linalg.inv(XS.T @ XS + P) @ XS.T)).sum()
-                    self.edf[name] = edf
 
     def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046,
                    verbose=0, add_noise_to_mle=0):
@@ -331,7 +320,6 @@ class GLM:
                     if method in self.w_se:
                         self.w_se[method][name] = self.w_se[method]['stimulus']
                     self.X['train'][name] = self.X['train']['stimulus']
-                    self.edf[name] = self.edf['stimulus']
 
                     if 'dev' in self.X:
                         self.X['dev'][name] = self.X['dev']['stimulus']
@@ -345,7 +333,6 @@ class GLM:
                         if 'dev' in self.XS:
                             self.XS['dev'][name] = self.XS['dev']['stimulus']
 
-                        self.P[name] = self.P['stimulus']
                         self.S[name] = self.S['stimulus']
 
             try:
@@ -361,7 +348,6 @@ class GLM:
                 self.XS['train'].pop('stimulus')
                 self.XS['dev'].pop('stimulus')
                 self.S.pop('stimulus')
-                self.P.pop('stimulus')
 
             self.filter_names = filter_names
 
@@ -924,12 +910,9 @@ class GLM:
         Compute the variance and standard error of the weight of each filters.
         """
 
-        P = self.P
         S = self.S
         XS = self.XS.get('train', None)
         X = self.X['train']
-
-        edf = self.edf
 
         if self.distr == 'gaussian':
 
@@ -937,7 +920,7 @@ class GLM:
             y_pred = self.y_pred[w_type]['train']
             rsd = y - y_pred  # residuals
             rss = jnp.sum(rsd ** 2)  # residul sum of squares
-            rss_var = {name: rss / (len(y) - edf[name]) for name in self.filter_names}
+            rss_var = {name: rss / (len(y) - sum(self.df[name])) for name in self.filter_names}
 
             V = {}
             b_se = {}
@@ -945,14 +928,14 @@ class GLM:
             for name in self.filter_names:
                 if name in S:
                     # check sample size
-                    if len(XS[name]) < self.edf[name]:
+                    if len(XS[name]) < sum(self.df[name]):
                         print('Sample size is too small for getting reasonable confidence interval.')
                     # compute weight covariance
                     try:
-                        V[name] = jnp.linalg.inv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
+                        V[name] = jnp.linalg.inv(XS[name].T @ XS[name]) * rss_var[name]
                     except:
                         # if inv failed, use pinv
-                        V[name] = jnp.linalg.pinv(XS[name].T @ XS[name] + P[name]) * rss_var[name]
+                        V[name] = jnp.linalg.pinv(XS[name].T @ XS[name]) * rss_var[name]
 
                         # remove negative correlation?
                     # https://math.stackexchange.com/q/4018326
@@ -980,7 +963,7 @@ class GLM:
             for name in self.filter_names:
                 if name in S:
                     # check sample size
-                    if len(XS[name]) < self.edf[name]:
+                    if len(XS[name]) < sum(self.df[name]):
                         print('Sample size is too small for getting reasonable confidence interval.')
 
                     b[name] = self.b[w_type][name]
@@ -988,9 +971,9 @@ class GLM:
                     U[name] = 1 / self.fnl(u[name], self.output_nonlinearity).flatten() ** 2
 
                     try:
-                        V[name] = jnp.linalg.inv(XS[name].T * U[name] @ XS[name] + P[name])
+                        V[name] = jnp.linalg.inv(XS[name].T * U[name] @ XS[name])
                     except:
-                        V[name] = jnp.linalg.pinv(XS[name].T * U[name] @ XS[name] + P[name])
+                        V[name] = jnp.linalg.pinv(XS[name].T * U[name] @ XS[name])
 
                     V[name] = jnp.abs(V[name])
                     b_se[name] = jnp.sqrt(jnp.diag(V[name]))
@@ -1021,7 +1004,6 @@ class GLM:
         Compute the variance and standard error of the predicted response.
         """
 
-        P = self.P
         S = self.S
         X = self.X[kind]
         if kind in self.XS:

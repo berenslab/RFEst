@@ -66,7 +66,7 @@ def significance(model, w_type='opt', show_results=False):
 
     for name in model.filter_names:
         W = np.squeeze(model.p[w_type][name].T @ np.linalg.inv(model.V[w_type][name]) @ model.p[w_type][name])
-        p_value = 1 - scipy.stats.chi2.cdf(x=W, df=model.edf[name])
+        p_value = 1 - scipy.stats.chi2.cdf(x=W, df=sum(model.df[name]))
 
         W_values[name] = W
         p_values[name] = p_value
