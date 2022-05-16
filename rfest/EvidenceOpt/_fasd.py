@@ -21,8 +21,13 @@ class fASD:
 
     """
 
-    def __init__(self, X, y, dims, p0, compute_mle=False, **kwargs):
+    def __init__(self, X, y, dims, p0, compute_mle=False):
 
+        self.optimized_C_prior = None
+        self.optimized_C_post = None
+        self.optimized_params = None
+        self.w_opt = None
+        self.num_iters = None
         self.dims = dims
         self.n_samples, self.n_features = X.shape
 
@@ -172,10 +177,10 @@ class fASD:
         opt_state = opt_init(p0)
 
         @jit
-        def step(i, opt_state):
-            p = get_params(opt_state)
+        def step(_i, _opt_state):
+            p = get_params(_opt_state)
             g = grad(self.negative_log_evidence)(p)
-            return opt_update(i, g, opt_state)
+            return opt_update(_i, g, _opt_state)
 
         cost_list = []
         params_list = []
@@ -318,8 +323,7 @@ def fourier_transform(dims, p0, ext=1.25):
                                wvec=wvec_t)
     freq_t *= (2 * np.pi / ncoeff_ext_t) ** 2
 
-    freq_each_dim = []
-    freq_each_dim.append(freq_t)
+    freq_each_dim = [freq_t]
 
     if len(dims_sRF) == 0:
         Uf = U_t

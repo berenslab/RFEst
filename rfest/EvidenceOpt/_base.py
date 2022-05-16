@@ -44,6 +44,13 @@ class EmpiricalBayes:
         """
 
         # Wrapped with JAX DeviceArray
+        self.w_opt = None
+        self.optimized_C_post = None
+        self.optimized_C_prior = None
+        self.optimized_params = None
+        self.num_iters = None
+        self.p0 = None
+
         self.X = jnp.array(X)  # stimulus design matrix
         self.y = jnp.array(y)  # response
 
@@ -99,9 +106,8 @@ class EmpiricalBayes:
             return ridge_kernel(params, ncoeff)
 
         else:
-            raise NotImplementedError(
-                '`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_time()` method.'.format(
-                    self.time))
+            raise NotImplementedError(f'`{self.time}` is not supported.' +
+                                      'You can implement it yourself by overwriting the `self.cov1d_time()` method.')
 
     def cov1d_space(self, params, ncoeff):
 
@@ -118,9 +124,8 @@ class EmpiricalBayes:
             return ridge_kernel(params, ncoeff)
 
         else:
-            raise NotImplementedError(
-                '`{}` is not supported. You can implement it yourself by overwriting the `self.cov1d_space()` method.'.format(
-                    self.space))
+            raise NotImplementedError(f'`{self.space}` is not supported.' +
+                                      'You can implement it yourself by overwriting the `self.cov1d_space()` method.')
 
     def update_C_prior(self, params):
 
@@ -237,10 +242,10 @@ class EmpiricalBayes:
         opt_state = opt_init(p0)
 
         @jit
-        def step(i, opt_state):
-            p = get_params(opt_state)
+        def step(_i, _opt_state):
+            p = get_params(_opt_state)
             g = grad(self.negative_log_evidence)(p)
-            return opt_update(i, g, opt_state)
+            return opt_update(_i, g, _opt_state)
 
         cost_list = []
         params_list = []
@@ -324,3 +329,4 @@ class EmpiricalBayes:
         self.optimized_C_prior = optimized_C_prior
         self.optimized_C_post = optimized_C_post
         self.w_opt = optimized_m_post
+

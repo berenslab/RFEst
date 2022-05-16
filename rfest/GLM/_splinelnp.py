@@ -8,6 +8,7 @@ config.update("jax_enable_x64", True)
 __all__ = ['splineLNP']
 
 
+# noinspection PyUnboundLocalVariable
 class splineLNP(splineBase):
 
     def __init__(self, X, y, dims, df, smooth='cr', nonlinearity='softplus', compute_mle=False, **kwargs):
@@ -22,7 +23,7 @@ class splineLNP(splineBase):
 
         XS = self.XS if extra is None else extra['XS']
 
-        if hasattr(self, 'bh_spl'):
+        if self.bh_spl is not None:
             if extra is not None and 'yS' in extra:
                 yS = extra['yS']
             else:
@@ -31,7 +32,7 @@ class splineLNP(splineBase):
         if self.fit_intercept:
             intercept = p['intercept']
         else:
-            if hasattr(self, 'intercept'):
+            if self.intercept is not None:
                 intercept = self.intercept
             else:
                 intercept = 0.
@@ -39,7 +40,7 @@ class splineLNP(splineBase):
         if self.fit_R:  # maximum firing rate / scale factor
             R = p['R']
         else:
-            if hasattr(self, 'R'):
+            if self.R is not None:
                 R = self.R
             else:
                 R = 1.
@@ -47,7 +48,7 @@ class splineLNP(splineBase):
         if self.fit_nonlinearity:
             nl_params = p['nl_params']
         else:
-            if hasattr(self, 'nl_params'):
+            if self.nl_params is not None:
                 nl_params = self.nl_params
             else:
                 nl_params = None
@@ -55,7 +56,7 @@ class splineLNP(splineBase):
         if self.fit_linear_filter:
             filter_output = XS @ p['b']
         else:
-            if hasattr(self, 'b_opt'):
+            if self.b_opt is not None:
                 filter_output = XS @ self.b_opt
             else:
                 filter_output = XS @ self.b_spl
@@ -63,9 +64,9 @@ class splineLNP(splineBase):
         if self.fit_history_filter:
             history_output = yS @ p['bh']
         else:
-            if hasattr(self, 'bh_opt'):
+            if self.bh_opt is not None:
                 history_output = yS @ self.bh_opt
-            elif hasattr(self, 'bh_spl'):
+            elif self.bh_spl is not None:
                 history_output = yS @ self.bh_spl
             else:
                 history_output = jnp.array([0.])
@@ -96,7 +97,7 @@ class splineLNP(splineBase):
             l2 = jnp.linalg.norm(p['b'], 2)
             neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
 
-        if hasattr(self, 'Cinv'):
+        if self.Cinv is not None:
             neglogli += 0.5 * p['b'] @ self.Cinv @ p['b']
 
         return neglogli
