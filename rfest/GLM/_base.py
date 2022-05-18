@@ -54,8 +54,58 @@ class Base:
             Compute sta and maximum likelihood optionally.
 
         """
+        # Optimization
+        self.intercept = None
+        self.nl_params_opt = None
+        self.h_opt = None
+        self.w_spl = None
+        self.w_opt = None
+        self.R = None
+        self.p_opt = None
+        self.p0 = None
+        self.metric = None
+
+        self.alpha = None
+        self.beta = None
+        self.num_iters = None
+
+        self.fit_R = None
+        self.fit_linear_filter = None,
+        self.fit_history_filter = None
+        self.fit_nonlinearity = None
+        self.fit_intercept = None
 
         # store meta
+        self.cost_dev = None
+        self.cost_train = None
+        self.metric_train = None
+        self.metric_dev = None
+        self.metric_train = None
+        self.metric_dev_opt = None
+        self.total_time_elapsed = None
+
+        self.fnl_fitted = None
+        self.nl_params = None
+        self.nl_xrange = None
+        self.nl_basis = None
+        self.output_nonlinearity = None
+        self.filter_nonlinearity = None
+        self.nonlinearity = None
+        self.fnl_nonparametric = None
+        self.nl_bins = None
+        self.h_mle = None
+        self.yh = None
+        self.shift_h = None
+        self.w_stc = None
+        self.w_stc_min_null = None
+        self.w_stc_max_null = None
+        self.w_stc_eigval_mask = None
+        self.w_stc_eigval = None
+
+        self.w_stc_eigval_neg_mask = None
+        self.w_stc_eigval_pos_mask = None
+        self.w_stc_neg = None
+        self.w_stc_pos = None
 
         self.ndim = len(dims)
         if self.ndim == 4:  # [t, x, y, c]
@@ -197,11 +247,11 @@ class Base:
     def fit_nonparametric_nonlinearity(self, nbins=50, w=None):
 
         if w is None:
-            if hasattr(self, 'w_spl'):
+            if self.w_spl is not None:
                 w = self.w_spl.flatten()
-            elif hasattr(self, 'w_mle'):
+            elif self.w_mle is not None:
                 w = self.w_mle.flatten()
-            elif hasattr(self, 'w_sta'):
+            elif self.w_sta is not None:
                 w = self.w_sta.flatten()
         else:
             w = jnp.array(w)
@@ -228,12 +278,12 @@ class Base:
         if method is None:  # if no methods specified, use defaults.
             # this piece of code is quite redundant.
             # need to refactor.
-            if hasattr(self, 'nonlinearity'):
+            if self.nonlinearity is not None:
                 method = self.nonlinearity
             else:
                 method = self.filter_nonlinearity
         else:  # overwrite the default nonlinearity
-            if hasattr(self, 'nonlinearity'):
+            if self.nonlinearity is not None:
                 self.nonlinearity = method
             else:
                 self.filter_nonlinearity = method
@@ -256,6 +306,7 @@ class Base:
             y0 = self.fnl_nonparametric(x0)
         elif init_to == 'gaussian':
             import scipy.signal
+            # noinspection PyUnresolvedReferences
             y0 = scipy.signal.gaussian(nx, nx / 10)
         else:
             raise NotImplementedError(init_to)
@@ -321,7 +372,7 @@ class Base:
             if num_subunits == 1:
                 data = {'x': x0.reshape(-1, 1), 'y': y0.reshape(-1, 1)}
             else:
-                data = {'x': jnp.vstack([x0 for i in range(num_subunits)]).T, 'y': y0.reshape(-1, 1)}
+                data = {'x': jnp.vstack([x0 for _ in range(num_subunits)]).T, 'y': y0.reshape(-1, 1)}
 
             for i in range(num_iters):
                 opt_state = step(i, opt_state, data)
@@ -638,10 +689,10 @@ class Base:
             p0.update({'R': jnp.array([1.])})
 
         if 'h' not in dict_keys:
-            if initialize is None and hasattr(self, 'h_mle'):
+            if initialize is None and self.h_mle is not None:
                 p0.update({'h': self.h_mle})
 
-            elif initialize == 'random' and hasattr(self, 'h_mle'):
+            elif initialize == 'random' and self.h_mle is not None:
                 key = random.PRNGKey(random_seed)
                 h0 = 0.01 * random.normal(key, shape=(self.h_mle.shape[0],)).flatten()
                 p0.update({'h': h0})
@@ -649,14 +700,14 @@ class Base:
                 p0.update({'h': None})
 
         if 'nl_params' not in dict_keys:
-            if hasattr(self, 'nl_params'):
+            if self.nl_params is not None:
                 p0.update({'nl_params': self.nl_params})
             else:
                 p0.update({'nl_params': None})
 
         if extra is not None:
 
-            if hasattr(self, 'h_mle'):
+            if self.h_mle is not None:
                 yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.yh.shape[1], shift=1))
                 extra.update({'yh': yh})
 
@@ -700,7 +751,7 @@ class Base:
         """
 
         extra = {'X': X, 'y': y}
-        if hasattr(self, 'h_mle'):
+        if self.h_mle is not None:
 
             if y is None:
                 raise ValueError('`y` is needed for calculating response history.')
@@ -773,6 +824,17 @@ class splineBase(Base):
 
         super().__init__(X, y, dims, compute_mle, **kwargs)
 
+        # Optimization
+        self.bh_opt = None
+        self.b_opt = None
+        self.extra = None
+        self.h_spl = None
+        self.bh_spl = None
+        self.yS = None
+        self.Sh = None
+        self.Cinv = None
+
+        # Parameters
         self.df = df  # number basis / degree of freedom
         self.smooth = smooth  # type of basis
 
@@ -811,6 +873,7 @@ class splineBase(Base):
     def cost(self, b, extra):
         pass
 
+    # noinspection PyMethodOverriding
     def initialize_history_filter(self, dims, df, smooth='cr', shift=1):
 
         """
@@ -844,6 +907,8 @@ class splineBase(Base):
         self.bh_spl = jnp.linalg.solve(yS.T @ yS, yS.T @ y)
         self.h_spl = Sh @ self.bh_spl
 
+    # TODO: fix Docstring
+    # noinspection PyIncorrectDocstring
     def fit(self, p0=None, extra=None, initialize='random',
             num_epochs=1, num_iters=3000, metric=None, alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
@@ -928,9 +993,9 @@ class splineBase(Base):
             p0.update({'R': jnp.array([1.])})
 
         if 'bh' not in dict_keys:
-            if initialize is None and hasattr(self, 'bh_spl'):
+            if initialize is None and self.bh_spl is not None:
                 p0.update({'bh': self.bh_spl})
-            elif initialize == 'random' and hasattr(self, 'bh_spl'):
+            elif initialize == 'random' and self.bh_spl is not None:
                 key = random.PRNGKey(random_seed)
                 bh0 = 0.01 * random.normal(key, shape=(len(self.bh_spl),)).flatten()
                 p0.update({'bh': bh0})
@@ -938,7 +1003,7 @@ class splineBase(Base):
                 p0.update({'bh': None})
 
         if 'nl_params' not in dict_keys:
-            if hasattr(self, 'nl_params'):
+            if self.nl_params is not None:
                 p0.update({'nl_params': self.nl_params})
             else:
                 p0.update({'nl_params': None})
@@ -952,7 +1017,7 @@ class splineBase(Base):
             else:
                 extra.update({'XS': extra['X'] @ self.S})
 
-            if hasattr(self, 'h_spl'):
+            if self.h_spl is not None:
                 yh_ext = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.Sh.shape[0], shift=1))
                 yS_ext = yh_ext @ self.Sh
                 extra.update({'yS': yS_ext})
@@ -1010,7 +1075,7 @@ class splineBase(Base):
 
         extra = {'X': X, 'XS': XS, 'y': y}
 
-        if hasattr(self, 'h_spl'):
+        if self.h_spl is not None:
 
             if y is None:
                 raise ValueError('`y` is needed for calculating response history.')

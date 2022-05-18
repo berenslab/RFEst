@@ -26,7 +26,7 @@ class LNP(Base):
         X = self.X if extra is None else extra['X']
         X = X.reshape(X.shape[0], -1)
 
-        if hasattr(self, 'h_mle'):
+        if self.h_mle is not None:
             if extra is not None:
                 yh = extra['yh']
             else:
@@ -37,7 +37,7 @@ class LNP(Base):
         if self.fit_intercept:
             intercept = p['intercept']
         else:
-            if hasattr(self, 'intercept'):
+            if self.intercept is not None:
                 intercept = self.intercept
             else:
                 intercept = 0.
@@ -45,7 +45,7 @@ class LNP(Base):
         if self.fit_R:  # maximum firing rate / scale factor
             R = p['R']
         else:
-            if hasattr(self, 'R'):
+            if self.R is not None:
                 R = self.R
             else:
                 R = 1.
@@ -53,9 +53,9 @@ class LNP(Base):
         if self.fit_linear_filter:
             filter_output = X @ p['w'].flatten()
         else:
-            if hasattr(self, 'w_opt'):
+            if self.w_opt is not None:
                 filter_output = X @ self.w_opt.flatten()
-            elif hasattr(self, 'w_mle'):
+            elif self.w_mle is not None:
                 filter_output = X @ self.w_mle.flatten()
             else:
                 filter_output = X @ self.w_sta.flatten()
@@ -63,9 +63,9 @@ class LNP(Base):
         if self.fit_history_filter:
             history_output = yh @ p['h']
         else:
-            if hasattr(self, 'h_opt'):
+            if self.h_opt is not None:
                 history_output = yh @ self.h_opt
-            elif hasattr(self, 'h_mle'):
+            elif self.h_mle is not None:
                 history_output = yh @ self.h_mle
             else:
                 history_output = 0.
@@ -73,7 +73,7 @@ class LNP(Base):
         if self.fit_nonlinearity:
             nl_params = p['nl_params']
         else:
-            if hasattr(self, 'nl_params'):
+            if self.nl_params is not None:
                 nl_params = self.nl_params
             else:
                 nl_params = None

@@ -43,6 +43,10 @@ class ARDFixedPoint:
 
     def __init__(self, X, y, dims):
 
+        self.w_opt = None
+        self.optimized_C_post = None
+        self.optimized_C_prior = None
+        self.optimized_params = None
         self.X = np.array(X)  # stimulus design matrix
         self.Y = np.array(y)  # response
 
@@ -57,7 +61,7 @@ class ARDFixedPoint:
 
     def update_params(self, params, C_post, m_post):
 
-        sigma = params[0]
+        # sigma = params[0]
         theta = params[1:]
 
         theta = (self.n_features - theta * np.trace(C_post)) / m_post ** 2
@@ -137,7 +141,8 @@ class ARDFixedPoint:
         self.optimized_C_post = optimized_C_post
         self.w_opt = optimized_m_post
 
-    def _rcv(self, w, wSTA_test, X_test, y_test):
+    @staticmethod
+    def _rcv(w, wSTA_test, X_test, y_test):
 
         """Relative Mean Squared Error"""
 

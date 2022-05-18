@@ -10,12 +10,16 @@ config.update("jax_enable_x64", True)
 __all__ = ['splineLNLN']
 
 
+# noinspection PyUnboundLocalVariable
 class splineLNLN(splineBase):
 
     def __init__(self, X, y, dims, df, smooth='cr', filter_nonlinearity='softplus', output_nonlinearity='softplus',
                  compute_mle=False, **kwargs):
 
         super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
+        self.n_s = None
+
+        self.p0 = None
         self.filter_nonlinearity = filter_nonlinearity
         self.output_nonlinearity = output_nonlinearity
 
@@ -24,13 +28,13 @@ class splineLNLN(splineBase):
         dt = self.dt
         XS = self.XS if extra is None else extra['XS']
 
-        if hasattr(self, 'h_spl'):
+        if self.h_spl is not None:
             yS = self.yS if extra is None else extra['yS']
 
         if self.fit_intercept:
             intercept = p['intercept']
         else:
-            if hasattr(self, 'intercept'):
+            if self.intercept is not None:
                 intercept = self.intercept
             else:
                 intercept = 0.
@@ -38,7 +42,7 @@ class splineLNLN(splineBase):
         if self.fit_R:  # maximum firing rate / scale factor
             R = p['R']
         else:
-            if hasattr(self, 'R'):
+            if self.R is not None:
                 R = self.R
             else:
                 R = 1.
@@ -46,10 +50,10 @@ class splineLNLN(splineBase):
         if self.fit_nonlinearity:
             nl_params = p['nl_params']
         else:
-            if hasattr(self, 'nl_params'):
-                nl_params = [self.nl_params for i in range(self.n_s)]
+            if self.nl_params is not None:
+                nl_params = [self.nl_params for _ in range(self.n_s)]
             else:
-                nl_params = [None for i in range(self.n_s)]
+                nl_params = [None for _ in range(self.n_s)]
 
         if self.fit_linear_filter:
             linear_output = XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s)
@@ -67,9 +71,9 @@ class splineLNLN(splineBase):
         if self.fit_history_filter:
             history_output = yS @ p['bh']
         else:
-            if hasattr(self, 'bh_opt'):
+            if self.bh_opt is not None:
                 history_output = yS @ self.bh_opt
-            elif hasattr(self, 'bh_spl'):
+            elif self.bh_spl is not None:
                 history_output = yS @ self.bh_spl
             else:
                 history_output = jnp.array([0.])
@@ -148,21 +152,21 @@ class splineLNLN(splineBase):
                 p0.update({'bh': None})
 
         if 'nl_params' not in dict_keys:
-            if hasattr(self, 'nl_params'):
-                p0.update({'nl_params': [self.nl_params for i in range(self.n_s + 1)]})
+            if self.nl_params is not None:
+                p0.update({'nl_params': [self.nl_params for _ in range(self.n_s + 1)]})
             else:
-                p0.update({'nl_params': [None for i in range(self.n_s + 1)]})
+                p0.update({'nl_params': [None for _ in range(self.n_s + 1)]})
 
         if extra is not None:
 
             if self.n_c > 1:
-                XS_ext = jnp.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(extra['X'].shape[0],
-                                                                                                    -1)
+                XS_ext = jnp.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(
+                    extra['X'].shape[0], -1)
                 extra.update({'XS': XS_ext})
             else:
                 extra.update({'XS': extra['X'] @ self.S})
 
-            if hasattr(self, 'h_spl'):
+            if self.h_spl is not None:
                 yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.Sh.shape[0], shift=1))
                 yS = yh @ self.Sh
                 extra.update({'yS': yS})

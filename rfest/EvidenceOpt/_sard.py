@@ -19,6 +19,14 @@ class sARD:
 
     def __init__(self, X, y, dims, df, smooth='cr', compute_mle=False):
 
+        self.optimized_C_post = None
+        self.optimized_C_prior = None
+        self.optimized_params = None
+        self.w_opt = None
+        self.b_opt = None
+        self.num_iters = None
+        self.p0 = None
+
         self.dims = dims
         self.n_samples, self.n_features = X.shape
 
@@ -115,10 +123,10 @@ class sARD:
         opt_state = opt_init(p0)
 
         @jit
-        def step(i, opt_state):
-            p = get_params(opt_state)
+        def step(_i, _opt_state):
+            p = get_params(_opt_state)
             g = grad(self.negative_log_evidence)(p)
-            return opt_update(i, g, opt_state)
+            return opt_update(_i, g, _opt_state)
 
         cost_list = []
         params_list = []
@@ -160,7 +168,7 @@ class sARD:
 
         return params
 
-    def fit(self, p0=None, num_iters=20, step_size=1e-2, tolerance=10, verbose=True, random_seed=1990):
+    def fit(self, p0=None, num_iters=20, step_size=1e-2, tolerance=10, verbose=True):
 
         """
         Parameters

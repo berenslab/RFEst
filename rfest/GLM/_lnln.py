@@ -10,6 +10,7 @@ config.update("jax_enable_x64", True)
 __all__ = ['LNLN']
 
 
+# noinspection PyUnboundLocalVariable
 class LNLN(Base):
     """
     
@@ -21,6 +22,11 @@ class LNLN(Base):
                  output_nonlinearity='softplus', filter_nonlinearity='softplus', **kwargs):
 
         super().__init__(X, y, dims, compute_mle, **kwargs)
+
+        # Optimization
+        self.n_s = None
+
+        # Parameters
         self.output_nonlinearity = output_nonlinearity
         self.filter_nonlinearity = filter_nonlinearity
         self.fit_subunits_weight = kwargs['fit_subunits_weight'] if 'fit_subunits_weight' in kwargs.keys() else False
@@ -31,7 +37,7 @@ class LNLN(Base):
         X = self.X if extra is None else extra['X']
         X = X.reshape(X.shape[0], -1)
 
-        if hasattr(self, 'h_mle'):
+        if self.h_mle is not None:
             if extra is not None:
                 yh = extra['yh']
             else:
@@ -40,7 +46,7 @@ class LNLN(Base):
         if self.fit_intercept:
             intercept = p['intercept']
         else:
-            if hasattr(self, 'intercept'):
+            if self.intercept is not None:
                 intercept = self.intercept
             else:
                 intercept = 0.
@@ -48,7 +54,7 @@ class LNLN(Base):
         if self.fit_R:  # maximum firing rate / scale factor
             R = p['R']
         else:
-            if hasattr(self, 'R'):
+            if self.R is not None:
                 R = self.R
             else:
                 R = 1.
@@ -56,10 +62,10 @@ class LNLN(Base):
         if self.fit_nonlinearity:
             nl_params = p['nl_params']
         else:
-            if hasattr(self, 'nl_params'):
-                nl_params = [self.nl_params for i in range(self.n_s)]
+            if self.nl_params is not None:
+                nl_params = [self.nl_params for _ in range(self.n_s)]
             else:
-                nl_params = [None for i in range(self.n_s)]
+                nl_params = [None for _ in range(self.n_s)]
 
         if self.fit_linear_filter:
             linear_output = X @ p['w'].reshape(self.n_features * self.n_c, self.n_s)
@@ -77,9 +83,9 @@ class LNLN(Base):
         if self.fit_history_filter:
             history_output = yh @ p['h']
         else:
-            if hasattr(self, 'h_opt'):
+            if self.h_opt is not None:
                 history_output = yh @ self.h_mle
-            elif hasattr(self, 'h_mle'):
+            elif self.h_mle is not None:
                 history_output = yh @ self.h_mle
             else:
                 history_output = 0.
@@ -131,7 +137,7 @@ class LNLN(Base):
 
         if extra is not None:
 
-            if hasattr(self, 'h_mle'):
+            if self.h_mle is not None:
                 yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.yh.shape[1], shift=1))
                 extra.update({'yh': yh})
 
@@ -161,10 +167,10 @@ class LNLN(Base):
                 p0.update({'h': None})
 
         if 'nl_params' not in dict_keys:
-            if hasattr(self, 'nl_params'):
-                p0.update({'nl_params': [self.nl_params for i in range(self.n_s + 1)]})
+            if self.nl_params is not None:
+                p0.update({'nl_params': [self.nl_params for _ in range(self.n_s + 1)]})
             else:
-                p0.update({'nl_params': [None for i in range(self.n_s + 1)]})
+                p0.update({'nl_params': [None for _ in range(self.n_s + 1)]})
 
         self.p0 = p0
         self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose,

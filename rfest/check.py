@@ -414,8 +414,8 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
 
     dt = model.dt
     dims = model.dims
-    shift = model.shift if hasattr(model, "shift") else 0
-    compute_ci = model.shift if hasattr(model, "compute_ci") else False
+    shift = model.__dict__get("shift", 0)
+    compute_ci = model.__dict__get("compute_ci", False)
 
     # rf
     ws = model.w[w_type]
@@ -894,8 +894,8 @@ def plot_diagnostics(model, X_test=None, y_test=None, w_type='opt', metric='corr
     else:
         diagnostics[1].axis('off')
 
-        # check if metric exists
-    if not hasattr(model, 'metric'):
+    # check if metric exists
+    if model.__dict__.get('metric', None) is None:
         model.metric = metric
 
     length = get_n_samples(display_window / 60, dt)
@@ -1038,7 +1038,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
 
     ncols = num_subunits if num_subunits > 5 else 5
     nrows = 3
-    if hasattr(model, 'fnl_fitted'):
+    if model.__dict__.get('fnl_fitted', None) is not None:
         nrows += 1
 
     figsize = figsize if figsize is not None else (3 * ncols, 2 * nrows + 2)
@@ -1049,7 +1049,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
     ax_sRF_maxs = []
     for i in range(num_subunits):
         ax_sRF_min = fig.add_subplot(spec[0, i])
-        if hasattr(model, 'w_spl'):
+        if model.__dict__.get('w_spl', None) is not None:
             ax_sRF_min.imshow(sRFs_min[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
         else:
             ax_sRF_min.imshow(gaussian_filter(sRFs_min[i].T, sigma=1), cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
@@ -1058,7 +1058,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_sRF_min.set_title(f'S{i}')
 
         ax_sRF_max = fig.add_subplot(spec[1, i])
-        if hasattr(model, 'w_spl'):
+        if model.__dict__.get('w_spl', None) is not None:
             ax_sRF_max.imshow(sRFs_max[i].T, cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
         else:
             ax_sRF_max.imshow(gaussian_filter(sRFs_max[i].T, sigma=1), cmap=plt.cm.bwr, vmax=vmax, vmin=-vmax)
@@ -1084,7 +1084,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         ax_sRF_mins.append(ax_sRF_min)
         ax_sRF_maxs.append(ax_sRF_max)
 
-        if hasattr(model, 'nl_params_opt'):
+        if model.__dict__.get('nl_params_opt', None) is not None:
             ax_nl = fig.add_subplot(spec[3, i])
             xrng = model.nl_xrange
             nl_opt = model.fnl_fitted(model.nl_params_opt[i], model.nl_xrange)
@@ -1111,7 +1111,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
                                        alpha=alpha)
                 ax_sRF_maxs[i].contour(sRFs_max[j].T, levels=[contour], colors=[color], linestyles=[style], alpha=alpha)
 
-    if hasattr(model, 'h_opt') and not hasattr(model, 'fnl_fitted'):
+    if (model.__dict__.get('h_opt', None) is not None) and (model.__dict__.get('fnl_fitted', None) is None):
 
         dims_h = len(model.h_opt)
         t_hRF = np.linspace(-(dims_h + 1) * dt, -1 * dt, dims_h + 1)[1:]
@@ -1124,7 +1124,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
 
         ax_pred = fig.add_subplot(spec[nrows, :-1])
 
-    elif not hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'):
+    elif (model.__dict__.get('h_opt', None) is None) and (model.__dict__.get('fnl_fitted', None) is not None):
 
         if model.output_nonlinearity == 'spline' or model.output_nonlinearity == 'nn':
             ax_nl = fig.add_subplot(spec[nrows, -1])
@@ -1140,7 +1140,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
 
         ax_pred = fig.add_subplot(spec[nrows, :-1])
 
-    elif hasattr(model, 'h_opt') and hasattr(model, 'fnl_fitted'):
+    elif (model.__dict__.get('h_opt', None) is not None) and (model.__dict__.get('fnl_fitted', None) is not None):
 
         dims_h = len(model.h_opt)
         t_hRF = np.linspace(-(dims_h + 1) * dt, -1 * dt, dims_h + 1)[1:]
@@ -1157,7 +1157,7 @@ def plot_subunits3d(model, X_test, y_test, dt=None, shift=None, model_name=None,
         nl0 = model.fnl_fitted(model.nl_params, model.nl_xrange)
         ax_nl.plot(xrng, nl0)
 
-        if hasattr(model, 'nl_params_opt'):
+        if model.__dict__.get('nl_params_opt', None) is not None:
 
             if model.output_nonlinearity == 'spline' or model.output_nonlinearity == 'nn':
                 nl_opt = model.fnl_fitted(model.nl_params_opt[-1], model.nl_xrange)

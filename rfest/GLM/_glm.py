@@ -21,6 +21,7 @@ config.update("jax_debug_nans", True)
 __all__ = ['GLM']
 
 
+# noinspection PyUnboundLocalVariable
 class GLM:
 
     def __init__(self, distr='poisson', output_nonlinearity='none', dtype=jnp.float64):
@@ -39,6 +40,25 @@ class GLM:
         """
 
         # initilize variables
+
+        # Optimization
+        self.init_method = None
+        self.p0 = None
+        self.metric = None
+        self.dt = None
+        self.compute_ci = None
+        self.num_subunits = None
+        self.burn_in = None
+        self.beta = None
+        self.alpha = None
+        self.idx = None
+        self.cost_dev = None
+        self.cost_train = None
+        self.metric_dev = None
+        self.metric_train = None
+        self.metric_dev_opt = None
+        self.all_params = None
+        self.total_time_elapsed = None
 
         # Data
         self.X = {}  # design matrix
@@ -209,9 +229,8 @@ class GLM:
             dims = self.dims[name]
             shift = self.shift[name]
 
-        if not hasattr(self, 'burn_in'):  # if exists, ignore
+        if self.burn_in is None:  # if exists, ignore
             self.burn_in = dims[0] - 1 if burn_in is None else burn_in  # number of first few frames to ignore
-            self.has_burn_in = True
 
         if lag:
             self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift, dtype=self.dtype)[self.burn_in:]
@@ -233,7 +252,7 @@ class GLM:
             elif kind == 'test':
                 if kind not in self.XS:
                     self.XS.update({kind: {}})
-                if hasattr(self, 'num_subunits') and self.num_subunits > 1:
+                if self.num_subunits is not None and self.num_subunits > 1:
                     S = self.S['stimulus_s0']
                 else:
                     S = self.S[name]
@@ -335,11 +354,7 @@ class GLM:
 
                         self.S[name] = self.S['stimulus']
 
-            try:
-                self.b[method].pop('stimulus')
-            except:
-                pass
-
+            self.b[method].pop('stimulus', None)
             self.w[method].pop('stimulus')
             self.intercept[method].pop('stimulus')
             self.X['train'].pop('stimulus')
@@ -385,15 +400,14 @@ class GLM:
             Response. if dict is
         """
 
-        if not hasattr(self, 'compute_ci'):
+        if self.compute_ci is None:
             self.compute_ci = compute_ci
 
         if type(y) is dict:
             y_train = y['train']
             if len(y['train']) == 0:
                 raise ValueError('Training set is empty after burned in.')
-            if 'dev' in y:
-                y_dev = y['dev']
+            y_dev = y.get('dev', None)
         else:
             y = {'train': y}
             y_train = y['train']
@@ -533,7 +547,7 @@ class GLM:
             raise NotImplementedError(distr)
 
         # regularization: elasticnet
-        if penalize and (hasattr(self, 'beta') or self.beta != 0) and kind == 'train':
+        if penalize and (self.beta is not None and self.beta != 0) and kind == 'train':
             # regularized all filters parameters
             w = jnp.hstack([p[name].flatten() for name in self.filter_names])
 
@@ -1006,8 +1020,8 @@ class GLM:
 
         S = self.S
         X = self.X[kind]
-        if kind in self.XS:
-            XS = self.XS[kind]
+        XS = self.XS.get(kind, None)
+
         b = self.b[w_type]
         w = self.w[w_type]
         V = self.V[w_type]
