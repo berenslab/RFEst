@@ -10,7 +10,6 @@ config.update("jax_enable_x64", True)
 __all__ = ['splineLNLN']
 
 
-# noinspection PyUnboundLocalVariable
 class splineLNLN(splineBase):
 
     def __init__(self, X, y, dims, df, smooth='cr', filter_nonlinearity='softplus', output_nonlinearity='softplus',
@@ -23,37 +22,8 @@ class splineLNLN(splineBase):
         self.filter_nonlinearity = filter_nonlinearity
         self.output_nonlinearity = output_nonlinearity
 
-    def forwardpass(self, p, extra=None):
-
-        dt = self.dt
-        XS = self.XS if extra is None else extra['XS']
-
-        if self.h_spl is not None:
-            yS = self.yS if extra is None else extra['yS']
-
-        if self.fit_intercept:
-            intercept = p['intercept']
-        else:
-            if self.intercept is not None:
-                intercept = self.intercept
-            else:
-                intercept = 0.
-
-        if self.fit_R:  # maximum firing rate / scale factor
-            R = p['R']
-        else:
-            if self.R is not None:
-                R = self.R
-            else:
-                R = 1.
-
-        if self.fit_nonlinearity:
-            nl_params = p['nl_params']
-        else:
-            if self.nl_params is not None:
-                nl_params = [self.nl_params for _ in range(self.n_s)]
-            else:
-                nl_params = [None for _ in range(self.n_s)]
+    def compute_filter_output(self, XS, p=None):
+        nl_params = self.get_nl_params(p, n_s=self.n_s)
 
         if self.fit_linear_filter:
             linear_output = XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s)
@@ -67,44 +37,31 @@ class splineLNLN(splineBase):
                 [self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in
                  range(self.n_s)])
             filter_output = jnp.mean(nonlin_output, 0)
+        return filter_output
 
-        if self.fit_history_filter:
-            history_output = yS @ p['bh']
+    def forwardpass(self, p=None, extra=None):
+
+        X = self.XS if extra is None else extra['XS']
+
+        if self.h_spl is not None:
+            y = self.yS if extra is None else extra.get('yS', None)
         else:
-            if self.bh_opt is not None:
-                history_output = yS @ self.bh_opt
-            elif self.bh_spl is not None:
-                history_output = yS @ self.bh_spl
-            else:
-                history_output = jnp.array([0.])
+            y = None
 
-        r = dt * R * self.fnl(filter_output + history_output + intercept, nl=self.output_nonlinearity,
-                              params=nl_params[-1]).flatten()
+        intercept = self.get_intercept(p)
+        R = self.get_R(p)
+        filter_output = self.compute_filter_output(X, p)
+        history_output = self.compute_history_output(y, p)
+
+        nl_params = self.get_nl_params(p, n_s=self.n_s)
+        r = self.dt * R * self.fnl(
+            filter_output + history_output + intercept, nl=self.output_nonlinearity,
+            params=nl_params[-1]).flatten()
 
         return r
 
     def cost(self, p, extra=None, precomputed=None):
-
-        """
-        Negetive Log Likelihood.
-        """
-
-        y = self.y if extra is None else extra['y']
-        r = self.forwardpass(p, extra) if precomputed is None else precomputed
-        r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
-        dt = self.dt
-
-        term0 = - jnp.log(r / dt) @ y
-        term1 = jnp.sum(r)
-
-        neglogli = term0 + term1
-
-        if self.beta and extra is None:
-            l1 = jnp.linalg.norm(p['b'], 1)
-            l2 = jnp.linalg.norm(p['b'], 2)
-            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
-
-        return neglogli
+        return self.compute_cost(p, p['b'], 'poisson', extra, precomputed)
 
     def fit(self, p0=None, extra=None, num_subunits=2,
             num_epochs=1, num_iters=3000,

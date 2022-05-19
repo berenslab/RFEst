@@ -21,6 +21,7 @@ from rfest.splines import build_spline_matrix, cr, cc, bs
 from rfest.metrics import r2, mse, corrcoef
 from rfest.nonlinearities import *
 from rfest.priors import smoothness_kernel
+from rfest.loss import loss_neglogli, loss_mse, loss_penalty
 
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
@@ -56,19 +57,21 @@ class Base:
         """
         # Optimization
         self.intercept = None
+        self.R = None
         self.nl_params_opt = None
+
         self.h_opt = None
         self.w_spl = None
         self.w_opt = None
-        self.R = None
-        self.p_opt = None
         self.p0 = None
-        self.metric = None
+        self.p_opt = None
 
+        self.metric = None
+        self.Cinv = None
         self.alpha = None
         self.beta = None
-        self.num_iters = None
 
+        self.num_iters = None
         self.fit_R = None
         self.fit_linear_filter = None,
         self.fit_history_filter = None
@@ -84,18 +87,20 @@ class Base:
         self.metric_dev_opt = None
         self.total_time_elapsed = None
 
-        self.fnl_fitted = None
         self.nl_params = None
         self.nl_xrange = None
         self.nl_basis = None
+        self.nl_bins = None
+        self.nonlinearity = None
         self.output_nonlinearity = None
         self.filter_nonlinearity = None
-        self.nonlinearity = None
+        self.fnl_fitted = None
         self.fnl_nonparametric = None
-        self.nl_bins = None
+
         self.h_mle = None
         self.yh = None
         self.shift_h = None
+
         self.w_stc = None
         self.w_stc_min_null = None
         self.w_stc_max_null = None
@@ -438,12 +443,79 @@ class Base:
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-    def cost(self, *args, **kwargs):
-        pass
+    def compute_cost(self, p, penalty_w, dist, extra=None, precomputed=None):
+        """
+        Negative Log Likelihood.
+        """
+        y = self.y if extra is None else extra['y']
+        r = self.forwardpass(p, extra) if precomputed is None else precomputed
 
-    def forwardpass(self, *args, **kwargs):
-        y_pred = jnp.zeros(0)
-        return y_pred
+        if dist == 'poisson':
+            loss = loss_neglogli(y, r, dt=self.dt)
+        elif dist == 'gaussian':
+            loss = loss_mse(y, r)
+        else:
+            raise NotImplementedError(dist)
+
+        if (self.beta is not None) and (extra is None):
+            loss += loss_penalty(penalty_w, self.alpha, self.beta)
+
+        if self.Cinv is not None:
+            loss += 0.5 * p['b'] @ self.Cinv @ p['b']
+
+        return loss
+
+    def forwardpass(self, p=None, extra=None):
+        raise NotImplementedError()
+
+    def compute_filter_output(self, X, p=None):
+        raise NotImplementedError()
+
+    def get_intercept(self, p=None):
+        if self.fit_intercept:
+            intercept = p['intercept']
+        else:
+            if self.intercept is not None:
+                intercept = self.intercept
+            else:
+                intercept = 0.
+        return intercept
+
+    def get_R(self, p=None):
+        if self.fit_R:  # maximum firing rate / scale factor
+            R = p['R']
+        else:
+            if self.R is not None:
+                R = self.R
+            else:
+                R = 1.
+        return R
+
+    def get_nl_params(self, p=None, n_s=None):
+        if self.fit_nonlinearity:
+            nl_params = p['nl_params']
+        else:
+            if self.nl_params is not None:
+                nl_params = self.nl_params
+            else:
+                nl_params = None
+
+            if n_s is not None:
+                nl_params = [nl_params] * n_s
+
+        return nl_params
+
+    def compute_history_output(self, yh=None, p=None):
+        if self.fit_history_filter:
+            history_output = yh @ p['h']
+        else:
+            if self.h_opt is not None:
+                history_output = yh @ self.h_opt
+            elif self.h_mle is not None:
+                history_output = yh @ self.h_mle
+            else:
+                history_output = 0.
+        return history_output
 
     @staticmethod
     def print_progress(i, time_elapsed, c_train=None, c_dev=None, m_train=None, m_dev=None):
@@ -622,7 +694,7 @@ class Base:
             Development set.
 
         initialize : None or str
-            Paramteric initalization. 
+            Parametric initialization.
             * if `initialize=None`, `w` will be initialized by STA.
             * if `initialize='random'`, `w` will be randomly initialized.
 
@@ -636,12 +708,12 @@ class Base:
             * 'corrcoef': Correlation coefficient
 
         alpha : float, from 0 to 1.
-            Elastic net parameter, balance between L1 and L2 regulization.
+            Elastic net parameter, balance between L1 and L2 regularization.
             * 0.0 -> only L2
             * 1.0 -> only L1
 
         beta : float
-            Elastic net parameter, overall weight of regulization.
+            Elastic net parameter, overall weight of regularization.
 
         step_size : float
             Initial step size for JAX optimizer (ADAM).
@@ -787,9 +859,7 @@ class Base:
 
 class splineBase(Base):
     """
-
     Base class for spline-based GLMs.
-
     """
 
     def __init__(self, X, y, dims, df, smooth='cr', compute_mle=False, **kwargs):
@@ -812,7 +882,7 @@ class splineBase(Base):
 
         smooth : str
             Type of basis. 
-            * cr: natrual cubic spline (default)
+            * cr: natural cubic spline (default)
             * cc: cyclic cubic spline
             * bs: B-spline
             * tp: thin plate spine
@@ -832,7 +902,6 @@ class splineBase(Base):
         self.bh_spl = None
         self.yS = None
         self.Sh = None
-        self.Cinv = None
 
         # Parameters
         self.df = df  # number basis / degree of freedom
@@ -872,6 +941,7 @@ class splineBase(Base):
 
     def cost(self, b, extra):
         pass
+
 
     # noinspection PyMethodOverriding
     def initialize_history_filter(self, dims, df, smooth='cr', shift=1):
@@ -925,7 +995,7 @@ class splineBase(Base):
             * 'bh': Initial response history filter coefficients
 
         initialize : None or str
-            Paramteric initalization. 
+            Parametric initialization.
             * if `initialize=None`, `b` will be initialized by b_spl.
             * if `initialize='random'`, `b` will be randomly initialized.
 
@@ -939,12 +1009,12 @@ class splineBase(Base):
             * 'corrcoef': Correlation coefficient
 
         alpha : float, from 0 to 1.
-            Elastic net parameter, balance between L1 and L2 regulization.
+            Elastic net parameter, balance between L1 and L2 regularization.
             * 0.0 -> only L2
             * 1.0 -> only L1
 
         beta : float
-            Elastic net parameter, overall weight of regulization for receptive field.
+            Elastic net parameter, overall weight of regularization for receptive field.
 
         step_size : float
             Initial step size for JAX optimizer.
@@ -1089,10 +1159,23 @@ class splineBase(Base):
 
         return y_pred
 
+    def compute_history_output(self, yS=None, p=None):
+        if self.fit_history_filter:
+            history_output = yS @ p['bh']
+        else:
+            if self.bh_opt is not None:
+                history_output = yS @ self.bh_opt
+            elif self.bh_spl is not None:
+                history_output = yS @ self.bh_spl
+            else:
+                history_output = 0.
+
+        return history_output
+
 
 class interp1d:
     """
-    1D linear intepolation.
+    1D linear interpolation.
     usage:
         x = jnp.linspace(-5, 5, 10)
         y = jnp.cos(x)

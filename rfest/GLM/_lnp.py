@@ -10,7 +10,7 @@ __all__ = ['LNP']
 
 class LNP(Base):
     """
-    Linear-Nonliear-Poisson model.
+    Linear-Nonlinear-Poisson model.
     """
 
     def __init__(self, X, y, dims, compute_mle=False, nonlinearity='softplus', **kwargs):
@@ -18,37 +18,7 @@ class LNP(Base):
         super().__init__(X, y, dims, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
 
-    def forwardpass(self, p, extra=None):
-        """
-        Model ouput with current estimated parameters.
-        """
-
-        X = self.X if extra is None else extra['X']
-        X = X.reshape(X.shape[0], -1)
-
-        if self.h_mle is not None:
-            if extra is not None:
-                yh = extra['yh']
-            else:
-                yh = self.yh
-        else:
-            yh = None
-
-        if self.fit_intercept:
-            intercept = p['intercept']
-        else:
-            if self.intercept is not None:
-                intercept = self.intercept
-            else:
-                intercept = 0.
-
-        if self.fit_R:  # maximum firing rate / scale factor
-            R = p['R']
-        else:
-            if self.R is not None:
-                R = self.R
-            else:
-                R = 1.
+    def compute_filter_output(self, X, p=None):
 
         if self.fit_linear_filter:
             filter_output = X @ p['w'].flatten()
@@ -59,48 +29,32 @@ class LNP(Base):
                 filter_output = X @ self.w_mle.flatten()
             else:
                 filter_output = X @ self.w_sta.flatten()
+        return filter_output
 
-        if self.fit_history_filter:
-            history_output = yh @ p['h']
+    def forwardpass(self, p=None, extra=None):
+        """
+        Model output with current estimated parameters.
+        """
+
+        X = self.X if extra is None else extra['X']
+        X = X.reshape(X.shape[0], -1)
+
+        if self.h_mle is not None:
+            y = extra['yh'] if extra is not None else self.yh
         else:
-            if self.h_opt is not None:
-                history_output = yh @ self.h_opt
-            elif self.h_mle is not None:
-                history_output = yh @ self.h_mle
-            else:
-                history_output = 0.
+            y = None
 
-        if self.fit_nonlinearity:
-            nl_params = p['nl_params']
-        else:
-            if self.nl_params is not None:
-                nl_params = self.nl_params
-            else:
-                nl_params = None
+        intercept = self.get_intercept(p)
+        R = self.get_R(p)
+        history_output = self.compute_history_output(y, p)
+        filter_output = self.compute_filter_output(X, p)
 
-        r = self.dt * R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity,
-                                   params=nl_params).flatten()
+        nl_params = self.get_nl_params(p)
+        r = self.dt * R * self.fnl(
+            filter_output + history_output + intercept, nl=self.nonlinearity,
+            params=nl_params).flatten()
 
         return r
 
     def cost(self, p, extra=None, precomputed=None):
-
-        """
-        Negative Log Likelihood.
-        """
-        y = self.y if extra is None else extra['y']
-        r = self.forwardpass(p, extra) if precomputed is None else precomputed
-        r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
-        dt = self.dt
-
-        term0 = - jnp.log(r / dt) @ y  # spike term from poisson log-likelihood
-        term1 = jnp.sum(r)  # non-spike term
-
-        neglogli = term0 + term1
-
-        if self.beta and extra is None:
-            l1 = jnp.linalg.norm(p['w'], 1)
-            l2 = jnp.linalg.norm(p['w'], 2)
-            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
-
-        return neglogli
+        return self.compute_cost(p, p['w'], 'poisson', extra, precomputed)
