@@ -8,7 +8,6 @@ config.update("jax_enable_x64", True)
 __all__ = ['splineLG']
 
 
-# noinspection PyUnboundLocalVariable
 class splineLG(splineBase):
 
     def __init__(self, X, y, dims, df, smooth='cr', compute_mle=False, nonlinearity='none', **kwargs):
@@ -16,13 +15,7 @@ class splineLG(splineBase):
         super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
         self.nonlinearity = nonlinearity
 
-    def forwardpass(self, p, extra=None):
-
-        XS = self.XS if extra is None else extra['XS']
-
-        if self.h_spl is not None:
-            yS = self.yS if extra is None else extra['yS']
-
+    def compute_filter_output(self, XS, p=None):
         if self.fit_linear_filter:
             filter_output = XS @ p['b']
         else:
@@ -30,33 +23,22 @@ class splineLG(splineBase):
                 filter_output = XS @ self.b_opt
             else:
                 filter_output = XS @ self.b_spl
+        return filter_output
 
-        if self.fit_intercept:
-            intercept = p['intercept']
+    def forwardpass(self, p=None, extra=None):
+
+        X = self.XS if extra is None else extra['XS']
+
+        if self.h_spl is not None:
+            y = self.yS if extra is None else extra.get('yS', None)
         else:
-            if self.intercept is not None:
-                intercept = self.intercept
-            else:
-                intercept = 0.
+            y = None
 
-        if self.fit_history_filter:
-            history_output = yS @ p['bh']
-        else:
-            if self.bh_opt is not None:
-                history_output = yS @ self.bh_opt
-            elif self.bh_spl is not None:
-                history_output = yS @ self.bh_spl
-            else:
-                history_output = 0.
+        intercept = self.get_intercept(p)
+        filter_output = self.compute_filter_output(X, p)
+        history_output = self.compute_history_output(y, p)
 
-        if self.fit_nonlinearity:
-            nl_params = p['nl_params']
-        else:
-            if self.nl_params is not None:
-                nl_params = self.nl_params
-            else:
-                nl_params = None
-
+        nl_params = self.get_nl_params(p)
         yhat = self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity, params=nl_params).flatten()
 
         return yhat

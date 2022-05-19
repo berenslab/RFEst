@@ -57,20 +57,21 @@ class Base:
         """
         # Optimization
         self.intercept = None
+        self.R = None
         self.nl_params_opt = None
+
         self.h_opt = None
         self.w_spl = None
         self.w_opt = None
-        self.R = None
-        self.p_opt = None
         self.p0 = None
-        self.metric = None
+        self.p_opt = None
 
+        self.metric = None
         self.Cinv = None
         self.alpha = None
         self.beta = None
-        self.num_iters = None
 
+        self.num_iters = None
         self.fit_R = None
         self.fit_linear_filter = None,
         self.fit_history_filter = None
@@ -86,18 +87,20 @@ class Base:
         self.metric_dev_opt = None
         self.total_time_elapsed = None
 
-        self.fnl_fitted = None
         self.nl_params = None
         self.nl_xrange = None
         self.nl_basis = None
+        self.nl_bins = None
+        self.nonlinearity = None
         self.output_nonlinearity = None
         self.filter_nonlinearity = None
-        self.nonlinearity = None
+        self.fnl_fitted = None
         self.fnl_nonparametric = None
-        self.nl_bins = None
+
         self.h_mle = None
         self.yh = None
         self.shift_h = None
+
         self.w_stc = None
         self.w_stc_min_null = None
         self.w_stc_max_null = None
@@ -462,9 +465,57 @@ class Base:
 
         return loss
 
-    def forwardpass(self, *args, **kwargs):
-        y_pred = jnp.zeros(0)
-        return y_pred
+    def forwardpass(self, p=None, extra=None):
+        raise NotImplementedError()
+
+    def compute_filter_output(self, X, p=None):
+        raise NotImplementedError()
+
+    def get_intercept(self, p=None):
+        if self.fit_intercept:
+            intercept = p['intercept']
+        else:
+            if self.intercept is not None:
+                intercept = self.intercept
+            else:
+                intercept = 0.
+        return intercept
+
+    def get_R(self, p=None):
+        if self.fit_R:  # maximum firing rate / scale factor
+            R = p['R']
+        else:
+            if self.R is not None:
+                R = self.R
+            else:
+                R = 1.
+        return R
+
+    def get_nl_params(self, p=None, n_s=None):
+        if self.fit_nonlinearity:
+            nl_params = p['nl_params']
+        else:
+            if self.nl_params is not None:
+                nl_params = self.nl_params
+            else:
+                nl_params = None
+
+            if n_s is not None:
+                nl_params = [nl_params] * n_s
+
+        return nl_params
+
+    def compute_history_output(self, yh=None, p=None):
+        if self.fit_history_filter:
+            history_output = yh @ p['h']
+        else:
+            if self.h_opt is not None:
+                history_output = yh @ self.h_opt
+            elif self.h_mle is not None:
+                history_output = yh @ self.h_mle
+            else:
+                history_output = 0.
+        return history_output
 
     @staticmethod
     def print_progress(i, time_elapsed, c_train=None, c_dev=None, m_train=None, m_dev=None):
@@ -808,9 +859,7 @@ class Base:
 
 class splineBase(Base):
     """
-
     Base class for spline-based GLMs.
-
     """
 
     def __init__(self, X, y, dims, df, smooth='cr', compute_mle=False, **kwargs):
@@ -892,6 +941,7 @@ class splineBase(Base):
 
     def cost(self, b, extra):
         pass
+
 
     # noinspection PyMethodOverriding
     def initialize_history_filter(self, dims, df, smooth='cr', shift=1):
@@ -1109,10 +1159,23 @@ class splineBase(Base):
 
         return y_pred
 
+    def compute_history_output(self, yS=None, p=None):
+        if self.fit_history_filter:
+            history_output = yS @ p['bh']
+        else:
+            if self.bh_opt is not None:
+                history_output = yS @ self.bh_opt
+            elif self.bh_spl is not None:
+                history_output = yS @ self.bh_spl
+            else:
+                history_output = 0.
+
+        return history_output
+
 
 class interp1d:
     """
-    1D linear intepolation.
+    1D linear interpolation.
     usage:
         x = jnp.linspace(-5, 5, 10)
         y = jnp.cos(x)

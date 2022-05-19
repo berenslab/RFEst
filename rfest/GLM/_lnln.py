@@ -10,11 +10,10 @@ config.update("jax_enable_x64", True)
 __all__ = ['LNLN']
 
 
-# noinspection PyUnboundLocalVariable
 class LNLN(Base):
     """
     
-    Multi-filters Linear-Nonliear-Poisson model. 
+    Multi-filters Linear-Nonlinear-Poisson model.
     
     """
 
@@ -31,41 +30,9 @@ class LNLN(Base):
         self.filter_nonlinearity = filter_nonlinearity
         self.fit_subunits_weight = kwargs['fit_subunits_weight'] if 'fit_subunits_weight' in kwargs.keys() else False
 
-    def forwardpass(self, p, extra):
+    def compute_filter_output(self, X, p=None):
 
-        dt = self.dt
-        X = self.X if extra is None else extra['X']
-        X = X.reshape(X.shape[0], -1)
-
-        if self.h_mle is not None:
-            if extra is not None:
-                yh = extra['yh']
-            else:
-                yh = self.yh
-
-        if self.fit_intercept:
-            intercept = p['intercept']
-        else:
-            if self.intercept is not None:
-                intercept = self.intercept
-            else:
-                intercept = 0.
-
-        if self.fit_R:  # maximum firing rate / scale factor
-            R = p['R']
-        else:
-            if self.R is not None:
-                R = self.R
-            else:
-                R = 1.
-
-        if self.fit_nonlinearity:
-            nl_params = p['nl_params']
-        else:
-            if self.nl_params is not None:
-                nl_params = [self.nl_params for _ in range(self.n_s)]
-            else:
-                nl_params = [None for _ in range(self.n_s)]
+        nl_params = self.get_nl_params(p, n_s=self.n_s)
 
         if self.fit_linear_filter:
             linear_output = X @ p['w'].reshape(self.n_features * self.n_c, self.n_s)
@@ -79,19 +46,26 @@ class LNLN(Base):
                 [self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in
                  range(self.n_s)])
             filter_output = jnp.mean(nonlin_output, 0)
+        return filter_output
 
-        if self.fit_history_filter:
-            history_output = yh @ p['h']
+    def forwardpass(self, p=None, extra=None):
+
+        X = self.X if extra is None else extra['X']
+        X = X.reshape(X.shape[0], -1)
+
+        if self.h_mle is not None:
+            y = extra['yh'] if extra is not None else self.yh
         else:
-            if self.h_opt is not None:
-                history_output = yh @ self.h_mle
-            elif self.h_mle is not None:
-                history_output = yh @ self.h_mle
-            else:
-                history_output = 0.
+            y = None
 
-        r = dt * R * self.fnl(filter_output + history_output + intercept,
-                              nl=self.output_nonlinearity).flatten()  # conditional intensity (per bin)
+        intercept = self.get_intercept(p)
+        R = self.get_R(p)
+        history_output = self.compute_history_output(y, p)
+        filter_output = self.compute_filter_output(X, p)
+
+        r = self.dt * R * self.fnl(
+            filter_output + history_output + intercept,
+            nl=self.output_nonlinearity).flatten()  # conditional intensity (per bin)
 
         return r
 
