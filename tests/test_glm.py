@@ -17,7 +17,7 @@ def test_glm_2d():
                             name='stimulus')
 
     model.initialize(num_subunits=1, dt=dt, method='mle', random_seed=42, compute_ci=False, y=y)
-    model.fit(y={'train': y}, num_iters=200, verbose=0, step_size=0.1, beta=0.1, metric='corrcoef')
+    model.fit(y={'train': y}, num_iters=200, verbose=0, step_size=0.1, beta=0.01, metric='corrcoef')
 
     assert model.score(X, y, metric='corrcoef') > -0.5
 
@@ -36,7 +36,7 @@ def test_glm_2d_split_data():
 
     model.initialize(num_subunits=1, dt=dt, method='mle', random_seed=42, compute_ci=False, y=y_train)
     model.fit(
-        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.1, metric='corrcoef')
+        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.01, metric='corrcoef')
 
     assert model.score(X_train, y_train, metric='corrcoef') > -0.5
     assert model.score(X_dev, y_dev, metric='corrcoef') > -0.5
@@ -56,7 +56,7 @@ def test_glm_2d_split_data_test():
 
     model.initialize(num_subunits=1, dt=dt, method='mle', random_seed=42, compute_ci=False, y=y_train)
     model.fit(
-        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.1, metric='corrcoef')
+        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.01, metric='corrcoef')
 
     assert model.score(X_train, y_train, metric='corrcoef') > -0.5
     assert model.score(X_dev, y_dev, metric='corrcoef') > -0.5
@@ -74,7 +74,7 @@ def test_glm_2d_outputnl():
                             name='stimulus')
 
     model.initialize(num_subunits=1, dt=dt, method='mle', random_seed=42, compute_ci=False, y=y)
-    model.fit(y={'train': y}, num_iters=200, verbose=0, step_size=0.1, beta=0.1, metric='corrcoef')
+    model.fit(y={'train': y}, num_iters=200, verbose=0, step_size=0.1, beta=0.01, metric='corrcoef')
 
     assert model.score(X, y, metric='corrcoef') > -0.5
 
@@ -93,7 +93,7 @@ def test_glm_2d_2subunits():
 
     model.initialize(num_subunits=2, dt=dt, method='mle', random_seed=42, compute_ci=False, y=y_train)
     model.fit(
-        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.1, metric='corrcoef')
+        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.01, metric='corrcoef')
 
     assert model.score(X_train, y_train, metric='corrcoef') > -0.5
     assert model.score(X_dev, y_dev, metric='corrcoef') > -0.5
@@ -117,7 +117,7 @@ def test_glm_2d_history():
 
     model.initialize(num_subunits=1, dt=dt, method='mle', random_seed=42, compute_ci=False, y=y_train)
     model.fit(
-        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.1, metric='corrcoef')
+        y={'train': y_train, 'dev': y_dev}, num_iters=200, verbose=100, step_size=0.1, beta=0.01, metric='corrcoef')
 
     assert model.score(X_train, y_train, metric='corrcoef') > -0.5
     assert model.score(X_dev, y_dev, metric='corrcoef') > -0.5
@@ -131,7 +131,7 @@ def test_glm_3d():
                             name='stimulus')
 
     model.initialize(num_subunits=1, dt=dt, method='mle', random_seed=42, compute_ci=False, y=y)
-    model.fit(y={'train': y}, num_iters=200, verbose=0, step_size=0.1, beta=0.1, metric='corrcoef')
+    model.fit(y={'train': y}, num_iters=200, verbose=0, step_size=0.1, beta=0.01, metric='corrcoef')
 
     assert model.predict(X=X).size + model.burn_in == y.size
     assert model.score(X_test=X, y_test=y, metric='corrcoef') > 0.0
