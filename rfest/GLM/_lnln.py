@@ -96,23 +96,7 @@ class LNLN(Base):
         return r
 
     def cost(self, p, extra=None, precomputed=None):
-
-        y = self.y if extra is None else extra['y']
-        r = self.forwardpass(p, extra) if precomputed is None else precomputed
-        r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
-        dt = self.dt
-
-        term0 = - jnp.log(r / dt) @ y  # spike term from poisson log-likelihood
-        term1 = jnp.sum(r)  # non-spike term
-
-        neglogli = term0 + term1
-
-        if self.beta and extra is None:
-            l1 = jnp.linalg.norm(p['w'], 1)
-            l2 = jnp.linalg.norm(p['w'], 2)
-            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
-
-        return neglogli
+        return self.compute_cost(p, p['w'], 'poisson', extra, precomputed)
 
     def fit(self, p0=None, extra=None, num_subunits=2,
             num_epochs=1, num_iters=3000, metric=None,

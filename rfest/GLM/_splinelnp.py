@@ -18,7 +18,7 @@ class splineLNP(splineBase):
     def forwardpass(self, p, extra=None):
 
         """
-        Model ouput with current estimated parameters.
+        Model output with current estimated parameters.
         """
 
         XS = self.XS if extra is None else extra['XS']
@@ -77,27 +77,5 @@ class splineLNP(splineBase):
         return r
 
     def cost(self, p, extra=None, precomputed=None):
+        return self.compute_cost(p, p['b'], 'poisson', extra, precomputed)
 
-        """
-        Negetive Log Likelihood.
-        """
-
-        y = self.y if extra is None else extra['y']
-        r = self.forwardpass(p, extra) if precomputed is None else precomputed
-        r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
-        dt = self.dt
-
-        term0 = - jnp.log(r / dt) @ y
-        term1 = jnp.sum(r)
-
-        neglogli = term0 + term1
-
-        if self.beta and extra is None:  # for w
-            l1 = jnp.linalg.norm(p['b'], 1)
-            l2 = jnp.linalg.norm(p['b'], 2)
-            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
-
-        if self.Cinv is not None:
-            neglogli += 0.5 * p['b'] @ self.Cinv @ p['b']
-
-        return neglogli

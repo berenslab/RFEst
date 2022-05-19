@@ -10,7 +10,7 @@ __all__ = ['LNP']
 
 class LNP(Base):
     """
-    Linear-Nonliear-Poisson model.
+    Linear-Nonlinear-Poisson model.
     """
 
     def __init__(self, X, y, dims, compute_mle=False, nonlinearity='softplus', **kwargs):
@@ -20,7 +20,7 @@ class LNP(Base):
 
     def forwardpass(self, p, extra=None):
         """
-        Model ouput with current estimated parameters.
+        Model output with current estimated parameters.
         """
 
         X = self.X if extra is None else extra['X']
@@ -84,23 +84,4 @@ class LNP(Base):
         return r
 
     def cost(self, p, extra=None, precomputed=None):
-
-        """
-        Negative Log Likelihood.
-        """
-        y = self.y if extra is None else extra['y']
-        r = self.forwardpass(p, extra) if precomputed is None else precomputed
-        r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
-        dt = self.dt
-
-        term0 = - jnp.log(r / dt) @ y  # spike term from poisson log-likelihood
-        term1 = jnp.sum(r)  # non-spike term
-
-        neglogli = term0 + term1
-
-        if self.beta and extra is None:
-            l1 = jnp.linalg.norm(p['w'], 1)
-            l2 = jnp.linalg.norm(p['w'], 2)
-            neglogli += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
-
-        return neglogli
+        return self.compute_cost(p, p['w'], 'poisson', extra, precomputed)

@@ -15,6 +15,7 @@ except ImportError:
 from rfest.utils import build_design_matrix
 from rfest.splines import build_spline_matrix
 from rfest.metrics import r2, mse, corrcoef
+from rfest.loss import loss_mse, loss_neglogli, loss_penalty
 
 config.update("jax_debug_nans", True)
 
@@ -122,8 +123,8 @@ class GLM:
         """
 
         if kind == 'softplus':
-            def softplus(x):
-                return jnp.log(1 + jnp.exp(x))
+            def softplus(_x):
+                return jnp.log(1 + jnp.exp(_x))
 
             return softplus(x) + 1e-7
 
@@ -131,15 +132,15 @@ class GLM:
             return jnp.exp(x)
 
         elif kind == 'softmax':
-            def softmax(x):
-                z = jnp.exp(x)
+            def softmax(_x):
+                z = jnp.exp(_x)
                 return z / z.sum()
 
             return softmax(x)
 
         elif kind == 'sigmoid':
-            def sigmoid(x):
-                return 1 / (1 + jnp.exp(-x))
+            def sigmoid(_x):
+                return 1 / (1 + jnp.exp(-_x))
 
             return sigmoid(x)
 
@@ -147,13 +148,13 @@ class GLM:
             return jnp.tanh(x)
 
         elif kind == 'relu':
-            def relu(x):
-                return jnp.where(x > 0., x, 1e-7)
+            def relu(_x):
+                return jnp.where(_x > 0., _x, 1e-7)
             return relu(x)
 
         elif kind == 'leaky_relu':
-            def leaky_relu(x):
-                return jnp.where(x > 0., x, x * 0.01)
+            def leaky_relu(_x):
+                return jnp.where(_x > 0., _x, _x * 0.01)
             return leaky_relu(x)
         elif kind == 'none':
             return x
@@ -165,7 +166,7 @@ class GLM:
                           kind='train', name='stimulus', shift=0, burn_in=None):
 
         """
-        Add input desgin matrix to the model.
+        Add input design matrix to the model.
 
         Parameters
         ----------
@@ -190,7 +191,7 @@ class GLM:
             Nonlinearity for the stimulus filter.
 
         kind: str
-            Datset type, should be one of `train` (training set),
+            Dataset type, should be one of `train` (training set),
             `dev` (validation set) or `test` (testing set).
 
         name: str
@@ -203,7 +204,7 @@ class GLM:
             matrix to the past, negative number will shift it to the future.
 
         burn_in: int or None
-            Number of samples / frames to be ignore for prediction.
+            Number of samples / frames to be ignored for prediction.
             (Because the first few frames in the design matrix are full of zero, which
             tend to predict poorly.)
 
@@ -237,7 +238,7 @@ class GLM:
         else:
             self.burn_in = 0
             self.X[kind][name] = X  # if not time lag, shouldn't it also be no burn in?
-            # TODO: might need different handlings for instantenous RF.
+            # TODO: might need different handlings for instantaneous RF.
             # conflict: history filter burned-in but the stimulus filter didn't
 
         if smooth is None:
@@ -309,7 +310,7 @@ class GLM:
         elif method == 'mle':
 
             if verbose:
-                print('Initializing model paraemters with maximum likelihood...')
+                print('Initializing model parameters with maximum likelihood...')
 
             if not self.mle_computed:
                 self.compute_mle(y)
@@ -520,10 +521,10 @@ class GLM:
             Dataset type, can be `train`, `dev` or `test`.
 
         precomputed: None or jnp.array
-            Precomputed forward pass output. For avoding duplicate computation.
+            Precomputed forward pass output. For avoiding duplicate computation.
 
         penalize : bool
-            Add l1 and/or penality to loss
+            Add l1 and/or penalty to loss
 
         """
 
@@ -533,27 +534,16 @@ class GLM:
 
         # cost functions
         if distr == 'gaussian':
-            loss = jnp.mean((y - r) ** 2)
-
+            loss = loss_mse(y, r)
         elif distr == 'poisson':
-
-            r = jnp.where(r != jnp.inf, r, 0.)  # remove inf
-            r = jnp.maximum(r, 1e-20)  # remove zero to avoid nan in log.
-
-            term0 = - jnp.log(r) @ y  # spike term from poisson log-likelihood
-            term1 = jnp.sum(r)  # non-spike term
-            loss = term0 + term1
+            loss = loss_neglogli(y, r)
         else:
             raise NotImplementedError(distr)
 
         # regularization: elasticnet
         if penalize and (self.beta is not None and self.beta != 0) and kind == 'train':
             # regularized all filters parameters
-            w = jnp.hstack([p[name].flatten() for name in self.filter_names])
-
-            l1 = jnp.linalg.norm(w, 1)
-            l2 = jnp.linalg.norm(w, 2)
-            loss += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
+            loss += loss_penalty(jnp.hstack([p[name].flatten() for name in self.filter_names]), self.alpha, self.beta)
 
         return jnp.squeeze(loss)
 
@@ -746,8 +736,8 @@ class GLM:
             Maximum number of iteration.
 
         alpha: float
-            Balance weight for L1 and L2 regularization.
-            If alpha=1, only L1 applys. Otherwise, only L2 apply.
+            Balance weights for L1 and L2 regularization.
+            If alpha=1, only L1 applies. Otherwise, only L2 apply.
 
         beta: float
             Overall weight for L1 and L2 regularization.
@@ -775,11 +765,11 @@ class GLM:
         self.beta = beta
         self.metric = metric
 
-        if not 'dev' in self.y:
+        if 'dev' not in self.y:
             return_model = 'last'
 
         if y is None:
-            if not 'train' in self.y:
+            if 'train' not in self.y:
                 raise ValueError(f'No `y` is provided.')
         else:
             if type(y) is dict:

@@ -21,6 +21,7 @@ from rfest.splines import build_spline_matrix, cr, cc, bs
 from rfest.metrics import r2, mse, corrcoef
 from rfest.nonlinearities import *
 from rfest.priors import smoothness_kernel
+from rfest.loss import loss_neglogli, loss_mse, loss_penalty
 
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
@@ -65,6 +66,7 @@ class Base:
         self.p0 = None
         self.metric = None
 
+        self.Cinv = None
         self.alpha = None
         self.beta = None
         self.num_iters = None
@@ -438,8 +440,27 @@ class Base:
         else:
             raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
 
-    def cost(self, *args, **kwargs):
-        pass
+    def compute_cost(self, p, penalty_w, dist, extra=None, precomputed=None):
+        """
+        Negative Log Likelihood.
+        """
+        y = self.y if extra is None else extra['y']
+        r = self.forwardpass(p, extra) if precomputed is None else precomputed
+
+        if dist == 'poisson':
+            loss = loss_neglogli(y, r, dt=self.dt)
+        elif dist == 'gaussian':
+            loss = loss_mse(y, r)
+        else:
+            raise NotImplementedError(dist)
+
+        if (self.beta is not None) and (extra is None):
+            loss += loss_penalty(penalty_w, self.alpha, self.beta)
+
+        if self.Cinv is not None:
+            loss += 0.5 * p['b'] @ self.Cinv @ p['b']
+
+        return loss
 
     def forwardpass(self, *args, **kwargs):
         y_pred = jnp.zeros(0)
@@ -622,7 +643,7 @@ class Base:
             Development set.
 
         initialize : None or str
-            Paramteric initalization. 
+            Parametric initialization.
             * if `initialize=None`, `w` will be initialized by STA.
             * if `initialize='random'`, `w` will be randomly initialized.
 
@@ -636,12 +657,12 @@ class Base:
             * 'corrcoef': Correlation coefficient
 
         alpha : float, from 0 to 1.
-            Elastic net parameter, balance between L1 and L2 regulization.
+            Elastic net parameter, balance between L1 and L2 regularization.
             * 0.0 -> only L2
             * 1.0 -> only L1
 
         beta : float
-            Elastic net parameter, overall weight of regulization.
+            Elastic net parameter, overall weight of regularization.
 
         step_size : float
             Initial step size for JAX optimizer (ADAM).
@@ -812,7 +833,7 @@ class splineBase(Base):
 
         smooth : str
             Type of basis. 
-            * cr: natrual cubic spline (default)
+            * cr: natural cubic spline (default)
             * cc: cyclic cubic spline
             * bs: B-spline
             * tp: thin plate spine
@@ -832,7 +853,6 @@ class splineBase(Base):
         self.bh_spl = None
         self.yS = None
         self.Sh = None
-        self.Cinv = None
 
         # Parameters
         self.df = df  # number basis / degree of freedom
@@ -925,7 +945,7 @@ class splineBase(Base):
             * 'bh': Initial response history filter coefficients
 
         initialize : None or str
-            Paramteric initalization. 
+            Parametric initialization.
             * if `initialize=None`, `b` will be initialized by b_spl.
             * if `initialize='random'`, `b` will be randomly initialized.
 
@@ -939,12 +959,12 @@ class splineBase(Base):
             * 'corrcoef': Correlation coefficient
 
         alpha : float, from 0 to 1.
-            Elastic net parameter, balance between L1 and L2 regulization.
+            Elastic net parameter, balance between L1 and L2 regularization.
             * 0.0 -> only L2
             * 1.0 -> only L1
 
         beta : float
-            Elastic net parameter, overall weight of regulization for receptive field.
+            Elastic net parameter, overall weight of regularization for receptive field.
 
         step_size : float
             Initial step size for JAX optimizer.

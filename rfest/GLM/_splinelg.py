@@ -62,24 +62,4 @@ class splineLG(splineBase):
         return yhat
 
     def cost(self, p, extra=None, precomputed=None):
-
-        """
-
-        Mean Squared Error.
-
-        """
-
-        y = self.y if extra is None else extra['y']
-        yhat = self.forwardpass(p, extra) if precomputed is None else precomputed
-
-        mse = jnp.nanmean((y - yhat) ** 2)
-
-        if self.beta and extra is None:
-            l1 = jnp.linalg.norm(p['b'], 1)
-            l2 = jnp.linalg.norm(p['b'], 2)
-            mse += self.beta * ((1 - self.alpha) * l2 + self.alpha * l1)
-
-        if self.Cinv is not None:
-            mse += 0.5 * p['b'] @ self.Cinv @ p['b']
-
-        return mse
+        return self.compute_cost(p, p['b'], 'gaussian', extra, precomputed)
