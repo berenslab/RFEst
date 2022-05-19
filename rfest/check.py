@@ -836,24 +836,25 @@ def plot3d(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, return
             CS_max = axes_sRF_max[i].contour(sRFs_max[i].T, levels=[contour], colors=[color_max], linestyles=['-'],
                                              linewidths=3, alpha=1)
 
+            cntrs_min = [p.vertices for p in CS_min.collections[0].get_paths()]
+            cntrs_max = [p.vertices for p in CS_max.collections[0].get_paths()]
+
+            RF_data[name]["sRFs_min_cntr"].append(cntrs_min[0])
+            RF_data[name]["sRFs_max_cntr"].append(cntrs_max[0])
+
             if cv2 is not None:
-                cntrs_min = [p.vertices for p in CS_min.collections[0].get_paths()]
+
                 cntrs_size_min = [cv2.contourArea(cntr.astype(np.float32)) * pixel_size ** 2 / 1000 for cntr in
                                   cntrs_min]
-
                 axes_sRF_min[i].set_xlabel(f'cntr size = {cntrs_size_min[0]:.03f} 10^3 μm^2')
 
-                cntrs_max = [p.vertices for p in CS_max.collections[0].get_paths()]
                 cntrs_size_max = [cv2.contourArea(cntr.astype(np.float32)) * pixel_size ** 2 / 1000 for cntr in
                                   cntrs_max]
-
                 axes_sRF_max[i].set_xlabel(f'cntr size = {cntrs_size_max[0]:.03f} 10^3 μm^2')
 
                 contour_size_min += cntrs_size_min
                 contour_size_max += cntrs_size_max
 
-                RF_data[name]["sRFs_min_cntr"].append(cntrs_min[0])
-                RF_data[name]["sRFs_max_cntr"].append(cntrs_max[0])
                 stats[name]['sRF_size_min'].append(cntrs_size_min[0])
                 stats[name]['sRF_size_max'].append(cntrs_size_max[0])
                 stats[name]['sRF_size_diff'].append(np.abs(cntrs_size_min[0] - cntrs_size_max[0]))
@@ -1454,24 +1455,25 @@ def plot3dn(model, w_type='opt', contour=0.1, pixel_size=30, figsize=None, retur
             CS_max = axes_sRF_max[i].contour(sRFs_max[i].T, levels=[contour], colors=[color_max], linestyles=['-'],
                                              linewidths=3, alpha=1)
 
+            cntrs_min = [p.vertices for p in CS_min.collections[0].get_paths()]
+            cntrs_max = [p.vertices for p in CS_max.collections[0].get_paths()]
+
+            RF_data[name]["sRFs_min_cntr"].append(cntrs_min[0])
+            RF_data[name]["sRFs_max_cntr"].append(cntrs_max[0])
+
             if cv2 is not None:
-                cntrs_min = [p.vertices for p in CS_min.collections[0].get_paths()]
                 cntrs_size_min = [cv2.contourArea(cntr.astype(np.float32)) * pixel_size ** 2 / 1000 for cntr in
                                   cntrs_min]
-
                 axes_sRF_min[i].set_xlabel(f'cntr size = {cntrs_size_min[0]:.03f} 10^3 μm^2')
 
-                cntrs_max = [p.vertices for p in CS_max.collections[0].get_paths()]
                 cntrs_size_max = [cv2.contourArea(cntr.astype(np.float32)) * pixel_size ** 2 / 1000 for cntr in
                                   cntrs_max]
-
                 axes_sRF_max[i].set_xlabel(f'cntr size = {cntrs_size_max[0]:.03f} 10^3 μm^2')
 
                 contour_size_min += cntrs_size_min
                 contour_size_max += cntrs_size_max
 
-                RF_data[name]["sRFs_min_cntr"].append(cntrs_min[0])
-                RF_data[name]["sRFs_max_cntr"].append(cntrs_max[0])
+
                 stats[name]['sRF_size_min'].append(cntrs_size_min[0])
                 stats[name]['sRF_size_max'].append(cntrs_size_max[0])
                 stats[name]['sRF_size_diff'].append(np.abs(cntrs_size_min[0] - cntrs_size_max[0]))
