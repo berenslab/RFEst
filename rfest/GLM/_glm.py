@@ -533,7 +533,7 @@ class GLM:
 
         # cost functions
         if distr == 'gaussian':
-            loss = 0.5 * jnp.sum((y - r) ** 2)
+            loss = jnp.mean((y - r) ** 2)
 
         elif distr == 'poisson':
 
