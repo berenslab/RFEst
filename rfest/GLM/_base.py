@@ -533,10 +533,17 @@ class Base:
         print(opt_title)
 
     def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size,
-                        tolerance, verbose, return_model) -> dict:
+                        tolerance, verbose, return_model=None) -> dict:
         """
         Gradient descent using JAX optimizer, and verbose logging.
         """
+        if return_model is None:
+            if extra is not None:
+                return_model = 'best_dev_cost'
+            else:
+                return_model = 'best_train_cost'
+
+        assert (extra is not None) or ('dev' not in return_model), 'Cannot use dev set if dev set is not given.'
 
         if num_epochs != 1:
             raise NotImplementedError()
@@ -642,15 +649,13 @@ class Base:
             else:
                 best = np.argmax(metric_train[:i + 1])
 
-        elif return_model == 'last':
+        else:
+            if return_model != 'last':
+                print('Provided `return_model` is not supported. Fallback to `last`')
             if stop == 'dev_stop':
                 best = i - tolerance
             else:
                 best = i
-
-        else:
-            print('Provided `return_model` is not supported. Fallback to `best_dev_cost`')
-            best = np.argmin(cost_dev[:i + 1])
 
         params = params_list[best]
         metric_dev_opt = metric_dev[best]
@@ -668,7 +673,7 @@ class Base:
             num_epochs=1, num_iters=5, metric=None, alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False,
-            step_size=1e-2, tolerance=10, verbose=1, random_seed=2046, return_model='best_dev_cost'):
+            step_size=1e-2, tolerance=10, verbose=1, random_seed=2046, return_model=None):
 
         """
 
@@ -971,7 +976,7 @@ class splineBase(Base):
             num_epochs=1, num_iters=3000, metric=None, alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False,
-            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046, return_model='best_dev_cost'):
+            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046, return_model=None):
 
         """
 

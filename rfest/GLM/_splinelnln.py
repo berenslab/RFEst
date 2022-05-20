@@ -69,7 +69,7 @@ class splineLNLN(splineBase):
             alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
             fit_history_filter=False, fit_nonlinearity=False,
-            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046, return_model='best_dev_cost'):
+            step_size=1e-2, tolerance=10, verbose=100, random_seed=2046, return_model=None):
 
         self.metric = metric
 

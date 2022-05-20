@@ -601,6 +601,13 @@ class GLM:
         return_model: str
             Return the 'best' model on dev set metrics or the 'last' model.
         """
+        if return_model is None:
+            if 'dev' in self.y:
+                return_model = 'best_dev_cost'
+            else:
+                return_model = 'best_train_cost'
+
+        assert ('dev' in self.y) or ('dev' not in return_model), 'Cannot use dev set if dev set is not given.'
 
         @jit
         def step(_i, _opt_state):
@@ -693,15 +700,13 @@ class GLM:
             else:
                 best = np.argmax(metric_train[:i + 1])
 
-        elif return_model == 'last':
+        else:
+            if return_model != 'last':
+                print('Provided `return_model` is not supported. Fallback to `last`')
             if stop == 'dev_stop':
                 best = i - tolerance
             else:
                 best = i
-
-        else:
-            print('Provided `return_model` is not supported. Fell back to `best_dev_cost`')
-            best = np.argmin(cost_dev[:i + 1])
 
         params = params_list[best]
         metric_dev_opt = metric_dev[best]
@@ -722,7 +727,7 @@ class GLM:
         return params
 
     def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, metric='corrcoef', step_size=1e-3,
-            tolerance=10, verbose=True, return_model='best_dev_cost'):
+            tolerance=10, verbose=True, return_model=None):
         """
         Fit model.
 
