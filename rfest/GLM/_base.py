@@ -36,7 +36,7 @@ class Base:
 
     """
 
-    def __init__(self, X, y, dims, compute_mle=False, **kwargs):
+    def __init__(self, X, y, dims, compute_mle=False, dt=1.):
 
         """
 
@@ -58,7 +58,6 @@ class Base:
         # Optimization
         self.intercept = None
         self.R = None
-        self.nl_params_opt = None
 
         self.h_opt = None
         self.w_spl = None
@@ -73,7 +72,7 @@ class Base:
 
         self.num_iters = None
         self.fit_R = None
-        self.fit_linear_filter = None,
+        self.fit_linear_filter = None
         self.fit_history_filter = None
         self.fit_nonlinearity = None
         self.fit_intercept = None
@@ -87,30 +86,23 @@ class Base:
         self.metric_dev_opt = None
         self.total_time_elapsed = None
 
+        # Non-linearity
+        self.filter_nonlinearity = None
+        self.output_nonlinearity = None
+        self.nl_params_opt = None
         self.nl_params = None
         self.nl_xrange = None
         self.nl_basis = None
         self.nl_bins = None
-        self.nonlinearity = None
-        self.output_nonlinearity = None
-        self.filter_nonlinearity = None
         self.fnl_fitted = None
         self.fnl_nonparametric = None
 
+        # History filter
         self.h_mle = None
         self.yh = None
         self.shift_h = None
 
         self.w_stc = None
-        self.w_stc_min_null = None
-        self.w_stc_max_null = None
-        self.w_stc_eigval_mask = None
-        self.w_stc_eigval = None
-
-        self.w_stc_eigval_neg_mask = None
-        self.w_stc_eigval_pos_mask = None
-        self.w_stc_neg = None
-        self.w_stc_pos = None
 
         self.ndim = len(dims)
         if self.ndim == 4:  # [t, x, y, c]
@@ -121,7 +113,7 @@ class Base:
             self.n_c = 1
             self.dims = dims  # assumed order [t, y, x]
 
-        self.dt = kwargs['dt'] if 'dt' in kwargs.keys() else 1  # time bin size (for LNP and LNLN)
+        self.dt = dt  # time bin size (for LNP and LNLN)
         self.compute_mle = compute_mle
 
         # compute sufficient statistics
@@ -194,6 +186,8 @@ class Base:
             w = uvec(self.w_sta)
 
         eigvec, eigval = get_stc(X, y, w)
+
+        self.w_stc = dict()
         if n_repeats:
             print('STC significance test: ')
             eigval_null = []
@@ -214,22 +208,22 @@ class Base:
             mask_sig_neg = eigval < min_null
             mask_sig = jnp.logical_or(mask_sig_pos, mask_sig_neg)
 
-            self.w_stc = eigvec
-            self.w_stc_pos = eigvec[:, mask_sig_pos]
-            self.w_stc_neg = eigvec[:, mask_sig_neg]
+            self.w_stc['eigvec'] = eigvec
+            self.w_stc['pos'] = eigvec[:, mask_sig_pos]
+            self.w_stc['neg'] = eigvec[:, mask_sig_neg]
 
-            self.w_stc_eigval = eigval
-            self.w_stc_eigval_mask = mask_sig
-            self.w_stc_eigval_pos_mask = mask_sig_pos
-            self.w_stc_eigval_neg_mask = mask_sig_neg
+            self.w_stc['eigval'] = eigval
+            self.w_stc['eigval_mask'] = mask_sig
+            self.w_stc['eigval_pos_mask'] = mask_sig_pos
+            self.w_stc['eigval_neg_mask'] = mask_sig_neg
 
-            self.w_stc_max_null = max_null
-            self.w_stc_min_null = min_null
+            self.w_stc['max_null'] = max_null
+            self.w_stc['min_null'] = min_null
 
         else:
-            self.w_stc = eigvec
-            self.w_stc_eigval = eigval
-            self.w_stc_eigval_mask = jnp.ones_like(eigval).astype(bool)
+            self.w_stc['eigvec'] = eigvec
+            self.w_stc['eigval'] = eigval
+            self.w_stc['eigval_mask'] = jnp.ones_like(eigval).astype(bool)
 
     def initialize_history_filter(self, dims, shift=1):
         """
@@ -281,20 +275,15 @@ class Base:
     def initialize_parametric_nonlinearity(self, init_to='exponential', method=None, params_dict=None):
 
         if method is None:  # if no methods specified, use defaults.
-            # this piece of code is quite redundant.
-            # need to refactor.
-            if self.nonlinearity is not None:
-                method = self.nonlinearity
-            else:
-                method = self.filter_nonlinearity
-        else:  # overwrite the default nonlinearity
-            if self.nonlinearity is not None:
-                self.nonlinearity = method
-            else:
+            method = self.output_nonlinearity or self.filter_nonlinearity
+        else:  # otherwise, overwrite the default nonlinearity.
+            self.output_nonlinearity = method
+            if self.filter_nonlinearity is not None:
                 self.filter_nonlinearity = method
-                self.output_nonlinearity = method
 
-                # prepare data
+        assert method is not None
+
+        # prepare data
         if params_dict is None:
             params_dict = {}
         xrange = params_dict['xrange'] if 'xrange' in params_dict else 5
@@ -941,7 +930,6 @@ class splineBase(Base):
 
     def cost(self, b, extra):
         raise NotImplementedError()
-
 
     # noinspection PyMethodOverriding
     def initialize_history_filter(self, dims, df, smooth='cr', shift=1):

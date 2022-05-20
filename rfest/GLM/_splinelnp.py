@@ -10,9 +10,9 @@ __all__ = ['splineLNP']
 
 class splineLNP(splineBase):
 
-    def __init__(self, X, y, dims, df, smooth='cr', nonlinearity='softplus', compute_mle=False, **kwargs):
+    def __init__(self, X, y, dims, df, smooth='cr', output_nonlinearity='softplus', compute_mle=False, **kwargs):
         super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
-        self.nonlinearity = nonlinearity
+        self.output_nonlinearity = output_nonlinearity
 
     def compute_filter_output(self, XS, p=None):
         if self.fit_linear_filter:
@@ -42,8 +42,8 @@ class splineLNP(splineBase):
         history_output = self.compute_history_output(y, p)
 
         nl_params = self.get_nl_params(p)
-        r = self.dt * R * self.fnl(filter_output + history_output + intercept, nl=self.nonlinearity,
-                                   params=nl_params).flatten()
+        r = self.dt * R * self.fnl(filter_output + history_output + intercept,
+                                   nl=self.output_nonlinearity, params=nl_params).flatten()
 
         return r
 

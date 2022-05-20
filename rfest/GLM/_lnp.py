@@ -13,10 +13,10 @@ class LNP(Base):
     Linear-Nonlinear-Poisson model.
     """
 
-    def __init__(self, X, y, dims, compute_mle=False, nonlinearity='softplus', **kwargs):
+    def __init__(self, X, y, dims, compute_mle=False, output_nonlinearity='softplus', **kwargs):
 
         super().__init__(X, y, dims, compute_mle, **kwargs)
-        self.nonlinearity = nonlinearity
+        self.output_nonlinearity = output_nonlinearity
 
     def compute_filter_output(self, X, p=None):
 
@@ -51,7 +51,7 @@ class LNP(Base):
 
         nl_params = self.get_nl_params(p)
         r = self.dt * R * self.fnl(
-            filter_output + history_output + intercept, nl=self.nonlinearity,
+            filter_output + history_output + intercept, nl=self.output_nonlinearity,
             params=nl_params).flatten()
 
         return r

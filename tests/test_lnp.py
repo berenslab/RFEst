@@ -45,7 +45,7 @@ def test_lnp_spikes_split_data():
 
     (X_train, y_train), (X_dev, y_dev), (_, _) = split_data(X, y, dt, frac_train=0.8, frac_dev=0.2)
 
-    model = LNP(X_train, y_train, dims, dt=dt, nonlinearity='exponential')
+    model = LNP(X_train, y_train, dims, dt=dt, output_nonlinearity='exponential')
     model.fit(extra={'X': X_dev, 'y': y_dev}, num_iters=50,
               metric='corrcoef', beta=0.01, verbose=0, tolerance=10)
 
