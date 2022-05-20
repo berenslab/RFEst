@@ -736,7 +736,7 @@ class Base:
         self.num_iters = num_iters
 
         self.fit_R = fit_R
-        self.fit_linear_filter = fit_linear_filter,
+        self.fit_linear_filter = fit_linear_filter
         self.fit_history_filter = fit_history_filter
         self.fit_nonlinearity = fit_nonlinearity
         self.fit_intercept = fit_intercept
@@ -940,7 +940,7 @@ class splineBase(Base):
             self.Cinv = jnp.kron(Cinvs[0], jnp.kron(Cinvs[1], Cinvs[2]))
 
     def cost(self, b, extra):
-        pass
+        raise NotImplementedError()
 
 
     # noinspection PyMethodOverriding
