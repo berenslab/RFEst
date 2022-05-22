@@ -73,7 +73,7 @@ class GLM:
         self.y_pred_lower = {}  # predicted response lower limit
 
         # Model parameters
-        self.p = {}  # all model paremeters
+        self.p = {}  # all model parameters
         self.b = {}  # spline weights
         self.b_se = {}  # spline weights standard error
         self.w = {}  # filter weights
@@ -81,7 +81,7 @@ class GLM:
         self.V = {}  # weights covariance
         self.intercept = {}  # intercept
 
-        # Model hypterparameters
+        # Model hyper-parameters
         self.df = {}  # number of bases for each filter
         self.dims = {}  # filter shapes
         self.n_features = {}  # number of features for each filter
@@ -359,10 +359,12 @@ class GLM:
             self.w[method].pop('stimulus')
             self.intercept[method].pop('stimulus')
             self.X['train'].pop('stimulus')
-            self.X['dev'].pop('stimulus')
+            if 'dev' in self.y:
+                self.X['dev'].pop('stimulus')
             if self.XS != {}:
                 self.XS['train'].pop('stimulus')
-                self.XS['dev'].pop('stimulus')
+                if 'dev' in self.y:
+                    self.XS['dev'].pop('stimulus')
                 self.S.pop('stimulus')
 
             self.filter_names = filter_names

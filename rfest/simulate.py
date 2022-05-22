@@ -258,20 +258,10 @@ def get_response(X, w, intercept=0, dt=1, R=1, random_seed=None, distr='gaussian
     else:
         raise NotImplementedError(nonlinearity)
 
-    if w.ndim == 1:
-        r = dt * R * fnl(X @ w + intercept)
-    else:
-
-        X_reshaped = X.reshape(X.shape[0], -1)
-        w_reshaped = w.reshape(w.shape[0], -1)
-
-        raw_response = np.mean([np.roll(X_reshaped @ wi, -i)[:-(w_reshaped.shape[0] - 1)]
-                                for i, wi in enumerate(w_reshaped)], axis=0)
-        raw_response = np.concatenate([np.zeros(w_reshaped.shape[0] - 1), raw_response])
-        r = dt * R * fnl(raw_response + intercept)
+    r = dt * R * fnl(X @ w.flatten() + intercept)
 
     if distr == 'gaussian':
-        return np.random.normal(r)
+        return r + np.random.normal(0, np.std(r) * 0.1, r.size)
 
     elif distr == 'poisson':
         r = np.maximum(dt * r, 1e-17)  # avoid 0.
