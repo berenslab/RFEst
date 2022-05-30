@@ -672,7 +672,7 @@ class GLM:
                         print('Total time elapsed: {0:.3f}s.'.format(total_time_elapsed))
                     break
 
-                if np.all(np.diff(cost_train[i - tolerance:i]) < atol):
+                if np.all(-np.diff(cost_train[i - tolerance:i]) < atol):
                     stop = 'train_stop'
                     if verbose:
                         print(
