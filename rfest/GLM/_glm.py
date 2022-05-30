@@ -576,7 +576,7 @@ class GLM:
             opt_title += "Metric (dev)".ljust(16)
         print(opt_title)
 
-    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model):
+    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol=1e-5):
 
         """Workhorse of optimization.
 
@@ -595,7 +595,7 @@ class GLM:
             Learning rate.
 
         tolerance: int
-            Tolerance for early stop. If the training cost doesn't change more than 1e-5
+            Tolerance for early stop. If the training cost doesn't change more than atol
             in the last (tolerance) steps, or the dev cost monotonically increase, stop.
 
         verbose: int
@@ -669,12 +669,12 @@ class GLM:
                         print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                     break
 
-                if np.all(np.diff(cost_train[i - tolerance:i]) < 1e-5):
+                if np.all(np.diff(cost_train[i - tolerance:i]) < atol):
                     stop = 'train_stop'
                     if verbose:
                         print(
-                            'Stop at {0} steps: cost (train) has been changing less than 1e-5 for {1} steps.'.format(
-                                i, tolerance))
+                            'Stop at {0} steps: cost (train) has been changing less than {1} for {2} steps.'.format(
+                                i, atol, tolerance))
                         print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
                     break
 
@@ -730,7 +730,7 @@ class GLM:
         return params
 
     def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, metric='corrcoef', step_size=1e-3,
-            tolerance=10, verbose=True, return_model=None):
+            tolerance=10, verbose=True, return_model=None, atol=1e-5):
         """
         Fit model.
 
@@ -758,7 +758,7 @@ class GLM:
             Learning rate.
 
         tolerance: int
-            Tolerance for early stop. If the training cost doesn't change more than 1e-5
+            Tolerance for early stop. If the training cost doesn't change more than atol
             in the last (tolerance) steps, or the dev cost monotonically increase, stop.
 
         verbose: int
@@ -789,7 +789,7 @@ class GLM:
 
         self.y_pred['opt'] = {}
 
-        self.p['opt'] = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose, return_model)
+        self.p['opt'] = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol)
         self._extract_opt_params()
 
     def _extract_opt_params(self):

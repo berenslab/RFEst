@@ -112,7 +112,7 @@ class sARD:
         print('{0:4d}\t{1:1.3f}\t{2:1.3f}\t{3:1.3f}\t{4:1.3f}\t{5:1.3f}\t{6:1.3f}'.format(
             i, params[0], params[1], params[2], params[3], params[4], cost))
 
-    def optimize_params(self, p0, num_iters, step_size, tolerance, verbose):
+    def optimize_params(self, p0, num_iters, step_size, tolerance, verbose, atol=1e-5):
 
         """
 
@@ -151,7 +151,7 @@ class sARD:
                     if verbose:
                         print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
                     break
-                elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < 1e-5):
+                elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < atol):
                     params = params_list[-1]
                     if verbose:
                         print('Stop: cost has been stop changing for {} steps.'.format(tolerance))

@@ -533,7 +533,7 @@ class Base:
         print(opt_title)
 
     def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size,
-                        tolerance, verbose, return_model=None) -> dict:
+                        tolerance, verbose, return_model=None, atol=1e-5) -> dict:
         """
         Gradient descent using JAX optimizer, and verbose logging.
         """
@@ -617,11 +617,11 @@ class Base:
                               f'cost (dev) has been monotonically increasing for {tolerance} steps.\n')
                     break
 
-                if jnp.all(cost_train_slice[:-1] - cost_train_slice[1:] < 1e-5):
+                if jnp.all(cost_train_slice[:-1] - cost_train_slice[1:] < atol):
                     stop = 'train_stop'
                     if verbose:
                         print(f'Stop at {i} steps: ' +
-                              f'cost (train) has been changing less than 1e-5 for {tolerance} steps.\n')
+                              f'cost (train) has been changing less than {atol} for {tolerance} steps.\n')
                     break
 
         else:

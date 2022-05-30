@@ -230,7 +230,7 @@ class EmpiricalBayes:
     def print_progress(i, params, cost):
         print('{0:4d}\t{1:1.3f}'.format(i, cost))
 
-    def optimize_params(self, p0, num_iters, step_size, tolerance, verbose):
+    def optimize_params(self, p0, num_iters, step_size, tolerance, verbose, atol=1e-5):
 
         """
         
@@ -270,7 +270,7 @@ class EmpiricalBayes:
                     if verbose:
                         print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
                     break
-                elif jnp.all(jnp.array(cost_list[:-1]) - jnp.array(cost_list[1:]) < 1e-5):
+                elif jnp.all(jnp.array(cost_list[:-1]) - jnp.array(cost_list[1:]) < atol):
                     params = params_list[-1]
                     if verbose:
                         print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
