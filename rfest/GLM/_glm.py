@@ -277,99 +277,71 @@ class GLM:
             if kind == 'train':
                 self.n_features[name] = self.XS['train'][name].shape[1]
 
-    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046,
-                   verbose=0, add_noise_to_mle=0):
+    def _initialize_random(self, verbose=0, random_seed=2046):
+        self.b['random'] = {}
+        self.w['random'] = {}
+        self.intercept['random'] = {}
+        if verbose:
+            print('Initializing model parameters randomly...')
 
-        self.init_method = method  # store meta
-        self.num_subunits = num_subunits
-        self.compute_ci = compute_ci
+        for i, name in enumerate(self.filter_names):
+            self.intercept['random'][name] = 0.
+            key = random.PRNGKey(random_seed + i)  # change random seed for each filter
+            if name in self.S:
+                self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1)).astype(
+                    self.dtype)
+                self.w['random'][name] = self.S[name] @ self.b['random'][name]
+            else:
+                self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1)).astype(
+                    self.dtype)
+        self.intercept['random']['global'] = 0.
 
-        if method == 'random':
+    def _initialize_subunits(self, num_subunits, method, filter_names):
+        filter_names.remove('stimulus')
+        filter_names = [f'stimulus_s{i}' for i in range(num_subunits)] + filter_names
 
-            self.b['random'] = {}
-            self.w['random'] = {}
-            self.intercept['random'] = {}
-            if verbose:
-                print('Initializing model parameters randomly...')
+        for name in filter_names:
+            if 'stimulus' in name:
+                self.dims[name] = self.dims['stimulus']
+                self.df[name] = self.dims['stimulus']
+                self.shift[name] = self.shift['stimulus']
+                self.filter_nonlinearity[name] = self.filter_nonlinearity['stimulus']
+                self.intercept[method][name] = self.intercept[method]['stimulus']
+                self.w[method][name] = self.w[method]['stimulus']
 
-            for i, name in enumerate(self.filter_names):
-                self.intercept['random'][name] = 0.
-                key = random.PRNGKey(random_seed + i)  # change random seed for each filter
-                if name in self.S:
-                    self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1)).astype(
-                        self.dtype)
-                    self.w['random'][name] = self.S[name] @ self.b['random'][name]
-                else:
-                    self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1)).astype(
-                        self.dtype)
-            self.intercept['random']['global'] = 0.
+                if method in self.w_se:
+                    self.w_se[method][name] = self.w_se[method]['stimulus']
+                self.X['train'][name] = self.X['train']['stimulus']
 
-            if verbose:
-                print('Finished.')
+                if 'dev' in self.X:
+                    self.X['dev'][name] = self.X['dev']['stimulus']
 
-        elif method == 'mle':
+                if 'stimulus' in self.S:
+                    self.b[method][name] = self.b[method]['stimulus']
+                    if method in self.b_se:
+                        self.b_se[method][name] = self.b_se[method]['stimulus']
+                    self.XS['train'][name] = self.XS['train']['stimulus']
 
-            if verbose:
-                print('Initializing model parameters with maximum likelihood...')
+                    if 'dev' in self.XS:
+                        self.XS['dev'][name] = self.XS['dev']['stimulus']
 
-            if not self.mle_computed:
-                self.compute_mle(y)
+                    self.S[name] = self.S['stimulus']
 
-            if verbose:
-                print('Finished.')
-
-        else:
-            raise ValueError(f'`{method}` is not supported.')
-
-        # rename and repmat: stimulus filter to subunits filters
-        # subunit model only works with one stimulus.
-        filter_names = self.filter_names.copy()
-        if num_subunits != 1:
-            filter_names.remove('stimulus')
-            filter_names = [f'stimulus_s{i}' for i in range(num_subunits)] + filter_names
-
-            for name in filter_names:
-                if 'stimulus' in name:
-                    self.dims[name] = self.dims['stimulus']
-                    self.df[name] = self.dims['stimulus']
-                    self.shift[name] = self.shift['stimulus']
-                    self.filter_nonlinearity[name] = self.filter_nonlinearity['stimulus']
-                    self.intercept[method][name] = self.intercept[method]['stimulus']
-                    self.w[method][name] = self.w[method]['stimulus']
-
-                    if method in self.w_se:
-                        self.w_se[method][name] = self.w_se[method]['stimulus']
-                    self.X['train'][name] = self.X['train']['stimulus']
-
-                    if 'dev' in self.X:
-                        self.X['dev'][name] = self.X['dev']['stimulus']
-
-                    if 'stimulus' in self.S:
-                        self.b[method][name] = self.b[method]['stimulus']
-                        if method in self.b_se:
-                            self.b_se[method][name] = self.b_se[method]['stimulus']
-                        self.XS['train'][name] = self.XS['train']['stimulus']
-
-                        if 'dev' in self.XS:
-                            self.XS['dev'][name] = self.XS['dev']['stimulus']
-
-                        self.S[name] = self.S['stimulus']
-
-            self.b[method].pop('stimulus', None)
-            self.w[method].pop('stimulus')
-            self.intercept[method].pop('stimulus')
-            self.X['train'].pop('stimulus')
+        self.b[method].pop('stimulus', None)
+        self.w[method].pop('stimulus')
+        self.intercept[method].pop('stimulus')
+        self.X['train'].pop('stimulus')
+        if 'dev' in self.y:
+            self.X['dev'].pop('stimulus')
+        if self.XS != {}:
+            self.XS['train'].pop('stimulus')
             if 'dev' in self.y:
-                self.X['dev'].pop('stimulus')
-            if self.XS != {}:
-                self.XS['train'].pop('stimulus')
-                if 'dev' in self.y:
-                    self.XS['dev'].pop('stimulus')
-                self.S.pop('stimulus')
+                self.XS['dev'].pop('stimulus')
+            self.S.pop('stimulus')
 
-            self.filter_names = filter_names
+        self.filter_names = filter_names
 
-        self.p[method] = {}
+    def _initialize_p0(self, method, add_noise_to_mle=False, random_seed=2046):
         p0 = {}
         for i, name in enumerate(self.filter_names):
             if name in self.S:
@@ -389,8 +361,37 @@ class GLM:
             self.p[method].update({'intercept': self.intercept[method]})
             p0.update({'intercept': self.intercept[method]})
 
-        self.dt = dt
         self.p0 = p0
+
+    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046,
+                   verbose=0, add_noise_to_mle=False):
+
+        self.dt = dt
+        self.init_method = method  # store meta
+        self.num_subunits = num_subunits
+        self.compute_ci = compute_ci
+
+        if method == 'random':
+            self._initialize_random(verbose=verbose, random_seed=random_seed)
+        elif method == 'mle':
+            if verbose:
+                print('Initializing model parameters with maximum likelihood...')
+            if not self.mle_computed:
+                self.compute_mle(y)
+        else:
+            raise ValueError(f'`{method}` is not supported.')
+
+        if verbose:
+            print('Finished.')
+
+        # rename and repmat: stimulus filter to subunits filters
+        # subunit model only works with one stimulus.
+        filter_names = self.filter_names.copy()
+        if num_subunits != 1:
+            self._initialize_subunits(num_subunits=num_subunits, method=method, filter_names=filter_names)
+
+        self.p[method] = {}
+        self._initialize_p0(method=method, add_noise_to_mle=add_noise_to_mle, random_seed=random_seed)
 
     def compute_mle(self, y, compute_ci=True):
 
