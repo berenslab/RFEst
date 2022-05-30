@@ -533,7 +533,7 @@ class Base:
         print(opt_title)
 
     def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size,
-                        tolerance, verbose, return_model=None, atol=1e-5) -> dict:
+                        tolerance, verbose, return_model=None, atol=1e-5, min_iters=300) -> dict:
         """
         Gradient descent using JAX optimizer, and verbose logging.
         """
@@ -604,7 +604,7 @@ class Base:
             if verbose and (i % int(verbose) == 0):
                 self.print_progress(i, time_elapsed, c_train=c_train, c_dev=c_dev, m_train=m_train, m_dev=m_dev)
 
-            if tolerance and i > 300:  # tolerance = 0: no early stop.
+            if tolerance and i > min_iters:  # tolerance = 0: no early stop.
 
                 total_time_elapsed = time.time() - time_start
                 cost_train_slice = cost_train[i - tolerance:i]

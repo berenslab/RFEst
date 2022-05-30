@@ -576,7 +576,7 @@ class GLM:
             opt_title += "Metric (dev)".ljust(16)
         print(opt_title)
 
-    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol=1e-5):
+    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol=1e-5, min_iters=300):
 
         """Workhorse of optimization.
 
@@ -657,7 +657,7 @@ class GLM:
                         i, time_elapsed, c_train=cost_train[i], c_dev=cost_dev[i],
                         m_train=metric_train[i], m_dev=metric_dev[i])
 
-            if tolerance and i > 300:  # tolerance = 0: no early stop.
+            if tolerance and i > min_iters:  # tolerance = 0: no early stop.
 
                 total_time_elapsed = time.time() - time_start
 
@@ -730,7 +730,7 @@ class GLM:
         return params
 
     def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, metric='corrcoef', step_size=1e-3,
-            tolerance=10, verbose=True, return_model=None, atol=1e-5):
+            tolerance=10, verbose=True, return_model=None, atol=1e-5, min_iters=300):
         """
         Fit model.
 
@@ -789,7 +789,8 @@ class GLM:
 
         self.y_pred['opt'] = {}
 
-        self.p['opt'] = self.optimize(self.p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol)
+        self.p['opt'] = self.optimize(
+            self.p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol, min_iters)
         self._extract_opt_params()
 
     def _extract_opt_params(self):
