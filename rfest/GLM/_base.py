@@ -78,6 +78,10 @@ class Base:
         self.fit_intercept = None
 
         # store meta
+        self.best_iteration = None
+        self.return_model = None
+        self.train_stop = None
+
         self.cost_dev = None
         self.cost_train = None
         self.metric_train = None
@@ -657,8 +661,15 @@ class Base:
             else:
                 best = i
 
+        if verbose:
+            print(f'Returning model: {return_model} at iteration {best} of {i} (Max: {num_iters}).\n')
+
         params = params_list[best]
         metric_dev_opt = metric_dev[best]
+
+        self.best_iteration = best
+        self.return_model = return_model
+        self.train_stop = stop
 
         self.cost_train = cost_train[:i + 1]
         self.cost_dev = cost_dev[:i + 1]
@@ -849,6 +860,9 @@ class Base:
             return self.cost(p=self.p_opt, extra={'X': X, 'y': y}, precomputed=y_pred)
         else:
             return self.compute_score(y, y_pred, metric)
+
+    def cost(self, p, extra, precomputed):
+        raise NotImplementedError()
 
 
 class splineBase(Base):

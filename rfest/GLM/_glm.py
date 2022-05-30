@@ -59,6 +59,9 @@ class GLM:
         self.metric_train = None
         self.metric_dev_opt = None
         self.all_params = None
+        self.return_model = None
+        self.best_iteration = None
+        self.train_stop = None
         self.total_time_elapsed = None
 
         # Data
@@ -666,7 +669,7 @@ class GLM:
                     if verbose:
                         print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.'.format(
                             i, tolerance))
-                        print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
+                        print('Total time elapsed: {0:.3f}s.'.format(total_time_elapsed))
                     break
 
                 if np.all(np.diff(cost_train[i - tolerance:i]) < atol):
@@ -675,7 +678,7 @@ class GLM:
                         print(
                             'Stop at {0} steps: cost (train) has been changing less than {1} for {2} steps.'.format(
                                 i, atol, tolerance))
-                        print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
+                        print('Total time elapsed: {0:.3f}s.'.format(total_time_elapsed))
                     break
 
         else:
@@ -683,7 +686,7 @@ class GLM:
             stop = 'maxiter_stop'
             if verbose:
                 print('Stop: reached {0} steps.'.format(num_iters))
-                print('Total time elapsed: {0:.3f}s.\n'.format(total_time_elapsed))
+                print('Total time elapsed: {0:.3f}s.'.format(total_time_elapsed))
 
         if return_model == 'best_dev_cost':
             best = np.argmin(cost_dev[:i + 1])
@@ -711,9 +714,15 @@ class GLM:
             else:
                 best = i
 
+        if verbose:
+            print(f'Returning model: {return_model} at iteration {best} of {i} (Max: {num_iters}).\n')
+
         params = params_list[best]
         metric_dev_opt = metric_dev[best]
 
+        self.best_iteration = best
+        self.return_model = return_model
+        self.train_stop = stop
         self.cost_train = cost_train[:i + 1]
         self.cost_dev = cost_dev[:i + 1]
         self.metric_train = metric_train[:i + 1]
@@ -772,9 +781,6 @@ class GLM:
         self.alpha = alpha
         self.beta = beta
         self.metric = metric
-
-        if 'dev' not in self.y:
-            return_model = 'last'
 
         if y is None:
             if 'train' not in self.y:

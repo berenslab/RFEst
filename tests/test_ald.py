@@ -1,4 +1,4 @@
-from rfest.generate_test_data import generate_data_2d_stim, generate_data_3d_stim
+from rfest.generate_test_data import generate_data_2d_stim
 from rfest import ALD
 from rfest.metrics import mse
 from rfest.utils import uvec
