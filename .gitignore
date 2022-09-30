@@ -1,5 +1,6 @@
 # caching data
-
+.pytest_cache/
+build/
 .cache
 .cache/*
 
