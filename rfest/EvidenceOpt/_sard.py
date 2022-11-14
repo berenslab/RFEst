@@ -1,4 +1,4 @@
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import grad
 from jax import jit
 from jax.config import config
@@ -30,21 +30,21 @@ class sARD:
         self.dims = dims
         self.n_samples, self.n_features = X.shape
 
-        S = np.array(build_spline_matrix(dims, df, smooth=smooth))
+        S = jnp.array(build_spline_matrix(dims, df, smooth=smooth))
         Z = X @ S
 
         self.XtY = X.T @ y
-        if np.array_equal(y, y.astype(bool)):  # if y is spikes
+        if jnp.array_equal(y, y.astype(bool)):  # if y is spikes
             self.w_sta = self.XtY / sum(y)
         else:  # if y is not spike
             self.w_sta = self.XtY / len(y)
 
         if compute_mle:  # maximum likelihood estimation
             self.XtX = X.T @ X
-            self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+            self.w_mle = jnp.linalg.solve(self.XtX, self.XtY)
 
-        self.X = np.array(X)
-        self.y = np.array(y)
+        self.X = jnp.array(X)
+        self.y = jnp.array(y)
 
         self.n_b = S.shape[1]
         self.S = S
@@ -53,7 +53,7 @@ class sARD:
         self.ZtY = Z.T @ y
         self.YtY = y.T @ y
 
-        self.b_spl = np.linalg.solve(Z.T @ Z, Z.T @ y)
+        self.b_spl = jnp.linalg.solve(Z.T @ Z, Z.T @ y)
         self.w_spl = S @ self.b_spl
 
     def update_C_prior(self, params):
@@ -77,7 +77,7 @@ class sARD:
         sigma = params[0]
 
         C_post_inv = self.ZtZ / sigma ** 2 + C_prior_inv
-        C_post = np.linalg.inv(C_post_inv)
+        C_post = jnp.linalg.inv(C_post_inv)
 
         m_post = C_post @ self.ZtY / (sigma ** 2)
 
@@ -96,8 +96,8 @@ class sARD:
 
         (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
 
-        t0 = np.log(np.abs(2 * np.pi * sigma ** 2)) * self.n_samples
-        t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
+        t0 = jnp.log(jnp.abs(2 * jnp.pi * sigma ** 2)) * self.n_samples
+        t1 = jnp.linalg.slogdet(C_prior @ C_post_inv)[1]
         t2 = -m_post.T @ C_post @ m_post
         t3 = self.YtY / sigma ** 2
 
@@ -113,9 +113,7 @@ class sARD:
             i, params[0], params[1], params[2], params[3], params[4], cost))
 
     def optimize_params(self, p0, num_iters, step_size, tolerance, verbose, atol=1e-5):
-
         """
-
         Perform gradient descent using JAX optimizers.
         """
 
@@ -146,12 +144,12 @@ class sARD:
 
             if len(params_list) > tolerance:
 
-                if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0):
+                if jnp.all((jnp.array(cost_list[1:])) - jnp.array(cost_list[:-1]) > 0):
                     params = params_list[0]
                     if verbose:
                         print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
                     break
-                elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < atol):
+                elif jnp.all(jnp.array(cost_list[:-1]) - jnp.array(cost_list[1:]) < atol):
                     params = params_list[-1]
                     if verbose:
                         print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
@@ -191,9 +189,9 @@ class sARD:
         """
 
         if p0 is None:
-            p0 = np.hstack([1, 1, self.b_spl])
+            p0 = jnp.hstack([1, 1, self.b_spl])
 
-        self.p0 = np.array(p0)
+        self.p0 = jnp.array(p0)
         self.num_iters = num_iters
         self.optimized_params = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbose)
 

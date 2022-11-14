@@ -231,11 +231,8 @@ class EmpiricalBayes:
         print('{0:4d}\t{1:1.3f}'.format(i, cost))
 
     def optimize_params(self, p0, num_iters, step_size, tolerance, verbose, atol=1e-5):
-
         """
-        
-        Perform gradient descent using JAX optimizers. 
-
+        Perform gradient descent using JAX optimizers.
         """
 
         opt_init, opt_update, get_params = optimizers.adam(step_size=step_size)

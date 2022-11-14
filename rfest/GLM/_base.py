@@ -19,7 +19,7 @@ except ImportError:
 from rfest.utils import build_design_matrix, uvec
 from rfest.splines import build_spline_matrix, cr, cc, bs
 from rfest.metrics import r2, mse, corrcoef
-from rfest.nonlinearities import *
+from rfest import nonlinearities
 from rfest.priors import smoothness_kernel
 from rfest.loss import loss_neglogli, loss_mse, loss_penalty
 
@@ -56,14 +56,15 @@ class Base:
 
         """
         # Optimization
-        self.intercept = None
-        self.R = None
+        self.intercept = jnp.array([0.])
+        self.R = jnp.array([1.])
 
         self.h_opt = None
         self.w_spl = None
         self.w_opt = None
         self.p0 = None
         self.p_opt = None
+        self.extra = None
 
         self.metric = None
         self.Cinv = None
@@ -238,7 +239,7 @@ class Base:
             Dimensions or shape of the response-history filter. It should be 1D [nt, ]
 
         shift : int
-            Should be 1 or larger. 
+            Should be 1 or larger.
 
         """
         y = self.y
@@ -294,22 +295,15 @@ class Base:
         nx = params_dict['nx'] if 'nx' in params_dict else 1000
         x0 = jnp.linspace(-xrange, xrange, nx)
 
-        if init_to == 'exponential':
-            y0 = jnp.exp(x0)
-        elif init_to == 'softplus':
-            y0 = softplus(x0)
-        elif init_to == 'relu':
-            y0 = relu(x0)
-        elif init_to == 'nonparametric':
+        if init_to == 'nonparametric':
             y0 = self.fnl_nonparametric(x0)
         elif init_to == 'gaussian':
             import scipy.signal
-            # noinspection PyUnresolvedReferences
             y0 = scipy.signal.gaussian(nx, nx / 10)
         else:
-            raise NotImplementedError(init_to)
+            y0 = nonlinearities.apply_nonlinearity(x0, kind=init_to)
 
-        # fit nonlin
+        # fit nonlinearity
         if method == 'spline':
             smooth = params_dict['smooth'] if 'smooth' in params_dict else 'cr'
             df = params_dict['df'] if 'df' in params_dict else 7
@@ -387,54 +381,18 @@ class Base:
         self.nl_params = opt_params
         self.fnl_fitted = _nl
 
-    def fnl(self, x, nl, params=None):
-
+    def fnl(self, x, kind, params=None):
         """
         Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
         """
-
-        if nl == 'softplus':
-            return softplus(x)
-
-        elif nl == 'exponential':
-            return jnp.exp(x)
-
-        elif nl == 'softmax':
-            return softmax(x)
-
-        elif nl == 'sigmoid':
-            return sigmoid(x)
-
-        elif nl == 'tanh':
-            return jnp.tanh(x)
-
-        elif nl == 'relu':
-            return relu(x)
-
-        elif nl == 'leaky_relu':
-            return leaky_relu(x)
-
-        elif nl == 'selu':
-            return selu(x)
-
-        elif nl == 'swish':
-            return swish(x)
-
-        elif nl == 'elu':
-            return elu(x)
-
-        elif nl == 'none':
-            return x
-
-        elif nl == 'nonparametric':
+        if kind == 'nonparametric':
             return self.fnl_nonparametric(x)
 
-        elif nl == 'spline' or nl == 'nn':
-
+        elif kind == 'spline' or kind == 'nn':
             return self.fnl_fitted(params, x)
 
         else:
-            raise ValueError(f'Input filter nonlinearity `{nl}` is not supported.')
+            return nonlinearities.apply_nonlinearity(x, kind=kind)
 
     def compute_cost(self, p, penalty_w, dist, extra=None, precomputed=None):
         """
@@ -468,20 +426,14 @@ class Base:
         if self.fit_intercept:
             intercept = p['intercept']
         else:
-            if self.intercept is not None:
-                intercept = self.intercept
-            else:
-                intercept = 0.
+            intercept = self.intercept
         return intercept
 
     def get_R(self, p=None):
         if self.fit_R:  # maximum firing rate / scale factor
             R = p['R']
         else:
-            if self.R is not None:
-                R = self.R
-            else:
-                R = 1.
+            R = self.R
         return R
 
     def get_nl_params(self, p=None, n_s=None):
@@ -537,7 +489,7 @@ class Base:
         print(opt_title)
 
     def optimize_params(self, p0, extra, num_epochs, num_iters, metric, step_size,
-                        tolerance, verbose, return_model=None, atol=1e-5, min_iters=300) -> dict:
+                        tolerance, verbose, return_model=None, atol=1e-5, min_iters=300, early_stopping=True) -> dict:
         """
         Gradient descent using JAX optimizer, and verbose logging.
         """
@@ -614,7 +566,7 @@ class Base:
                 cost_train_slice = cost_train[i - tolerance:i]
                 cost_dev_slice = cost_dev[i - tolerance:i]
 
-                if jnp.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
+                if early_stopping and (extra is not None) and jnp.all(cost_dev_slice[1:] - cost_dev_slice[:-1] > 0):
                     stop = 'dev_stop'
                     if verbose:
                         print(f'Stop at {i} steps: ' +
@@ -680,6 +632,56 @@ class Base:
 
         return params
 
+    def _initialize_p0(self, initialize=None, p0=None, random_seed=2046):
+        """Initialize parameters for optimization"""
+        if p0 is None:
+            p0 = dict()
+
+        dict_keys = p0.keys()
+        if 'w' not in dict_keys:
+            if initialize is None:
+                p0.update({'w': self.w_sta})
+            elif initialize == 'random':
+                key = random.PRNGKey(random_seed)
+                w0 = 0.01 * random.normal(key, shape=(self.w_sta.shape[0],)).flatten()
+                p0.update({'w': w0})
+            else:
+                raise NotImplementedError
+
+        if 'intercept' not in dict_keys and self.fit_intercept:
+            p0.update({'intercept': jnp.array([0.])})
+
+        if 'R' not in dict_keys and self.fit_R:
+            p0.update({'R': jnp.array([1.])})
+
+        if 'h' not in dict_keys:
+            if initialize is None and self.h_mle is not None:
+                p0.update({'h': self.h_mle})
+
+            elif initialize == 'random' and self.h_mle is not None:
+                key = random.PRNGKey(random_seed)
+                h0 = 0.01 * random.normal(key, shape=(self.h_mle.shape[0],)).flatten()
+                p0.update({'h': h0})
+            else:
+                p0.update({'h': None})
+
+        if 'nl_params' not in dict_keys:
+            if self.nl_params is not None:
+                p0.update({'nl_params': self.nl_params})
+            else:
+                p0.update({'nl_params': None})
+
+        self.p0 = p0
+
+    def _initialize_extra(self, extra):
+        if extra is None:
+            self.extra = extra
+        else:
+            if self.h_mle is not None:
+                yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.yh.shape[1], shift=1))
+                extra.update({'yh': yh})
+            self.extra = {key: jnp.array(extra[key]) for key in extra.keys()}
+
     def fit(self, p0=None, extra=None, initialize='random',
             num_epochs=1, num_iters=5, metric=None, alpha=1, beta=0.05,
             fit_linear_filter=True, fit_intercept=True, fit_R=True,
@@ -725,7 +727,7 @@ class Base:
 
         tolerance : int
             Set early stop tolerance. Optimization stops when cost (dev) monotonically
-            increases or cost (train) stop increases for tolerance=n steps. 
+            increases or cost (train) stop increases for tolerance=n steps.
             If `tolerance=0`, then early stop is not used.
 
         verbose: int
@@ -746,67 +748,30 @@ class Base:
         self.fit_nonlinearity = fit_nonlinearity
         self.fit_intercept = fit_intercept
 
-        # initialize parameters 
-        if p0 is None:
-            p0 = {}
-
-        dict_keys = p0.keys()
-        if 'w' not in dict_keys:
-            if initialize is None:
-                p0.update({'w': self.w_sta})
-            elif initialize == 'random':
-                key = random.PRNGKey(random_seed)
-                w0 = 0.01 * random.normal(key, shape=(self.w_sta.shape[0],)).flatten()
-                p0.update({'w': w0})
-
-        if 'intercept' not in dict_keys:
-            p0.update({'intercept': jnp.array([0.])})
-
-        if 'R' not in dict_keys and self.fit_R:
-            p0.update({'R': jnp.array([1.])})
-
-        if 'h' not in dict_keys:
-            if initialize is None and self.h_mle is not None:
-                p0.update({'h': self.h_mle})
-
-            elif initialize == 'random' and self.h_mle is not None:
-                key = random.PRNGKey(random_seed)
-                h0 = 0.01 * random.normal(key, shape=(self.h_mle.shape[0],)).flatten()
-                p0.update({'h': h0})
-            else:
-                p0.update({'h': None})
-
-        if 'nl_params' not in dict_keys:
-            if self.nl_params is not None:
-                p0.update({'nl_params': self.nl_params})
-            else:
-                p0.update({'nl_params': None})
-
-        if extra is not None:
-
-            if self.h_mle is not None:
-                yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.yh.shape[1], shift=1))
-                extra.update({'yh': yh})
-
-            extra = {key: jnp.array(extra[key]) for key in extra.keys()}
+        self._initialize_p0(initialize=initialize, p0=p0, random_seed=random_seed)
+        self._initialize_extra(extra)
 
         # store optimized parameters
-        self.p0 = p0
         self.p_opt = self.optimize_params(
-            p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
-        self.R = self.p_opt['R'] if fit_R else jnp.array([1.])
+            self.p0, self.extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
 
-        if fit_linear_filter:
-            self.w_opt = self.p_opt['w']
+        self._extract_opt_params(self.p_opt)
 
-        if fit_history_filter:
-            self.h_opt = self.p_opt['h']
+    def _extract_opt_params(self, p):
+        if self.fit_R:
+            self.R = p['R']
 
-        if fit_nonlinearity:
-            self.nl_params_opt = self.p_opt['nl_params']
+        if self.fit_linear_filter:
+            self.w_opt = p['w']
 
-        if fit_intercept:
-            self.intercept = self.p_opt['intercept']
+        if self.fit_history_filter:
+            self.h_opt = p['h']
+
+        if self.fit_nonlinearity:
+            self.nl_params_opt = p['nl_params']
+
+        if self.fit_intercept:
+            self.intercept = p['intercept']
 
     def predict(self, X, y=None, p=None):
 
@@ -886,10 +851,10 @@ class splineBase(Base):
             Dimensions or shape of the RF to estimate. Assumed order [t, sx, sy].
 
         df : list or array_like, shape (ndims, )
-            Degree of freedom, or the number of basis used for each RF dimension. 
+            Degree of freedom, or the number of basis used for each RF dimension.
 
         smooth : str
-            Type of basis. 
+            Type of basis.
             * cr: natural cubic spline (default)
             * cc: cyclic cubic spline
             * bs: B-spline
@@ -968,7 +933,7 @@ class splineBase(Base):
             Type of basis.
 
         shift : int
-            Should be 1 or larger. 
+            Should be 1 or larger.
 
         """
 
@@ -983,6 +948,64 @@ class splineBase(Base):
         self.yS = yS
         self.bh_spl = jnp.linalg.solve(yS.T @ yS, yS.T @ y)
         self.h_spl = Sh @ self.bh_spl
+
+    def _initialize_p0(self, initialize=None, p0=None, random_seed=2046):
+        # initial parameters
+
+        if p0 is None:
+            p0 = {}
+
+        dict_keys = p0.keys()
+        if 'b' not in dict_keys:
+            if initialize is None:
+                p0.update({'b': self.b_spl})
+            else:
+                if initialize == 'random':
+                    key = random.PRNGKey(random_seed)
+                    b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c,)).flatten()
+                    p0.update({'b': b0})
+
+        if 'intercept' not in dict_keys and self.fit_intercept:
+            p0.update({'intercept': jnp.array([0.])})
+
+        if 'R' not in dict_keys and self.fit_R:
+            p0.update({'R': jnp.array([1.])})
+
+        if 'bh' not in dict_keys:
+            if initialize is None and self.bh_spl is not None:
+                p0.update({'bh': self.bh_spl})
+            elif initialize == 'random' and self.bh_spl is not None:
+                key = random.PRNGKey(random_seed)
+                bh0 = 0.01 * random.normal(key, shape=(len(self.bh_spl),)).flatten()
+                p0.update({'bh': bh0})
+            else:
+                p0.update({'bh': None})
+
+        if 'nl_params' not in dict_keys:
+            if self.nl_params is not None:
+                p0.update({'nl_params': self.nl_params})
+            else:
+                p0.update({'nl_params': None})
+
+        self.p0 = p0
+
+    def _initialize_extra(self, extra):
+        if extra is None:
+            self.extra = None
+        else:
+            if self.n_c > 1:
+                XS_ext = jnp.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(
+                    extra['X'].shape[0], -1)
+                extra.update({'XS': XS_ext})
+            else:
+                extra.update({'XS': extra['X'] @ self.S})
+
+            if self.h_spl is not None:
+                yh_ext = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.Sh.shape[0], shift=1))
+                yS_ext = yh_ext @ self.Sh
+                extra.update({'yS': yS_ext})
+
+            self.extra = {key: jnp.array(extra[key]) for key in extra.keys()}
 
     # TODO: fix Docstring
     # noinspection PyIncorrectDocstring
@@ -1048,83 +1071,34 @@ class splineBase(Base):
         self.fit_nonlinearity = fit_nonlinearity
         self.fit_intercept = fit_intercept
 
-        # initial parameters
+        self._initialize_p0(initialize=initialize, p0=p0, random_seed=random_seed)
+        self._initialize_extra(extra)
 
-        if p0 is None:
-            p0 = {}
+        self.p_opt = self.optimize_params(
+            self.p0, self.extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
 
-        dict_keys = p0.keys()
-        if 'b' not in dict_keys:
-            if initialize is None:
-                p0.update({'b': self.b_spl})
-            else:
-                if initialize == 'random':
-                    key = random.PRNGKey(random_seed)
-                    b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c,)).flatten()
-                    p0.update({'b': b0})
+        self._extract_opt_params(self.p_opt)
 
-        if 'intercept' not in dict_keys:
-            p0.update({'intercept': jnp.array([0.])})
+    def _extract_opt_params(self, p):
+        if self.fit_R:
+            self.R = p['R']
 
-        if 'R' not in dict_keys:
-            p0.update({'R': jnp.array([1.])})
+        if self.fit_history_filter:
+            self.bh_opt = p['bh']
+            self.h_opt = self.Sh @ self.bh_opt
 
-        if 'bh' not in dict_keys:
-            if initialize is None and self.bh_spl is not None:
-                p0.update({'bh': self.bh_spl})
-            elif initialize == 'random' and self.bh_spl is not None:
-                key = random.PRNGKey(random_seed)
-                bh0 = 0.01 * random.normal(key, shape=(len(self.bh_spl),)).flatten()
-                p0.update({'bh': bh0})
-            else:
-                p0.update({'bh': None})
+        if self.fit_nonlinearity:
+            self.nl_params_opt = p['nl_params']
 
-        if 'nl_params' not in dict_keys:
-            if self.nl_params is not None:
-                p0.update({'nl_params': self.nl_params})
-            else:
-                p0.update({'nl_params': None})
+        if self.fit_intercept:
+            self.intercept = p['intercept']
 
-        if extra is not None:
-
-            if self.n_c > 1:
-                XS_ext = jnp.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(
-                    extra['X'].shape[0], -1)
-                extra.update({'XS': XS_ext})
-            else:
-                extra.update({'XS': extra['X'] @ self.S})
-
-            if self.h_spl is not None:
-                yh_ext = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.Sh.shape[0], shift=1))
-                yS_ext = yh_ext @ self.Sh
-                extra.update({'yS': yS_ext})
-
-            extra = {key: jnp.array(extra[key]) for key in extra.keys()}
-
-            self.extra = extra  # store for cross-validation
-
-        # store optimized parameters
-        self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose,
-                                          return_model)
-        self.R = self.p_opt['R'] if fit_R else jnp.array([1.])
-
-        if fit_linear_filter:
-            self.b_opt = self.p_opt['b']  # optimized RF basis coefficients
+        if self.fit_linear_filter:
+            self.b_opt = p['b']  # optimized RF basis coefficients
             if self.n_c > 1:
                 self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_c)
             else:
                 self.w_opt = self.S @ self.b_opt  # optimized RF
-
-        if fit_history_filter:
-            self.bh_opt = self.p_opt['bh']
-            self.h_opt = self.Sh @ self.bh_opt
-
-        if fit_nonlinearity:
-            self.nl_params_opt = self.p_opt['nl_params']
-
-        if fit_intercept:
-            self.intercept = self.p_opt['intercept']
 
     def predict(self, X, y=None, p=None):
 

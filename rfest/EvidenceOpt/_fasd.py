@@ -1,4 +1,4 @@
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import grad
 from jax import jit
 from jax.config import config
@@ -35,17 +35,17 @@ class fASD:
         Z = X @ B
 
         self.XtY = X.T @ y
-        if np.array_equal(y, y.astype(bool)):  # if y is spikes
+        if jnp.array_equal(y, y.astype(bool)):  # if y is spikes
             self.w_sta = self.XtY / sum(y)
         else:  # if y is not spike
             self.w_sta = self.XtY / len(y)
 
         if compute_mle:  # maximum likelihood estimation
             self.XtX = X.T @ X
-            self.w_mle = np.linalg.solve(self.XtX, self.XtY)
+            self.w_mle = jnp.linalg.solve(self.XtX, self.XtY)
 
-        self.X = np.array(X)
-        self.y = np.array(y)
+        self.X = jnp.array(X)
+        self.y = jnp.array(y)
 
         self.n_b = B.shape[1]
         self.B = B
@@ -86,8 +86,8 @@ class fASD:
             C_s, C_s_inv = asdf_cov(params_space, self.dims[1], self.freq_each_dim[1])
 
             # Build 2D Covariance Matrix 
-            C = rho * np.kron(C_t, C_s)
-            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)
+            C = rho * jnp.kron(C_t, C_s)
+            C_inv = (1 / rho) * jnp.kron(C_t_inv, C_s_inv)
 
         elif len(self.dims) == 3:
 
@@ -98,16 +98,16 @@ class fASD:
             C_sy, C_sy_inv = asdf_cov(params_spacey, self.dims[1], self.freq_each_dim[1])
             C_sx, C_sx_inv = asdf_cov(params_spacex, self.dims[2], self.freq_each_dim[2])
 
-            C_s = np.kron(C_sy, C_sx)
-            C_s_inv = np.kron(C_sy_inv, C_sx_inv)
+            C_s = jnp.kron(C_sy, C_sx)
+            C_s_inv = jnp.kron(C_sy_inv, C_sx_inv)
 
             # Build 3D Covariance Matrix
-            C = rho * np.kron(C_t, C_s)
-            C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)
+            C = rho * jnp.kron(C_t, C_s)
+            C_inv = (1 / rho) * jnp.kron(C_t_inv, C_s_inv)
         else:
             raise NotImplementedError(len(self.dims))
 
-        return np.diag(C), np.diag(C_inv)
+        return jnp.diag(C), jnp.diag(C_inv)
 
     def update_C_posterior(self, params, C_prior_inv):
 
@@ -118,7 +118,7 @@ class fASD:
         sigma = params[0]
 
         C_post_inv = self.ZtZ / sigma ** 2 + C_prior_inv
-        C_post = np.linalg.inv(C_post_inv)
+        C_post = jnp.linalg.inv(C_post_inv)
 
         m_post = C_post @ self.ZtY / (sigma ** 2)
 
@@ -137,8 +137,8 @@ class fASD:
 
         (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
 
-        t0 = np.log(np.abs(2 * np.pi * sigma ** 2)) * self.n_samples
-        t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
+        t0 = jnp.log(jnp.abs(2 * jnp.pi * sigma ** 2)) * self.n_samples
+        t1 = jnp.linalg.slogdet(C_prior @ C_post_inv)[1]
         t2 = -m_post.T @ C_post @ m_post
         t3 = self.YtY / sigma ** 2
 
@@ -200,12 +200,12 @@ class fASD:
 
             if len(params_list) > tolerance:
 
-                if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0):
+                if jnp.all((jnp.array(cost_list[1:])) - jnp.array(cost_list[:-1]) > 0):
                     params = params_list[0]
                     if verbose:
                         print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
                     break
-                elif np.all(np.array(cost_list[:-1]) - np.array(cost_list[1:]) < atol):
+                elif jnp.all(jnp.array(cost_list[:-1]) - jnp.array(cost_list[1:]) < atol):
                     params = params_list[-1]
                     if verbose:
                         print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
@@ -263,25 +263,25 @@ def asdf_cov(delta, ncoeff, freq, ext=1.25):
     1D fourier transformed smooth prior. 
     """
 
-    ncoeff_ext = np.floor(ncoeff * ext).astype(int)
+    ncoeff_ext = jnp.floor(ncoeff * ext).astype(int)
 
-    const = (2 * np.pi / ncoeff_ext) ** 2
+    const = (2 * jnp.pi / ncoeff_ext) ** 2
     freq *= const
-    C_prior = np.sqrt(2 * np.pi) * np.exp(-0.5 * delta * freq ** 2)
+    C_prior = jnp.sqrt(2 * jnp.pi) * jnp.exp(-0.5 * delta * freq ** 2)
     C_prior_inv = 1 / (C_prior + 1e-7)
 
     return C_prior, C_prior_inv
 
 
 def fourierfreq(ncoeff, delta, CONDTHRESH=1e8):
-    maxfreq = np.floor(ncoeff / (np.pi * delta) * np.sqrt(0.5 * np.log(CONDTHRESH))).astype(int)
-    # wvec = np.hstack([np.arange(maxfreq+1), np.arange(-maxfreq+1, 0)]) 
+    maxfreq = jnp.floor(ncoeff / (jnp.pi * delta) * jnp.sqrt(0.5 * jnp.log(CONDTHRESH))).astype(int)
+    # wvec = jnp.hstack([jnp.arange(maxfreq+1), jnp.arange(-maxfreq+1, 0)]) 
     if maxfreq < ncoeff / 2:
-        wvec = np.hstack([np.arange(maxfreq + 1), np.arange(-maxfreq + 1, 0)])
+        wvec = jnp.hstack([jnp.arange(maxfreq + 1), jnp.arange(-maxfreq + 1, 0)])
     else:
-        ncos = np.ceil((ncoeff + 1) / 2)
-        nsin = np.floor((ncoeff - 1) / 2)
-        wvec = np.hstack([np.arange(ncos), np.arange(-nsin, 0)])
+        ncos = jnp.ceil((ncoeff + 1) / 2)
+        nsin = jnp.floor((ncoeff - 1) / 2)
+        wvec = jnp.hstack([jnp.arange(ncos), jnp.arange(-nsin, 0)])
 
     return wvec
 
@@ -291,19 +291,19 @@ def realfftbasis(ncoeff, ncoeff_circular=None, wvec=None):
         ncoeff_circular = ncoeff
 
     if wvec is None:
-        ncos = np.ceil((ncoeff_circular + 1) / 2)
-        nsin = np.floor((ncoeff_circular - 1) / 2)
-        wvec = np.hstack([np.arange(ncos), np.arange(-nsin, 0)])
+        ncos = jnp.ceil((ncoeff_circular + 1) / 2)
+        nsin = jnp.floor((ncoeff_circular - 1) / 2)
+        wvec = jnp.hstack([jnp.arange(ncos), jnp.arange(-nsin, 0)])
 
     wcos = wvec[wvec >= 0]
     wsin = wvec[wvec < 0]
 
-    x = np.arange(ncoeff)
+    x = jnp.arange(ncoeff)
 
-    t0 = np.cos(np.outer(wcos * 2 * np.pi / ncoeff_circular, x))
-    t1 = np.sin(np.outer(wsin * 2 * np.pi / ncoeff_circular, x))
+    t0 = jnp.cos(jnp.outer(wcos * 2 * jnp.pi / ncoeff_circular, x))
+    t1 = jnp.sin(jnp.outer(wsin * 2 * jnp.pi / ncoeff_circular, x))
 
-    B = np.vstack([t0, t1]) / np.sqrt(ncoeff_circular * 0.5)
+    B = jnp.vstack([t0, t1]) / jnp.sqrt(ncoeff_circular * 0.5)
 
     return B, wvec
 
@@ -315,37 +315,37 @@ def fourier_transform(dims, p0, ext=1.25):
     params_time = p0[2]
     params_space = p0[3:]
 
-    ncoeff_ext_t = np.floor(dims_tRF * ext).astype(int)
+    ncoeff_ext_t = jnp.floor(dims_tRF * ext).astype(int)
 
     wvec_t = fourierfreq(ncoeff_ext_t, params_time)
     U_t, freq_t = realfftbasis(dims_tRF,
                                ncoeff_circular=ncoeff_ext_t,
                                wvec=wvec_t)
-    freq_t *= (2 * np.pi / ncoeff_ext_t) ** 2
+    freq_t *= (2 * jnp.pi / ncoeff_ext_t) ** 2
 
     freq_each_dim = [freq_t]
 
     if len(dims_sRF) == 0:
         Uf = U_t
-        freq_comb = (2 * np.pi / ncoeff_ext_t ** 2) * freq_t ** 2
+        freq_comb = (2 * jnp.pi / ncoeff_ext_t ** 2) * freq_t ** 2
 
     else:
         if len(dims_sRF) == 1:
 
-            ncoeff_ext_s = np.floor(dims_sRF[0] * ext).astype(int)
+            ncoeff_ext_s = jnp.floor(dims_sRF[0] * ext).astype(int)
             wvec_s = fourierfreq(ncoeff_ext_s, params_space[0])
             U_s, freq_s = realfftbasis(dims_sRF[0],
                                        ncoeff_circular=ncoeff_ext_s,
                                        wvec=wvec_s)
-            freq_s *= (2 * np.pi / ncoeff_ext_s) ** 2
+            freq_s *= (2 * jnp.pi / ncoeff_ext_s) ** 2
 
-            [ww0, ww1] = np.meshgrid(freq_t, freq_s)
-            ww0 = np.transpose(ww0, [1, 0])
-            ww1 = np.transpose(ww1, [1, 0])
+            [ww0, ww1] = jnp.meshgrid(freq_t, freq_s)
+            ww0 = jnp.transpose(ww0, [1, 0])
+            ww1 = jnp.transpose(ww1, [1, 0])
 
-            freq_comb = np.vstack([ww0.flatten(), ww1.flatten()]).T
+            freq_comb = jnp.vstack([ww0.flatten(), ww1.flatten()]).T
 
-            Uf = np.kron(U_t, U_s)
+            Uf = jnp.kron(U_t, U_s)
 
             freq_each_dim.append(freq_s)
 
@@ -354,28 +354,28 @@ def fourier_transform(dims, p0, ext=1.25):
             params_spacex = params_space[0]
             params_spacey = params_space[1]
 
-            ncoeff_ext_sx = np.floor(dims_sRF[0] * ext).astype(int)
+            ncoeff_ext_sx = jnp.floor(dims_sRF[0] * ext).astype(int)
             wvec_sx = fourierfreq(ncoeff_ext_sx, params_spacex)
             U_sx, freq_sx = realfftbasis(dims_sRF[0],
                                          ncoeff_circular=ncoeff_ext_sx,
                                          wvec=wvec_sx)
-            freq_sx *= (2 * np.pi / ncoeff_ext_sx) ** 2
+            freq_sx *= (2 * jnp.pi / ncoeff_ext_sx) ** 2
 
-            ncoeff_ext_sy = np.floor(dims_sRF[1] * 1.25).astype(int)
+            ncoeff_ext_sy = jnp.floor(dims_sRF[1] * 1.25).astype(int)
             wvec_sy = fourierfreq(ncoeff_ext_sy, params_spacey)
             U_sy, freq_sy = realfftbasis(dims_sRF[1],
                                          ncoeff_circular=ncoeff_ext_sy,
                                          wvec=wvec_sy)
-            freq_sy *= (2 * np.pi / ncoeff_ext_sy) ** 2
+            freq_sy *= (2 * jnp.pi / ncoeff_ext_sy) ** 2
 
-            [ww0, ww1, ww2] = np.meshgrid(freq_t, freq_sx, freq_sy)
-            ww0 = np.transpose(ww0, [1, 0, 2])
-            ww1 = np.transpose(ww1, [1, 0, 2])
-            ww2 = np.transpose(ww2, [1, 0, 2])
+            [ww0, ww1, ww2] = jnp.meshgrid(freq_t, freq_sx, freq_sy)
+            ww0 = jnp.transpose(ww0, [1, 0, 2])
+            ww1 = jnp.transpose(ww1, [1, 0, 2])
+            ww2 = jnp.transpose(ww2, [1, 0, 2])
 
-            freq_comb = np.vstack([ww0.flatten(), ww1.flatten(), ww2.flatten()]).T
+            freq_comb = jnp.vstack([ww0.flatten(), ww1.flatten(), ww2.flatten()]).T
 
-            Uf = np.kron(U_t, np.kron(U_sx, U_sy))
+            Uf = jnp.kron(U_t, jnp.kron(U_sx, U_sy))
 
             freq_each_dim.append(freq_sx)
             freq_each_dim.append(freq_sy)

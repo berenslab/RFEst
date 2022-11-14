@@ -1,4 +1,3 @@
-import jax.numpy as jnp
 from jax.config import config
 
 from rfest.GLM._base import Base
@@ -51,7 +50,7 @@ class LNP(Base):
 
         nl_params = self.get_nl_params(p)
         r = self.dt * R * self.fnl(
-            filter_output + history_output + intercept, nl=self.output_nonlinearity,
+            filter_output + history_output + intercept, kind=self.output_nonlinearity,
             params=nl_params).flatten()
 
         return r

@@ -1,6 +1,6 @@
-from rfest.generate_test_data import generate_data_2d_stim
 from rfest import ASD
 from rfest.metrics import mse
+from rfest.simulate import generate_data_2d_stim
 from rfest.utils import uvec
 
 

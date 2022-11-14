@@ -37,13 +37,13 @@ class LNLN(Base):
         if self.fit_linear_filter:
             linear_output = X @ p['w'].reshape(self.n_features * self.n_c, self.n_s)
             nonlin_output = jnp.array(
-                [self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in
+                [self.fnl(linear_output[:, i], kind=self.filter_nonlinearity, params=nl_params[i]) for i in
                  range(self.n_s)])
             filter_output = jnp.mean(nonlin_output, 0)
         else:
             linear_output = X @ self.w_opt.reshape(self.n_features * self.n_c, self.n_s)
             nonlin_output = jnp.array(
-                [self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in
+                [self.fnl(linear_output[:, i], kind=self.filter_nonlinearity, params=nl_params[i]) for i in
                  range(self.n_s)])
             filter_output = jnp.mean(nonlin_output, 0)
         return filter_output
@@ -65,12 +65,44 @@ class LNLN(Base):
 
         r = self.dt * R * self.fnl(
             filter_output + history_output + intercept,
-            nl=self.output_nonlinearity).flatten()  # conditional intensity (per bin)
+            kind=self.output_nonlinearity).flatten()  # conditional intensity (per bin)
 
         return r
 
     def cost(self, p, extra=None, precomputed=None):
         return self.compute_cost(p, p['w'], 'poisson', extra, precomputed)
+
+    def _initialize_p0(self, initialize='random', p0=None, random_seed=2046):
+        # initialize parameters
+        if p0 is None:
+            p0 = {}
+
+        dict_keys = p0.keys()
+
+        if 'w' not in dict_keys:
+            if initialize == 'random':
+                key = random.PRNGKey(random_seed)
+                w0 = 0.01 * random.normal(key, shape=(self.n_features * self.n_c * self.n_s,)).flatten()
+                p0.update({'w': w0})
+            else:
+                raise NotImplementedError
+
+        if 'intercept' not in dict_keys and self.fit_intercept:
+            p0.update({'intercept': jnp.array([0.])})
+
+        if 'R' not in dict_keys and self.fit_R:
+            p0.update({'R': jnp.array([1.])})
+
+        if 'h' not in dict_keys:
+            p0.update({'h': self.h_mle})
+
+        if 'nl_params' not in dict_keys:
+            if self.nl_params is not None:
+                p0.update({'nl_params': [self.nl_params for _ in range(self.n_s + 1)]})
+            else:
+                p0.update({'nl_params': [None for _ in range(self.n_s + 1)]})
+
+        self.p0 = p0
 
     def fit(self, p0=None, extra=None, num_subunits=2,
             num_epochs=1, num_iters=3000, metric=None,
@@ -93,59 +125,29 @@ class LNLN(Base):
         self.fit_nonlinearity = fit_nonlinearity
         self.fit_intercept = fit_intercept
 
-        if extra is not None:
+        self._initialize_p0(p0=p0, random_seed=random_seed)
+        self._initialize_extra(extra)
 
-            if self.h_mle is not None:
-                yh = jnp.array(build_design_matrix(extra['y'][:, jnp.newaxis], self.yh.shape[1], shift=1))
-                extra.update({'yh': yh})
+        self.p_opt = self.optimize_params(
+            self.p0, self.extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
 
-            extra = {key: jnp.array(extra[key]) for key in extra.keys()}
+        self._extract_opt_params(self.p_opt)
 
-        # initialize parameters
-        if p0 is None:
-            p0 = {}
+    def _extract_opt_params(self, p):
+        if self.fit_R:
+            self.R = self.p_opt['R']
 
-        dict_keys = p0.keys()
+        if self.fit_history_filter:
+            self.h_opt = self.p_opt['h']
 
-        if 'w' not in dict_keys:
-            key = random.PRNGKey(random_seed)
-            w0 = 0.01 * random.normal(key, shape=(self.n_features * self.n_c * self.n_s,)).flatten()
-            p0.update({'w': w0})
+        if self.fit_nonlinearity:
+            self.nl_params_opt = self.p_opt['nl_params']
 
-        if 'intercept' not in dict_keys:
-            p0.update({'intercept': jnp.array([0.])})
+        if self.fit_intercept:
+            self.intercept = self.p_opt['intercept']
 
-        if 'R' not in dict_keys and self.fit_R:
-            p0.update({'R': jnp.array([1.])})
-
-        if 'h' not in dict_keys:
-            try:
-                p0.update({'h': self.h_mle})
-            except:
-                p0.update({'h': None})
-
-        if 'nl_params' not in dict_keys:
-            if self.nl_params is not None:
-                p0.update({'nl_params': [self.nl_params for _ in range(self.n_s + 1)]})
-            else:
-                p0.update({'nl_params': [None for _ in range(self.n_s + 1)]})
-
-        self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose,
-                                          return_model)
-        self.R = self.p_opt['R']
-
-        if fit_linear_filter:
+        if self.fit_linear_filter:
             if self.n_c > 1:
                 self.w_opt = self.p_opt['w'].reshape(self.n_features, self.n_c, self.n_s)
             else:
                 self.w_opt = self.p_opt['w'].reshape(self.n_features, self.n_s)
-
-        if fit_history_filter:
-            self.h_opt = self.p_opt['h']
-
-        if fit_nonlinearity:
-            self.nl_params_opt = self.p_opt['nl_params']
-
-        if fit_intercept:
-            self.intercept = self.p_opt['intercept']

@@ -3,6 +3,8 @@
 .cache
 .cache/*
 
+rfest.egg-info/
+.pytest_cache/
 *__pycache__*
 *.ipynb_checkpoints/
 
@@ -10,5 +12,6 @@
 *.idea/
 *.egg-info/
 *.DS_Store
+build/
 
 rfest/GLM/_glmh.py

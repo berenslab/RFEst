@@ -1,8 +1,8 @@
 import numpy as np
 
-from rfest.generate_test_data import generate_data_2d_stim, generate_data_3d_stim
 from rfest import splineLNP
 from rfest.metrics import mse
+from rfest.simulate import generate_data_2d_stim, generate_data_3d_stim
 from rfest.utils import uvec, split_data
 
 

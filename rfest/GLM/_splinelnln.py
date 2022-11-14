@@ -28,13 +28,13 @@ class splineLNLN(splineBase):
         if self.fit_linear_filter:
             linear_output = XS @ p['b'].reshape(self.n_b * self.n_c, self.n_s)
             nonlin_output = jnp.array(
-                [self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in
+                [self.fnl(linear_output[:, i], kind=self.filter_nonlinearity, params=nl_params[i]) for i in
                  range(self.n_s)])
             filter_output = jnp.mean(nonlin_output, 0)
         else:
             linear_output = XS @ self.b_opt.reshape(self.n_b * self.n_c, self.n_s)
             nonlin_output = jnp.array(
-                [self.fnl(linear_output[:, i], nl=self.filter_nonlinearity, params=nl_params[i]) for i in
+                [self.fnl(linear_output[:, i], kind=self.filter_nonlinearity, params=nl_params[i]) for i in
                  range(self.n_s)])
             filter_output = jnp.mean(nonlin_output, 0)
         return filter_output
@@ -50,18 +50,50 @@ class splineLNLN(splineBase):
 
         intercept = self.get_intercept(p)
         R = self.get_R(p)
+
         filter_output = self.compute_filter_output(X, p)
         history_output = self.compute_history_output(y, p)
 
         nl_params = self.get_nl_params(p, n_s=self.n_s)
         r = self.dt * R * self.fnl(
-            filter_output + history_output + intercept, nl=self.output_nonlinearity,
+            filter_output + history_output + intercept, kind=self.output_nonlinearity,
             params=nl_params[-1]).flatten()
 
         return r
 
     def cost(self, p, extra=None, precomputed=None):
         return self.compute_cost(p, p['b'], 'poisson', extra, precomputed)
+
+    def _initialize_p0(self, initialize='random', p0=None, random_seed=2046):
+        # initialize parameters
+        if p0 is None:
+            p0 = {}
+
+        dict_keys = p0.keys()
+        if 'b' not in dict_keys:
+            if initialize == 'random':  # not necessary, but for consistency with others.
+                key = random.PRNGKey(random_seed)
+                b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c * self.n_s,)).flatten()
+                p0.update({'b': b0})
+            else:
+                raise NotImplementedError
+
+        if 'intercept' not in dict_keys and self.fit_intercept:
+            p0.update({'intercept': jnp.array([0.])})
+
+        if 'R' not in dict_keys and self.fit_R:
+            p0.update({'R': jnp.array([1.])})
+
+        if 'bh' not in dict_keys:
+            p0.update({'bh': self.bh_spl})
+
+        if 'nl_params' not in dict_keys:
+            if self.nl_params is not None:
+                p0.update({'nl_params': [self.nl_params for _ in range(self.n_s + 1)]})
+            else:
+                p0.update({'nl_params': [None for _ in range(self.n_s + 1)]})
+
+        self.p0 = p0
 
     def fit(self, p0=None, extra=None, num_subunits=2,
             num_epochs=1, num_iters=3000,
@@ -85,37 +117,9 @@ class splineLNLN(splineBase):
         self.fit_intercept = fit_intercept
         self.fit_R = fit_R
 
-        # initialize parameters
-        if p0 is None:
-            p0 = {}
-
-        dict_keys = p0.keys()
-        if 'b' not in dict_keys:
-            if initialize == 'random':  # not necessary, but for consistency with others.
-                key = random.PRNGKey(random_seed)
-                b0 = 0.01 * random.normal(key, shape=(self.n_b * self.n_c * self.n_s,)).flatten()
-                p0.update({'b': b0})
-
-        if 'intercept' not in dict_keys:
-            p0.update({'intercept': jnp.zeros(1)})
-
-        if 'R' not in dict_keys:
-            p0.update({'R': jnp.array([1.])})
-
-        if 'bh' not in dict_keys:
-            try:
-                p0.update({'bh': self.bh_spl})
-            except:
-                p0.update({'bh': None})
-
-        if 'nl_params' not in dict_keys:
-            if self.nl_params is not None:
-                p0.update({'nl_params': [self.nl_params for _ in range(self.n_s + 1)]})
-            else:
-                p0.update({'nl_params': [None for _ in range(self.n_s + 1)]})
+        self._initialize_p0(p0=p0, random_seed=random_seed)
 
         if extra is not None:
-
             if self.n_c > 1:
                 XS_ext = jnp.dstack([extra['X'][:, :, i] @ self.S for i in range(self.n_c)]).reshape(
                     extra['X'].shape[0], -1)
@@ -130,14 +134,17 @@ class splineLNLN(splineBase):
 
             extra = {key: jnp.array(extra[key]) for key in extra.keys()}
 
-        self.p0 = p0
-        self.p_opt = self.optimize_params(p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose,
-                                          return_model)
+        self.p_opt = self.optimize_params(
+            self.p0, extra, num_epochs, num_iters, metric, step_size, tolerance, verbose, return_model)
 
-        self.R = self.p_opt['R'] if fit_R else jnp.array([1.])
+        self._extract_opt_params(self.p_opt)
 
-        if fit_linear_filter:
-            self.b_opt = self.p_opt['b']
+    def _extract_opt_params(self, p):
+        if self.fit_R:
+            self.R = p['R']
+
+        if self.fit_linear_filter:
+            self.b_opt = p['b']
 
             if self.n_c > 1:
                 self.w_opt = jnp.stack(
@@ -146,12 +153,12 @@ class splineLNLN(splineBase):
             else:
                 self.w_opt = self.S @ self.b_opt.reshape(self.n_b, self.n_s)
 
-        if fit_history_filter:
-            self.bh_opt = self.p_opt['bh']
+        if self.fit_history_filter:
+            self.bh_opt = p['bh']
             self.h_opt = self.Sh @ self.bh_opt
 
-        if fit_intercept:
-            self.intercept = self.p_opt['intercept']
+        if self.fit_intercept:
+            self.intercept = p['intercept']
 
-        if fit_nonlinearity:
-            self.nl_params_opt = self.p_opt['nl_params']
+        if self.fit_nonlinearity:
+            self.nl_params_opt = p['nl_params']

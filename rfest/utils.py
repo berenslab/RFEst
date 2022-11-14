@@ -70,10 +70,10 @@ def build_design_matrix(X, nlag, shift=0, n_c=1, dtype=np.float64):
 def get_spatial_and_temporal_filters(w, dims):
     """
     
-    Asumming a RF is time-space separable, 
+    Assuming a RF is time-space separable,
     get spatial and temporal filters using SVD. 
 
-    Paramters
+    Parameters
     =========
 
     w : np.ndarray_like, shape (nt, nx, ny) or (nt, nx * ny)
@@ -98,18 +98,18 @@ def get_spatial_and_temporal_filters(w, dims):
 
         dims_tRF = dims[0]
         dims_sRF = dims[1:]
-        U, S, Vt = randomized_svd(w.reshape(dims_tRF, np.prod(dims_sRF)), 3)
+        U, S, Vt = randomized_svd(w.reshape(dims_tRF, np.prod(dims_sRF)), 3, random_state=0)
         sRF = Vt[0].reshape(*dims_sRF)
         tRF = U[:, 0]
 
     elif len(dims) == 2:
         dims_tRF = dims[0]
         dims_sRF = dims[1]
-        U, S, Vt = randomized_svd(w.reshape(dims_tRF, dims_sRF), 3)
+        U, S, Vt = randomized_svd(w.reshape(dims_tRF, dims_sRF), 3, random_state=0)
         sRF = Vt[0]
         tRF = U[:, 0]
 
-    return [sRF, tRF]
+    return sRF, tRF
 
 
 def softthreshold(K, lambd):

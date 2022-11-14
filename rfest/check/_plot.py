@@ -1,96 +1,11 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
+from matplotlib import pyplot as plt
 from scipy.ndimage import gaussian_filter
 
-from rfest.utils import get_n_samples, uvec, get_spatial_and_temporal_filters
-
-
-def eval_model_score(model, X, y, stim=True, history=True, metric='corrcoef', w_type='opt'):
-    """Evaluate model score for given X and y"""
-    if stim and history:
-        X_dict = {'stimulus': X, 'history': y}
-    elif stim and not history:
-        X_dict = {'stimulus': X}
-    elif not stim and history:
-        X_dict = {'history': y}
-    else:
-        raise ValueError()
-    return model.score(X_test=X_dict, y_test=y, metric=metric, w_type=w_type)
-
-
-def compute_permutation_test(model, X_test, y_test, n_perm=100, history=True, metric='corrcoef', w_type='opt'):
-    """Compare model performace to performance for permuted stimuli.
-    If permuting the stimulus does not decrease the model performance, the fit imight be pure autoregression.
-    """
-    score_trueX = eval_model_score(model=model, X=X_test, y=y_test, stim=True, history=history, metric=metric,
-                                   w_type=w_type)
-
-    score_permX = np.full(n_perm, np.nan)
-    for i in range(n_perm):
-        permX = X_test[np.random.permutation(np.arange(X_test.shape[0]))]
-        score_permX[i] = eval_model_score(model=model, X=permX, y=y_test, stim=True, history=history, metric=metric,
-                                          w_type=w_type)
-
-    return score_trueX, score_permX
-
-
-def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
-                          n_perm=100, q=99, history=True, ax=None, figsize=None, w_type='opt'):
-    """Plot test results"""
-    score_trueX, score_permX = compute_permutation_test(
-        model, X_test, y_test, n_perm=n_perm, history=history, metric=metric, w_type=w_type)
-
-    q = int(q)
-    perc = np.percentile(score_permX, q=q)
-    is_greater = score_trueX > perc
-
-    if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    line = ax.axhline(score_trueX, c='r', zorder=0)
-    line_q = ax.axhline(perc, c='b', ls=':', zorder=0)
-    bp = ax.boxplot(score_permX, positions=[0], notch=True)
-    ax.set(ylabel=metric, xticks=[], title='permutation test', xlim=(-0.4, 0.4))
-    ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['true X', 'perm. X', f'q{q}'], loc='lower right')
-    ax.plot(-0.3, score_trueX, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
-    ax.plot(-0.3, score_trueX, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
-
-    return ax
-
-
-def significance(model, w_type='opt', show_results=False):
-    W_values = {}
-    p_values = {}
-
-    for name in model.filter_names:
-        W = np.squeeze(model.p[w_type][name].T @ np.linalg.inv(model.V[w_type][name]) @ model.p[w_type][name])
-        p_value = 1 - scipy.stats.chi2.cdf(x=W, df=sum(model.df[name]))
-
-        W_values[name] = W
-        p_values[name] = p_value
-
-        if show_results:
-            if p_value < 0.05:
-                print(f'{name}: \n\tsignificant \n\tW={W:.3f}, p_value={p_value:.3f}')
-            else:
-                print(f'{name}: \n\tnot significant \n\tW={W:.3f}, p_value={p_value:.3f}')
-
-    return W_values, p_values
-
-
-def residuals_pearson(y, y_pred):
-    rsd = y - y_pred
-    ri = rsd / np.sqrt(y_pred)
-    return ri
-
-
-def residuals_deviance(y, y_pred):
-    quo = y / y_pred
-    rsd = y - y_pred
-    ri = np.sign(rsd) * np.sqrt(2 * (y * np.log(quo, out=np.zeros_like(quo), where=(quo != 0)) - rsd))
-
-    return ri
+from rfest import get_spatial_and_temporal_filters
+from rfest.check._check import residuals_pearson, residuals_deviance, significance, compute_permutation_test
+from rfest.utils import get_n_samples, uvec
 
 
 def plot_residuals(y, y_pred, ax=None):
@@ -1508,3 +1423,27 @@ def plot3d_allframes(model, figsize=None, transpose=False):
         else:
             ax[i].set_title(f'{tt[i]:.02f}')
     fig.tight_layout()
+
+
+def plot_permutation_test(model, X_test, y_test, metric='corrcoef',
+                          n_perm=100, q=99, history=True, ax=None, figsize=None, w_type='opt'):
+    """Plot test results"""
+    score_trueX, score_permX = compute_permutation_test(
+        model, X_test, y_test, n_perm=n_perm, history=history, metric=metric, w_type=w_type)
+
+    q = int(q)
+    perc = np.percentile(score_permX, q=q)
+    is_greater = score_trueX > perc
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+    line = ax.axhline(score_trueX, c='r', zorder=0)
+    line_q = ax.axhline(perc, c='b', ls=':', zorder=0)
+    bp = ax.boxplot(score_permX, positions=[0], notch=True)
+    ax.set(ylabel=metric, xticks=[], title='permutation test', xlim=(-0.4, 0.4))
+    ax.legend(handles=[line, bp["boxes"][0], line_q], labels=['true X', 'perm. X', f'q{q}'], loc='lower right')
+    ax.plot(-0.3, score_trueX, marker='o', color='lightgray', ms=20, zorder=2, alpha=1)
+    ax.plot(-0.3, score_trueX, marker="*" if is_greater else "_", color='r', ms=10, zorder=3)
+
+    return ax

@@ -96,7 +96,7 @@ def nndsvd(V, k, option=0):
 
     elif option == 2:
 
-        # fill small elemetns with random value drawn from
+        # fill small elements with random value drawn from
         # 0 to mean(V) / 100
         W[W < 1e-9] = np.random.uniform(0, np.mean(V) / 100)
         H[H < 1e-9] = np.random.uniform(0, np.mean(V) / 100)

@@ -1,7 +1,9 @@
 import numpy as np
 
 from rfest import build_design_matrix
-from rfest.simulate import V1complex_2d, gaussian2d, flickerbar, noise2d, get_response
+from rfest.simulate._response import get_response
+from rfest.simulate._rf import rf_to_3d, gaussian2d, V1complex_2d
+from rfest.simulate._stim import flickerbar, noise2d
 
 
 def generate_data_2d_stim(noise='white', rf_kind='gauss', y_distr='none', design_matrix=True):
@@ -35,16 +37,16 @@ def generate_data_3d_stim(noise='white', rf_kind='gauss', y_distr='none', design
     beta = None if noise == 'white' else 1
 
     if rf_kind == 'gauss':
-        w_frame = gaussian2d(dims=(10, 8), std=(2., 2.))
+        srf = gaussian2d(dims=(10, 8), std=(2., 2.))
     elif rf_kind == 'complex_small':
-        w_frame = V1complex_2d()[23:30, 14:22]
+        srf = V1complex_2d()[23:30, 14:22]
     elif rf_kind == 'complex':
-        w_frame = V1complex_2d()
+        srf = V1complex_2d()
     else:
         raise NotImplementedError(rf_kind)
 
-    w_temporal = np.array([-1, -0.5, 0.1, 0.5, 1, 0.1])
-    w_true = np.outer(w_temporal, w_frame).reshape((w_temporal.size,) + w_frame.shape)
+    trf = np.array([-1, -0.5, 0.1, 0.5, 1, 0.1])
+    w_true = rf_to_3d(trf, srf)
 
     dims = w_true.shape
     dt = 1.

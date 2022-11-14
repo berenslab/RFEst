@@ -1,4 +1,7 @@
+import itertools
 import time
+import warnings
+from copy import deepcopy
 
 import jax.numpy as jnp
 import jax.random as random
@@ -6,6 +9,8 @@ import numpy as np
 from jax import jit
 from jax import value_and_grad
 from jax.config import config
+
+from rfest import nonlinearities
 
 try:
     from jax.example_libraries import optimizers
@@ -24,6 +29,7 @@ __all__ = ['GLM']
 
 # noinspection PyUnboundLocalVariable
 class GLM:
+    # TODO: Fix fitting of R, also don't allow for linear output?!
 
     def __init__(self, distr='poisson', output_nonlinearity='none', dtype=jnp.float64):
 
@@ -36,11 +42,11 @@ class GLM:
         distr: str
             Noise distribution. Either `gaussian` or `poisson`.
 
-        output_nonlinearity: str
+        output_nonlinearity: str or callable
             Nonlinearity for the output layer.
         """
 
-        # initilize variables
+        # Initialize variables
 
         # Optimization
         self.init_method = None
@@ -64,6 +70,9 @@ class GLM:
         self.train_stop = None
         self.total_time_elapsed = None
 
+        self.fit_R = None
+        self.fit_intercept = None
+
         # Data
         self.X = {}  # design matrix
         self.S = {}  # spline matrix
@@ -83,6 +92,7 @@ class GLM:
         self.w_se = {}  # filter weights standard error
         self.V = {}  # weights covariance
         self.intercept = {}  # intercept
+        self.R = {}
 
         # Model hyper-parameters
         self.df = {}  # number of bases for each filter
@@ -104,65 +114,12 @@ class GLM:
         self.corrcoef = {}
         self.dtype = dtype
 
-    def fnl(self, x, kind, params=None):
+    @staticmethod
+    def fnl(x, kind):
         """
-        Choose a fixed nonlinear function or fit a flexible one ('nonparametric').
-
-        Parameters
-        ----------
-
-        x: jnp.array, (n_samples, )
-            Sum of filter outputs.
-
-        kind: str
-            Choice of nonlinearity.
-
-        params: None or jnp.array.
-            For flexible nonlinearity. To be implemented.
-
-        Return
-        ------
-            Transformed sum of filter outputs.
+        Apply non-linearity to signal
         """
-
-        if kind == 'softplus':
-            def softplus(_x):
-                return jnp.log(1 + jnp.exp(_x))
-
-            return softplus(x) + 1e-7
-
-        elif kind == 'exponential':
-            return jnp.exp(x)
-
-        elif kind == 'softmax':
-            def softmax(_x):
-                z = jnp.exp(_x)
-                return z / z.sum()
-
-            return softmax(x)
-
-        elif kind == 'sigmoid':
-            def sigmoid(_x):
-                return 1 / (1 + jnp.exp(-_x))
-
-            return sigmoid(x)
-
-        elif kind == 'tanh':
-            return jnp.tanh(x)
-
-        elif kind == 'relu':
-            def relu(_x):
-                return jnp.where(_x > 0., _x, 1e-7)
-            return relu(x)
-
-        elif kind == 'leaky_relu':
-            def leaky_relu(_x):
-                return jnp.where(_x > 0., _x, _x * 0.01)
-            return leaky_relu(x)
-        elif kind == 'none':
-            return x
-        else:
-            raise NotImplementedError(f'Input filter nonlinearity `{kind}` is not supported.')
+        return nonlinearities.apply_nonlinearity(x, kind=kind)
 
     def add_design_matrix(self, X, dims=None, df=None, smooth=None, lag=True,
                           filter_nonlinearity='none',
@@ -177,10 +134,10 @@ class GLM:
         X: jnp.array, shape=(n_samples, ) or (n_samples, n_pixels)
             Original input.
 
-        dims: int, or list / jnp.array, shape=dim_t, or (dim_t, dim_x, dim_y)
+        dims: int, or list / array, shape=dim_t, or (dim_t, dim_x, dim_y)
             Filter shape.
 
-        df: None, int, or list / jnp.array
+        df: None, int, or list / array
             Number of spline bases. Should be the same shape as dims.
 
         smooth: None, or str
@@ -188,7 +145,7 @@ class GLM:
 
         lag: bool
             If True, the design matrix will be build based on the dims[0].
-            If False, a instantaneous RF will be fitted.
+            If False, an instantaneous RF will be fitted.
 
         filter_nonlinearity: str
             Nonlinearity for the stimulus filter.
@@ -271,33 +228,166 @@ class GLM:
                 self.XS.update({kind: {}})
 
             self.df[name] = df if type(df) is not int else [df, ]
-            S = build_spline_matrix(dims=dims, df=self.df[name], smooth=smooth, dtype=self.dtype)
-            self.S[name] = S
-
-            XS = self.X[kind][name] @ S
-            self.XS[kind][name] = XS
+            self.S[name] = build_spline_matrix(dims=dims, df=self.df[name], smooth=smooth, dtype=self.dtype)
+            self.XS[kind][name] = self.X[kind][name] @ self.S[name]
 
             if kind == 'train':
                 self.n_features[name] = self.XS['train'][name].shape[1]
 
+    def initialize(self, y=None, num_subunits=1, dt=1., method='random', compute_ci=True, random_seed=2046,
+                   verbose=0, add_noise_to_mle=False, fit_R=False, fit_intercept=True):
+
+        self.dt = dt
+        self.init_method = method  # store meta
+        self.num_subunits = num_subunits
+        self.compute_ci = compute_ci
+        self.fit_R = fit_R
+        self.fit_intercept = fit_intercept
+
+        if method == 'random':
+            self._initialize_random(verbose=verbose, random_seed=random_seed)
+        elif method == 'mle':
+            self._initialize_mle(y)
+        else:
+            raise ValueError(f'`{method}` is not supported.')
+
+        if verbose:
+            print('Finished.')
+
+        # rename and repmat: stimulus filter to subunits filters
+        # subunit model only works with one stimulus.
+        filter_names = self.filter_names.copy()
+
+        if num_subunits > 1:
+            self._initialize_subunits(num_subunits=num_subunits, method=method, filter_names=filter_names)
+
+        self.p[method] = {}
+        self._initialize_p0(method=method, add_noise_to_mle=add_noise_to_mle, random_seed=random_seed)
+
     def _initialize_random(self, verbose=0, random_seed=2046):
         self.b['random'] = {}
         self.w['random'] = {}
-        self.intercept['random'] = {}
+
+        self.intercept['random'] = {name: 0. for name in self.filter_names}
+        self.intercept['random']['global'] = 0.
+
+        self.R['random'] = {}
+        self.R['random']['global'] = 1.
+
         if verbose:
             print('Initializing model parameters randomly...')
 
         for i, name in enumerate(self.filter_names):
-            self.intercept['random'][name] = 0.
             key = random.PRNGKey(random_seed + i)  # change random seed for each filter
             if name in self.S:
-                self.b['random'][name] = random.normal(key, shape=(self.XS['train'][name].shape[1], 1)).astype(
-                    self.dtype)
+                self.b['random'][name] = random.normal(
+                    key, shape=(self.XS['train'][name].shape[1], 1)).astype(self.dtype)
                 self.w['random'][name] = self.S[name] @ self.b['random'][name]
             else:
-                self.w['random'][name] = random.normal(key, shape=(self.X['train'][name].shape[1], 1)).astype(
-                    self.dtype)
-        self.intercept['random']['global'] = 0.
+                self.w['random'][name] = random.normal(
+                    key, shape=(self.X['train'][name].shape[1], 1)).astype(self.dtype)
+
+    def compute_mle(self, y, compute_ci=True):
+        self._initialize_mle(y=y, compute_ci=compute_ci)
+
+    def _initialize_mle(self, y, compute_ci=True):
+
+        """Compute maximum likelihood estimates.
+
+        Parameter
+        ---------
+
+        y: jnp.array or dict, (n_samples)
+            Response. if dict is
+        """
+
+        if self.mle_computed:
+            warnings.warn('MLE was already computed. Recomputing ...')
+
+        if self.compute_ci is None:
+            self.compute_ci = compute_ci
+
+        if type(y) is dict:
+            y_train = y['train']
+            if len(y['train']) == 0:
+                raise ValueError('Training set is empty after burned in.')
+            y_dev = y.get('dev', None)
+        else:
+            y = {'train': y}
+            y_train = y['train']
+
+        n_samples = len(y_train) - self.burn_in
+        X = jnp.hstack([jnp.hstack(
+            [jnp.ones(n_samples)[:, jnp.newaxis], self.XS['train'][name]]) if name in self.S else jnp.hstack(
+            [jnp.ones(n_samples)[:, jnp.newaxis], self.X['train'][name]]) for name in self.filter_names])
+        X = jnp.hstack([jnp.ones(n_samples)[:, jnp.newaxis], X])
+
+        XtX = X.T @ X
+        Xty = X.T @ y_train[self.burn_in:]
+
+        mle = jnp.linalg.lstsq(XtX, Xty, rcond=None)[0]
+
+        # Set parameters
+        self.R['mle'] = {}
+        self.R['mle']['global'] = 1.  # TODO: infer this parameter
+
+        self.b['mle'] = {}
+        self.w['mle'] = {}
+
+        self.intercept['mle'] = {}
+
+        # slicing the mle matrix into each filter
+        l = jnp.cumsum(jnp.hstack([0, [self.n_features[name] + 1 for name in self.n_features]]))
+        idx = [jnp.array((l[i], l[i + 1])) for i in range(len(l) - 1)]
+        self.idx = idx
+
+        for i, name in enumerate(self.filter_names):
+            mle_params = mle[idx[i][0]:idx[i][1]][:, jnp.newaxis].astype(self.dtype)
+            self.intercept['mle'][name] = mle_params[0]
+            if name in self.S:
+                self.b['mle'][name] = mle_params[1:]
+                self.w['mle'][name] = self.S[name] @ self.b['mle'][name]
+            else:
+                self.w['mle'][name] = mle_params[1:]
+
+        self.intercept['mle']['global'] = mle[0]
+
+        self.p['mle'] = {}
+        self.y_pred['mle'] = {}
+
+        for name in self.filter_names:
+            if name in self.S:
+                self.p['mle'].update({name: self.b['mle'][name]})
+            else:
+                self.p['mle'].update({name: self.w['mle'][name]})
+
+        if self.fit_intercept:
+            self.p['mle']['intercept'] = self.intercept['mle']
+        if self.fit_R:
+            self.p['mle']['R'] = self.R['mle']
+
+        self.y['train'] = y_train[self.burn_in:]
+
+        if len(self.y['train']) == 0:
+            raise ValueError('Training set is empty after burned in.')
+
+        self.y_pred['mle']['train'] = self.forwardpass(self.p['mle'], kind='train')
+
+        # # get filter confidence interval
+        if self.compute_ci:
+            self._get_filter_variance(w_type='mle')
+            self._get_response_variance(w_type='mle', kind='train')
+
+        if type(y) is dict and 'dev' in y:
+            self.y['dev'] = y_dev[self.burn_in:]
+            if len(self.y['dev']) == 0:
+                raise ValueError('Dev set is empty after burned in.')
+
+            self.y_pred['mle']['dev'] = self.forwardpass(self.p['mle'], kind='dev')
+            if self.compute_ci:
+                self._get_response_variance(w_type='mle', kind='dev')
+
+        self.mle_computed = True
 
     def _initialize_subunits(self, num_subunits, method, filter_names):
         filter_names.remove('stimulus')
@@ -361,127 +451,29 @@ class GLM:
                 noise = add_noise_to_mle * random.normal(key, shape=w.shape).astype(self.dtype)
                 p0.update({name: w + noise})
 
-            self.p[method].update({'intercept': self.intercept[method]})
-            p0.update({'intercept': self.intercept[method]})
+            if self.fit_intercept:
+                self.p[method].update({'intercept': self.intercept[method]})
+                p0.update({'intercept': self.intercept[method]})
+
+        if self.fit_R:
+            self.p[method].update({'R': self.R[method]})
+            p0.update({'R': self.R[method]})
 
         self.p0 = p0
 
-    def initialize(self, y=None, num_subunits=1, dt=0.033, method='random', compute_ci=True, random_seed=2046,
-                   verbose=0, add_noise_to_mle=False):
-
-        self.dt = dt
-        self.init_method = method  # store meta
-        self.num_subunits = num_subunits
-        self.compute_ci = compute_ci
-
-        if method == 'random':
-            self._initialize_random(verbose=verbose, random_seed=random_seed)
-        elif method == 'mle':
-            if verbose:
-                print('Initializing model parameters with maximum likelihood...')
-            if not self.mle_computed:
-                self.compute_mle(y)
+    def get_intercept(self, p=None):
+        if self.fit_intercept:
+            intercept = p['intercept']
         else:
-            raise ValueError(f'`{method}` is not supported.')
+            intercept = self.intercept[self.init_method]
+        return intercept
 
-        if verbose:
-            print('Finished.')
-
-        # rename and repmat: stimulus filter to subunits filters
-        # subunit model only works with one stimulus.
-        filter_names = self.filter_names.copy()
-        if num_subunits != 1:
-            self._initialize_subunits(num_subunits=num_subunits, method=method, filter_names=filter_names)
-
-        self.p[method] = {}
-        self._initialize_p0(method=method, add_noise_to_mle=add_noise_to_mle, random_seed=random_seed)
-
-    def compute_mle(self, y, compute_ci=True):
-
-        """Compute maximum likelihood estimates.
-
-        Parameter
-        ---------
-
-        y: jnp.array or dict, (n_samples)
-            Response. if dict is
-        """
-
-        if self.compute_ci is None:
-            self.compute_ci = compute_ci
-
-        if type(y) is dict:
-            y_train = y['train']
-            if len(y['train']) == 0:
-                raise ValueError('Training set is empty after burned in.')
-            y_dev = y.get('dev', None)
+    def get_R(self, p=None):
+        if self.fit_R:
+            R = p['R']
         else:
-            y = {'train': y}
-            y_train = y['train']
-
-        n_samples = len(y_train) - self.burn_in
-        X = jnp.hstack([jnp.hstack(
-            [jnp.ones(n_samples)[:, jnp.newaxis], self.XS['train'][name]]) if name in self.S else jnp.hstack(
-            [jnp.ones(n_samples)[:, jnp.newaxis], self.X['train'][name]]) for name in self.filter_names])
-        X = jnp.hstack([jnp.ones(n_samples)[:, jnp.newaxis], X])
-
-        XtX = X.T @ X
-        Xty = X.T @ y_train[self.burn_in:]
-
-        mle = jnp.linalg.lstsq(XtX, Xty, rcond=None)[0]
-
-        self.b['mle'] = {}
-        self.w['mle'] = {}
-        self.intercept['mle'] = {}
-
-        # slicing the mle matrix into each filter
-        l = jnp.cumsum(jnp.hstack([0, [self.n_features[name] + 1 for name in self.n_features]]))
-        idx = [jnp.array((l[i], l[i + 1])) for i in range(len(l) - 1)]
-        self.idx = idx
-
-        for i, name in enumerate(self.filter_names):
-            mle_params = mle[idx[i][0]:idx[i][1]][:, jnp.newaxis].astype(self.dtype)
-            self.intercept['mle'][name] = mle_params[0]
-            if name in self.S:
-                self.b['mle'][name] = mle_params[1:]
-                self.w['mle'][name] = self.S[name] @ self.b['mle'][name]
-            else:
-                self.w['mle'][name] = mle_params[1:]
-
-        self.intercept['mle']['global'] = mle[0]
-
-        self.p['mle'] = {}
-        self.y_pred['mle'] = {}
-
-        for name in self.filter_names:
-            if name in self.S:
-                self.p['mle'].update({name: self.b['mle'][name]})
-            else:
-                self.p['mle'].update({name: self.w['mle'][name]})
-
-        self.p['mle']['intercept'] = self.intercept['mle']
-        self.y['train'] = y_train[self.burn_in:]
-
-        if len(self.y['train']) == 0:
-            raise ValueError('Training set is empty after burned in.')
-
-        self.y_pred['mle']['train'] = self.forwardpass(self.p['mle'], kind='train')
-
-        # # get filter confidence interval
-        if self.compute_ci:
-            self._get_filter_variance(w_type='mle')
-            self._get_response_variance(w_type='mle', kind='train')
-
-        if type(y) is dict and 'dev' in y:
-            self.y['dev'] = y_dev[self.burn_in:]
-            if len(self.y['dev']) == 0:
-                raise ValueError('Dev set is empty after burned in.')
-
-            self.y_pred['mle']['dev'] = self.forwardpass(self.p['mle'], kind='dev')
-            if self.compute_ci:
-                self._get_response_variance(w_type='mle', kind='dev')
-
-        self.mle_computed = True
+            R = self.R[self.init_method]
+        return R
 
     def forwardpass(self, p, kind):
 
@@ -497,7 +489,8 @@ class GLM:
             Dataset type, can be `train`, `dev` or `test`.
         """
 
-        intercept = p['intercept']
+        intercept = self.get_intercept(p)
+        R = self.get_R(p)
 
         filters_output = []
         for name in self.X[kind]:
@@ -510,7 +503,10 @@ class GLM:
             filters_output.append(output)
 
         filters_output = jnp.array(filters_output).sum(0)
-        final_output = self.fnl(filters_output + intercept['global'], kind=self.output_nonlinearity).astype(self.dtype)
+
+        final_output = R['global'] * self.fnl(
+            filters_output + intercept['global'], kind=self.output_nonlinearity).astype(self.dtype)
+
         return final_output
 
     def cost(self, p, kind='train', precomputed=None, penalize=True):
@@ -555,7 +551,7 @@ class GLM:
 
     @staticmethod
     def print_progress(i, time_elapsed, c_train=None, c_dev=None, m_train=None, m_dev=None):
-        opt_info = f"{i}".ljust(13) + f"{time_elapsed:>.3f}".ljust(13)
+        opt_info = f"{i + 1}".ljust(13) + f"{time_elapsed:>.3f}".ljust(13)
         if c_train is not None and np.isfinite(c_train):
             opt_info += f"{c_train:.3g}".ljust(16)
         if c_dev is not None and np.isfinite(c_dev):
@@ -566,20 +562,20 @@ class GLM:
             opt_info += f"{m_dev:.3g}".ljust(16)
         print(opt_info)
 
-    @staticmethod
-    def print_progress_header(c_train=False, c_dev=False, m_train=False, m_dev=False):
+    def print_progress_header(self, c_train=False, c_dev=False, m_train=False, m_dev=False):
         opt_title = "Iters".ljust(13) + "Time (s)".ljust(13)
         if c_train:
             opt_title += "Cost (train)".ljust(16)
         if c_dev:
             opt_title += "Cost (dev)".ljust(16)
         if m_train:
-            opt_title += "Metric (train)".ljust(16)
+            opt_title += f"{self.metric} (train)".ljust(16)
         if m_dev:
-            opt_title += "Metric (dev)".ljust(16)
+            opt_title += f"{self.metric} (dev)".ljust(16)
         print(opt_title)
 
-    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol=1e-5, min_iters=300):
+    def optimize(self, p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol=1e-5, min_iters=300,
+                 early_stopping=True):
 
         """Workhorse of optimization.
 
@@ -637,9 +633,8 @@ class GLM:
                 c_train=True, c_dev=extra, m_train=metric is not None, m_dev=metric is not None and extra)
 
         time_start = time.time()
-        i = 0
-
         for i in range(num_iters):
+
             cost_train[i], opt_state = step(i, opt_state)
 
             params = get_params(opt_state)
@@ -654,6 +649,7 @@ class GLM:
                 metric_dev[i] = self.compute_score(self.y['dev'], y_pred_dev, metric)
 
             time_elapsed = time.time() - time_start
+
             if verbose:
                 if i % int(verbose) == 0:
                     self.print_progress(
@@ -664,29 +660,30 @@ class GLM:
 
                 total_time_elapsed = time.time() - time_start
 
-                if 'dev' in self.y and np.all(np.diff(cost_dev[i - tolerance:i]) > 0):
+                if early_stopping and 'dev' in self.y and np.all(np.diff(cost_dev[i - tolerance:i]) > 0):
                     stop = 'dev_stop'
-                    if verbose:
-                        print('Stop at {0} steps: cost (dev) has been monotonically increasing for {1} steps.'.format(
-                            i, tolerance))
-                        print('Total time elapsed: {0:.3f}s.'.format(total_time_elapsed))
                     break
 
                 if np.all(-np.diff(cost_train[i - tolerance:i]) < atol):
                     stop = 'train_stop'
-                    if verbose:
-                        print(
-                            'Stop at {0} steps: cost (train) has been changing less than {1} for {2} steps.'.format(
-                                i, atol, tolerance))
-                        print('Total time elapsed: {0:.3f}s.'.format(total_time_elapsed))
                     break
 
         else:
             total_time_elapsed = time.time() - time_start
             stop = 'maxiter_stop'
-            if verbose:
-                print('Stop: reached {0} steps.'.format(num_iters))
-                print('Total time elapsed: {0:.3f}s.'.format(total_time_elapsed))
+
+        if verbose:
+
+            self.print_progress(
+                i, time_elapsed, c_train=cost_train[i], c_dev=cost_dev[i],
+                m_train=metric_train[i], m_dev=metric_dev[i])
+
+            print(f'Stop at {i + 1}/{num_iters} steps: {stop}')
+            if stop == 'dev_stop':
+                print(f'Cost (dev) has been monotonically increasing for {tolerance} steps.')
+            if stop == 'train_stop':
+                print(f'Cost (train) has been changing less than {atol} for {tolerance} steps.')
+            print(f'Total time elapsed: {total_time_elapsed:.3f}s.')
 
         if return_model == 'best_dev_cost':
             best = np.argmin(cost_dev[:i + 1])
@@ -715,7 +712,7 @@ class GLM:
                 best = i
 
         if verbose:
-            print(f'Returning model: {return_model} at iteration {best} of {i} (Max: {num_iters}).\n')
+            print(f'Returning model: {return_model} at iteration {best+1} of {i+1} (Max: {num_iters}).\n')
 
         params = params_list[best]
         metric_dev_opt = metric_dev[best]
@@ -797,19 +794,84 @@ class GLM:
 
         self.p['opt'] = self.optimize(
             self.p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol, min_iters)
-        self._extract_opt_params()
+        self._extract_opt_params(self.p['opt'])
 
-    def _extract_opt_params(self):
+    def fit_hps(self, y=None, num_iters=300, metric='corrcoef', step_size=1e-3,
+                tolerance=10, verbose=0, return_model='best_train_cost',
+                atol=1e-5, min_iters=300, alphas=(1.,), betas=(1.,), min_iters_other=None):
+
+        if y is not None:
+            assert type(y) is dict and 'train' in y and 'dev' in y
+            self.y['train'] = y['train'][self.burn_in:].astype(self.dtype)
+            self.y['dev'] = y['dev'][self.burn_in:].astype(self.dtype)
+
+        assert type(self.y) is dict and 'train' in self.y and 'dev' in self.y
+
+        self.metric = metric
+        if min_iters_other is None:
+            min_iters_other = min_iters
+
+        hp_sets = list(itertools.product(alphas, betas))
+
+        metric_dev_opt_hp_sets = np.full(len(hp_sets), np.nan)
+
+        self.y_pred['opt'] = dict()
+        self.y_pred['hp_opt'] = dict()
+        self.p['hp_opt'] = dict(hp_sets=[{"alpha": alpha, "beta": beta} for alpha, beta in hp_sets])
+
+        if verbose:
+            print(f"Optimizing hyperparameters:")
+
+        for i, (alpha, beta) in enumerate(hp_sets):
+
+            self.alpha = alpha
+            self.beta = beta
+
+            p0 = self.p0 if i == 0 else self.p['hp_opt'][f'set_{i - 1}']
+
+            assert self.p0.keys() == p0.keys()
+
+            self.p['hp_opt'][f'set_{i}'] = self.optimize(
+                p0=deepcopy(p0), num_iters=num_iters, metric=metric, step_size=step_size, tolerance=tolerance,
+                verbose=verbose, return_model=return_model, atol=atol,
+                min_iters=min_iters if i == 0 else min_iters_other, early_stopping=False)
+
+            self.y_pred['hp_opt'][f'set_{i}'] = deepcopy(self.y_pred['opt'])
+            metric_dev_opt_hp_sets[i] = self.metric_dev_opt
+
+            if verbose:
+                print(f"\talpha={alpha:.2g}, beta={beta:.2g}")
+                print(f"--> {self.metric}={metric_dev_opt_hp_sets[i]:.2g}\n")
+
+        if metric in ['mse', 'gcv']:
+            best_hp_set = np.argmin(metric_dev_opt_hp_sets)
+        else:
+            best_hp_set = np.argmax(metric_dev_opt_hp_sets)
+
+        self.alpha, self.beta = hp_sets[best_hp_set]
+        self.metric_dev_opt = metric_dev_opt_hp_sets[best_hp_set]
+
+        if verbose:
+            print(f"Best model: alpha={self.alpha:.2g}, beta={self.beta:.2g}")
+            print(f"--> {self.metric}={self.metric_dev_opt:.2g}\n")
+
+        self.p['opt'] = self.p['hp_opt'][f'set_{best_hp_set}']
+        self.y_pred['opt'] = deepcopy(self.y_pred['hp_opt'][f'set_{best_hp_set}'])
+
+        self._extract_opt_params(self.p['opt'])
+
+        return metric_dev_opt_hp_sets
+
+    def _extract_opt_params(self, p):
         self.b['opt'] = {}
         self.w['opt'] = {}
         for name in self.filter_names:
             if name in self.S:
-                self.b['opt'][name] = self.p['opt'][name]
+                self.b['opt'][name] = p[name]
                 self.w['opt'][name] = self.S[name] @ self.b['opt'][name]
             else:
-                self.w['opt'][name] = self.p['opt'][name]
+                self.w['opt'][name] = p[name]
 
-        self.intercept['opt'] = self.p['opt']['intercept']
         # get filter confidence interval
         if self.compute_ci:
             self._get_filter_variance(w_type='opt')
@@ -817,6 +879,12 @@ class GLM:
             self._get_response_variance(w_type='opt', kind='train')
             if 'dev' in self.y:
                 self._get_response_variance(w_type='opt', kind='dev')
+
+        if self.fit_intercept:
+            self.intercept['opt'] = p['intercept']
+
+        if self.fit_R:
+            self.R['opt'] = p['R']
 
     def predict(self, X, w_type='opt'):
         """
@@ -1066,4 +1134,3 @@ class GLM:
         self.y_pred[w_type][kind] = y_pred
         self.y_pred_upper[w_type][kind] = y_pred_upper
         self.y_pred_lower[w_type][kind] = y_pred_lower
-
