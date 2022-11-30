@@ -80,7 +80,7 @@ def noise2d(n_samples, dims, shift=0, beta=None, noise='gaussian', design_matrix
 
     if beta is not None:
         if noise != 'gaussian':
-            raise ValueError('1/f noise only applis to Gaussian noise.')
+            raise ValueError('1/f noise only applies to Gaussian noise.')
 
         X = colornoise2d(n_samples=n_samples, dims=dims, beta=beta, phi=X, random_seed=random_seed)
         X = (X - X.mean()) / X.std()

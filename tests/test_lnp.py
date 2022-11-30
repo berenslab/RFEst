@@ -34,7 +34,7 @@ def test_lnp_2d_stim_spikes():
 
 
 def test_lnp_3d_stim_spikes():
-    w_true, X, y, dt, dims = generate_data_3d_stim(noise='white', rf_kind='complex_small', y_distr='poisson')
+    w_true, X, y, dt, dims = generate_data_3d_stim(stim_noise='white', rf_kind='complex_small', response_noise='poisson')
     w_opt = _fit_w_lnp(X, y, dims, dt)
     assert mse(uvec(w_opt.flatten()), uvec(w_true.flatten())) < 0.01
 

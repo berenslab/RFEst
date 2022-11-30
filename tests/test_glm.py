@@ -50,7 +50,7 @@ def _fit_glm(
 
 def test_glm_3d_stim_outputnl_intercept():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False,
                      output_nonlinearity='exponential', fit_intercept=True)
@@ -65,7 +65,7 @@ def test_glm_3d_stim_outputnl_intercept():
 
 def test_glm_3d_stim_outputnl_no_intercept():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False,
                      output_nonlinearity='exponential', fit_intercept=False, init_method='mle')
@@ -79,7 +79,7 @@ def test_glm_3d_stim_outputnl_no_intercept():
 
 def test_glm_3d_stim_outputnl_rate():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False,
                      output_nonlinearity='exponential', fit_intercept=True, fit_R=True)
@@ -94,7 +94,7 @@ def test_glm_3d_stim_outputnl_rate():
 
 def test_glm_3d_stim_outputnl_no_rate():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False,
                      output_nonlinearity='exponential', fit_intercept=True, fit_R=False)
@@ -108,7 +108,7 @@ def test_glm_3d_stim_outputnl_no_rate():
 
 def test_glm_3d_stim():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False)
     assert model.score(X_train, y_train, metric='corrcoef') > 0.4
@@ -117,7 +117,7 @@ def test_glm_3d_stim():
 
 def test_glm_3d_stim_train_dev_test():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (X_dev, y_dev), (X_test, y_test) = split_data(X, y, dt, frac_train=0.6, frac_dev=0.2)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, Xy_dev=(X_dev, y_dev), fit_history_filter=False)
     assert model.score(X_train, y_train, metric='corrcoef') > 0.4
@@ -128,7 +128,7 @@ def test_glm_3d_stim_train_dev_test():
 
 def test_glm_3d_stim_outputnl_and_fit_rate():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False,
                      output_nonlinearity='exponential')
@@ -138,7 +138,7 @@ def test_glm_3d_stim_outputnl_and_fit_rate():
 
 def test_glm_3d_stim_2subunits():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False,
                      num_subunits=2)
@@ -148,7 +148,7 @@ def test_glm_3d_stim_2subunits():
 
 def test_glm_3d_stim_history():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (X_dev, y_dev), (X_test, y_test) = split_data(X, y, dt, frac_train=0.6, frac_dev=0.2)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, Xy_dev=(X_dev, y_dev), fit_history_filter=True)
     assert model.score({"stimulus": X_train, 'history': y_train}, y_train, metric='corrcoef') > 0.4
@@ -159,7 +159,7 @@ def test_glm_3d_stim_history():
 
 def test_glm_3d_stim_hp_sets():
     w_true, X, y, dt, dims = generate_data_3d_stim(
-        noise='white', rf_kind='complex_small', y_distr='none', design_matrix=False)
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (X_dev, y_dev), (X_test, y_test) = split_data(X, y, dt, frac_train=0.6, frac_dev=0.2)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, Xy_dev=(X_dev, y_dev), optimize_hps=True)
     assert model.score({"stimulus": X_train}, y_train, metric='corrcoef') > 0.4

@@ -70,7 +70,7 @@ def sigmoid(x):
 
 
 def sigmoid_shifted(x):
-    return 1. / (1. + jnp.exp(-x - 0.5))
+    return 1. / (1. + jnp.exp(-x + 1))
 
 
 def relu(x):

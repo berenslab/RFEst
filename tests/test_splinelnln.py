@@ -43,13 +43,13 @@ def test_splinelnln_2d_stim_spikes():
 
 
 def test_splinelnln_3d_stim():
-    w_true, X, y, dt, dims = generate_data_3d_stim(noise='white', rf_kind='complex_small', y_distr='none')
+    w_true, X, y, dt, dims = generate_data_3d_stim(stim_noise='white', rf_kind='complex_small', response_noise='none')
     w_opt = _fit_w_splinelnln(X, y, dims, dt)
     assert mse(uvec(w_opt.flatten()), uvec(w_true.flatten())) < 0.01
 
 
 def test_splinelnln_3d_stim_spikes():
-    w_true, X, y, dt, dims = generate_data_3d_stim(noise='white', rf_kind='complex_small', y_distr='poisson')
+    w_true, X, y, dt, dims = generate_data_3d_stim(stim_noise='white', rf_kind='complex_small', response_noise='poisson')
     w_opt = _fit_w_splinelnln(X, y, dims, dt)
     assert mse(uvec(w_opt.flatten()), uvec(w_true.flatten())) < 0.01
 
@@ -61,7 +61,7 @@ def test_splinelnln_2d_stim_2subunits():
 
 
 def test_splinelnln_3d_stim_2subunits():
-    w_true, X, y, dt, dims = generate_data_3d_stim(noise='white', rf_kind='complex_small', y_distr='none')
+    w_true, X, y, dt, dims = generate_data_3d_stim(stim_noise='white', rf_kind='complex_small', response_noise='none')
     w_opt = _fit_w_splinelnln(X, y, dims, dt, num_subunits=2)
     assert w_opt.size == w_true.size * 2
 

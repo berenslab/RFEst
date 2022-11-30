@@ -538,7 +538,7 @@ class GLM:
         if distr == 'gaussian':
             loss = loss_mse(y, r)
         elif distr == 'poisson':
-            loss = loss_neglogli(y, r)
+            loss = loss_neglogli(y, r) / y.size
         else:
             raise NotImplementedError(distr)
 
