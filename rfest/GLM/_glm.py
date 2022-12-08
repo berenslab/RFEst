@@ -121,7 +121,7 @@ class GLM:
         """
         return nonlinearities.apply_nonlinearity(x, kind=kind)
 
-    def add_design_matrix(self, X, dims=None, df=None, smooth=None, lag=True,
+    def add_design_matrix(self, X, dims=None, df=None, smooth=None, lag=True, is_design_matrix=False,
                           filter_nonlinearity='none',
                           kind='train', name='stimulus', shift=0, burn_in=None):
 
@@ -146,6 +146,9 @@ class GLM:
         lag: bool
             If True, the design matrix will be build based on the dims[0].
             If False, an instantaneous RF will be fitted.
+
+        is_design_matrix: bool
+            If True, will not build a new design matrix, but use X instead. This will ignore lag.
 
         filter_nonlinearity: str
             Nonlinearity for the stimulus filter.
@@ -193,7 +196,9 @@ class GLM:
         if self.burn_in is None:  # if exists, ignore
             self.burn_in = dims[0] - 1 if burn_in is None else burn_in  # number of first few frames to ignore
 
-        if lag:
+        if is_design_matrix:
+            self.X[kind][name] = X
+        elif lag:
             self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift, dtype=self.dtype)[self.burn_in:]
         else:
             self.burn_in = 0
