@@ -197,7 +197,7 @@ class GLM:
             self.burn_in = dims[0] - 1 if burn_in is None else burn_in  # number of first few frames to ignore
 
         if is_design_matrix:
-            self.X[kind][name] = X
+            self.X[kind][name] = X[self.burn_in:]
         elif lag:
             self.X[kind][name] = build_design_matrix(X, dims[0], shift=shift, dtype=self.dtype)[self.burn_in:]
         else:
@@ -741,7 +741,7 @@ class GLM:
         return params
 
     def fit(self, y=None, num_iters=3, alpha=1, beta=0.01, metric='corrcoef', step_size=1e-3,
-            tolerance=10, verbose=True, return_model=None, atol=1e-5, min_iters=300):
+            tolerance=10, verbose=True, return_model=None, atol=1e-5, min_iters=300, early_stopping=False):
         """
         Fit model.
 
@@ -798,12 +798,14 @@ class GLM:
         self.y_pred['opt'] = {}
 
         self.p['opt'] = self.optimize(
-            self.p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol, min_iters)
+            self.p0, num_iters, metric, step_size, tolerance, verbose, return_model, atol, min_iters,
+            early_stopping=early_stopping)
         self._extract_opt_params(self.p['opt'])
 
-    def fit_hps(self, y=None, num_iters=300, metric='corrcoef', step_size=1e-3,
+    def fit_hps(self, y=None, num_iters=300, metric='corrcoef', step_size=1e-3, step_size_finetune=None,
                 tolerance=10, verbose=0, return_model='best_train_cost',
-                atol=1e-5, min_iters=300, alphas=(1.,), betas=(1.,), min_iters_other=None):
+                atol=1e-5, min_iters=300, alphas=(1.,), betas=(1.,), min_iters_other=None,
+                early_stopping=False):
 
         if y is not None:
             assert type(y) is dict and 'train' in y and 'dev' in y
@@ -828,6 +830,7 @@ class GLM:
             print(f"Optimizing hyperparameters:")
 
         for i, (alpha, beta) in enumerate(hp_sets):
+            step_size_i = step_size if ((i==0) or (step_size_finetune is None)) else step_size_finetune
 
             self.alpha = alpha
             self.beta = beta
@@ -837,15 +840,15 @@ class GLM:
             assert self.p0.keys() == p0.keys()
 
             self.p['hp_opt'][f'set_{i}'] = self.optimize(
-                p0=deepcopy(p0), num_iters=num_iters, metric=metric, step_size=step_size, tolerance=tolerance,
+                p0=deepcopy(p0), num_iters=num_iters, metric=metric, step_size=step_size_i, tolerance=tolerance,
                 verbose=verbose, return_model=return_model, atol=atol,
-                min_iters=min_iters if i == 0 else min_iters_other, early_stopping=False)
+                min_iters=min_iters if i == 0 else min_iters_other, early_stopping=early_stopping)
 
             self.y_pred['hp_opt'][f'set_{i}'] = deepcopy(self.y_pred['opt'])
             metric_dev_opt_hp_sets[i] = self.metric_dev_opt
 
             if verbose:
-                print(f"\talpha={alpha:.2g}, beta={beta:.2g}")
+                print(f"\talpha={alpha:.2g}, beta={beta:.2g}, step_size={step_size_i:.2g}")
                 print(f"--> {self.metric}={metric_dev_opt_hp_sets[i]:.2g}\n")
 
         if metric in ['mse', 'gcv']:
