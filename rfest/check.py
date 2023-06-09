@@ -413,8 +413,8 @@ def plot2d(model, w_type='opt', figsize=None, return_stats=False):
 
     dt = model.dt
     dims = model.dims
-    shift = model.__dict__get("shift", 0)
-    compute_ci = model.__dict__get("compute_ci", False)
+    shift = model.__dict__.get("shift", 0)
+    compute_ci = model.__dict__.get("compute_ci", False)
 
     # rf
     ws = model.w[w_type]
