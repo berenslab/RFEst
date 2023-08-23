@@ -12,11 +12,12 @@ def _get_df(dims):
 
 
 def _fit_glm(
-        Xy_train, dims, dt, Xy_dev=None, fit_history_filter=False,
+        Xy_train, dims, dt, df=None, Xy_dev=None, fit_history_filter=False,
         init_method='mle', output_nonlinearity='none', num_subunits=1,
         optimize_hps=False, fit_R=False, fit_intercept=True
 ):
-    df = _get_df(dims)
+    if df is None:
+        df = _get_df(dims)
 
     model = GLM(distr='gaussian', output_nonlinearity=output_nonlinearity)
 
@@ -111,6 +112,15 @@ def test_glm_3d_stim():
         stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
     (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
     model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, dt=dt, fit_history_filter=False)
+    assert model.score(X_train, y_train, metric='corrcoef') > 0.4
+    assert mse(uvec(model.w['opt']['stimulus']), uvec(w_true.flatten())) < 0.01
+
+
+def test_glm_3d_stim_full_df():
+    w_true, X, y, dt, dims = generate_data_3d_stim(
+        stim_noise='white', rf_kind='complex_small', response_noise='none', design_matrix=False)
+    (X_train, y_train), (_, _), (_, _) = split_data(X, y, dt, frac_train=1.0, frac_dev=0.0)
+    model = _fit_glm(Xy_train=(X_train, y_train), dims=dims, df=dims, dt=dt, fit_history_filter=False)
     assert model.score(X_train, y_train, metric='corrcoef') > 0.4
     assert mse(uvec(model.w['opt']['stimulus']), uvec(w_true.flatten())) < 0.01
 

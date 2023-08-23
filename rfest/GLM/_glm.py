@@ -880,6 +880,12 @@ class GLM:
             else:
                 self.w['opt'][name] = p[name]
 
+        if self.fit_intercept:
+            self.intercept['opt'] = p['intercept']
+
+        if self.fit_R:
+            self.R['opt'] = p['R']
+
         # get filter confidence interval
         if self.compute_ci:
             self._get_filter_variance(w_type='opt')
@@ -887,12 +893,6 @@ class GLM:
             self._get_response_variance(w_type='opt', kind='train')
             if 'dev' in self.y:
                 self._get_response_variance(w_type='opt', kind='dev')
-
-        if self.fit_intercept:
-            self.intercept['opt'] = p['intercept']
-
-        if self.fit_R:
-            self.R['opt'] = p['R']
 
     def predict(self, X, w_type='opt'):
         """
@@ -1111,7 +1111,9 @@ class GLM:
         y_pred_filters = {}
         y_pred_filters_upper = {}
         y_pred_filters_lower = {}
-        intercept = self.intercept[w_type]
+
+        intercept = self.intercept['opt' if (w_type == 'opt') and self.fit_intercept else self.init_method]
+
         for name in X:
             if name in S:
                 y_se[name] = jnp.sqrt(jnp.sum(XS[name] @ V[name] * XS[name], 1))
