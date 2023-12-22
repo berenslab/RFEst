@@ -113,8 +113,13 @@ class Base:
         if self.ndim == 4:  # [t, x, y, c]
             self.n_samples, self.n_features, self.n_c = X.shape
             self.dims = dims[:-1]
-        else:
+        elif self.ndim >= 2:
             self.n_samples, self.n_features = X.shape
+            self.n_c = 1
+            self.dims = dims  # assumed order [t, y, x]
+        else:
+            self.n_samples = X.shape[0]
+            self.n_features = 1
             self.n_c = 1
             self.dims = dims  # assumed order [t, y, x]
 
