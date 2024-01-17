@@ -1,6 +1,6 @@
 numpy
 scipy
-scikit-learn
+sklearn
 matplotlib
 jax
 jaxlib
