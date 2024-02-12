@@ -3,8 +3,7 @@ import time
 import jax.numpy as jnp
 import jax.random as random
 import numpy as np
-from jax import jit
-from jax import value_and_grad
+from jax import jit, value_and_grad
 from jax.config import config
 
 try:
@@ -12,10 +11,10 @@ try:
 except ImportError:
     from jax.experimental import optimizers
 
-from rfest.utils import build_design_matrix
-from rfest.splines import build_spline_matrix
-from rfest.metrics import r2, mse, corrcoef
 from rfest.loss import loss_mse, loss_neglogli, loss_penalty
+from rfest.metrics import corrcoef, mse, r2
+from rfest.splines import build_spline_matrix
+from rfest.utils import build_design_matrix
 
 config.update("jax_debug_nans", True)
 
@@ -964,7 +963,7 @@ class GLM:
                     w_se[name] = S[name] @ b_se[name]
 
                 else:
-                    if len(X[name]) < jnp.product(jnp.array(self.dims[name])):
+                    if len(X[name]) < jnp.prod(jnp.array(self.dims[name])):
                         print('Sample size is too small for getting reasonable confidence interval.')
                     V[name] = jnp.linalg.inv(X[name].T @ X[name]) * rss_var[name]
                     V[name] = jnp.abs(V[name])
@@ -998,8 +997,7 @@ class GLM:
                     b_se[name] = jnp.sqrt(jnp.diag(V[name]))
                     w_se[name] = S[name] @ b_se[name]
                 else:
-
-                    if len(X[name]) < jnp.product(jnp.array(self.dims[name])):
+                    if len(X[name]) < jnp.prod(jnp.array(self.dims[name])):
                         print('Sample size is too small for getting reasonable confidence interval.')
 
                     w[name] = self.w[w_type][name]
