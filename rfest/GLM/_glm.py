@@ -8,7 +8,7 @@ import jax.random as random
 import numpy as np
 from jax import jit
 from jax import value_and_grad
-from jax.config import config
+import jax
 
 from rfest import nonlinearities
 
@@ -22,7 +22,7 @@ from rfest.splines import build_spline_matrix
 from rfest.metrics import r2, mse, corrcoef
 from rfest.loss import loss_mse, loss_neglogli, loss_penalty
 
-config.update("jax_debug_nans", True)
+jax.config.update("jax_debug_nans", True)
 
 __all__ = ['GLM']
 

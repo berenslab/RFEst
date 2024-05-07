@@ -5,7 +5,7 @@ import jax.random as random
 import numpy as np
 from jax import grad
 from jax import jit
-from jax.config import config
+import jax
 
 try:
     from jax.example_libraries import optimizers
@@ -23,8 +23,8 @@ from rfest import nonlinearities
 from rfest.priors import smoothness_kernel
 from rfest.loss import loss_neglogli, loss_mse, loss_penalty
 
-config.update("jax_enable_x64", True)
-config.update("jax_debug_nans", True)
+jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_debug_nans", True)
 
 __all__ = ['Base', 'splineBase']
 

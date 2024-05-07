@@ -1,8 +1,8 @@
-from jax.config import config
+import jax
 
 from rfest.GLM._base import splineBase
 
-config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 
 __all__ = ['splineLG']
 

@@ -1,11 +1,11 @@
 import jax.numpy as jnp
 import jax.random as random
-from jax.config import config
+import jax
 
 from rfest.GLM._base import Base
 from rfest.utils import build_design_matrix
 
-config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 
 __all__ = ['LNLN']
 

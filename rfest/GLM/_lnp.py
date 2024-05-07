@@ -1,8 +1,8 @@
-from jax.config import config
+import jax
 
 from rfest.GLM._base import Base
 
-config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 
 __all__ = ['LNP']
 

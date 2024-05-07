@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from jax import grad
 from jax import jit
-from jax.config import config
+import jax
 try:
     from jax.example_libraries import optimizers
 except ImportError:
@@ -9,7 +9,7 @@ except ImportError:
 
 from rfest.priors import *
 
-config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 
 __all__ = ['EmpiricalBayes']
 
