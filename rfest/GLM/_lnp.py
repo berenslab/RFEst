@@ -1,11 +1,11 @@
 import jax.numpy as jnp
-from jax.config import config
+from jax import config
 
 from rfest.GLM._base import Base
 
 config.update("jax_enable_x64", True)
 
-__all__ = ['LNP']
+__all__ = ["LNP"]
 
 
 class LNP(Base):
@@ -13,7 +13,9 @@ class LNP(Base):
     Linear-Nonlinear-Poisson model.
     """
 
-    def __init__(self, X, y, dims, compute_mle=False, output_nonlinearity='softplus', **kwargs):
+    def __init__(
+        self, X, y, dims, compute_mle=False, output_nonlinearity="softplus", **kwargs
+    ):
 
         super().__init__(X, y, dims, compute_mle, **kwargs)
         self.output_nonlinearity = output_nonlinearity
@@ -21,7 +23,7 @@ class LNP(Base):
     def compute_filter_output(self, X, p=None):
 
         if self.fit_linear_filter:
-            filter_output = X @ p['w'].flatten()
+            filter_output = X @ p["w"].flatten()
         else:
             if self.w_opt is not None:
                 filter_output = X @ self.w_opt.flatten()
@@ -36,11 +38,11 @@ class LNP(Base):
         Model output with current estimated parameters.
         """
 
-        X = self.X if extra is None else extra['X']
+        X = self.X if extra is None else extra["X"]
         X = X.reshape(X.shape[0], -1)
 
         if self.h_mle is not None:
-            y = extra['yh'] if extra is not None else self.yh
+            y = extra["yh"] if extra is not None else self.yh
         else:
             y = None
 
@@ -50,11 +52,17 @@ class LNP(Base):
         filter_output = self.compute_filter_output(X, p)
 
         nl_params = self.get_nl_params(p)
-        r = self.dt * R * self.fnl(
-            filter_output + history_output + intercept, nl=self.output_nonlinearity,
-            params=nl_params).flatten()
+        r = (
+            self.dt
+            * R
+            * self.fnl(
+                filter_output + history_output + intercept,
+                nl=self.output_nonlinearity,
+                params=nl_params,
+            ).flatten()
+        )
 
         return r
 
     def cost(self, p, extra=None, precomputed=None):
-        return self.compute_cost(p, p['w'], 'poisson', extra, precomputed)
+        return self.compute_cost(p, p["w"], "poisson", extra, precomputed)

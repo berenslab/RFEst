@@ -1,7 +1,6 @@
 import jax.numpy as jnp
-from jax import grad
-from jax import jit
-from jax.config import config
+from jax import config, grad, jit
+
 try:
     from jax.example_libraries import optimizers
 except ImportError:
@@ -11,20 +10,19 @@ from rfest.priors import *
 
 config.update("jax_enable_x64", True)
 
-__all__ = ['EmpiricalBayes']
+__all__ = ["EmpiricalBayes"]
 
 
 class EmpiricalBayes:
     """
-    
+
     Base class for evidence optimization methods.
 
     """
 
     def __init__(self, X, y, dims, compute_mle=False, **kwargs):
-
         """
-        
+
         Initializing the `EmpiricalBayes` class, sufficient statistics are calculated.
 
         Parameters
@@ -70,17 +68,18 @@ class EmpiricalBayes:
             self.w_mle = jnp.linalg.solve(self.XtX, self.XtY)
 
         # methods
-        self.time = kwargs['time'] if 'time' in kwargs.keys() else None
-        self.space = kwargs['space'] if 'space' in kwargs.keys() else None
-        self.n_hp_time = kwargs['n_hp_time'] if 'n_hp_time' in kwargs.keys() else None
-        self.n_hp_space = kwargs['n_hp_space'] if 'n_hp_space' in kwargs.keys() else None
+        self.time = kwargs["time"] if "time" in kwargs.keys() else None
+        self.space = kwargs["space"] if "space" in kwargs.keys() else None
+        self.n_hp_time = kwargs["n_hp_time"] if "n_hp_time" in kwargs.keys() else None
+        self.n_hp_space = (
+            kwargs["n_hp_space"] if "n_hp_space" in kwargs.keys() else None
+        )
 
     def cov1d_time(self, params, ncoeff):
-
         """
-        
+
         Placeholder for class method `cov1d` in time.
-        If you design a new prior, just overwrite this method. 
+        If you design a new prior, just overwrite this method.
         Same for `cov1d` in space.
 
         Parameters
@@ -93,58 +92,61 @@ class EmpiricalBayes:
 
         """
 
-        if self.time == 'asd':
+        if self.time == "asd":
             return smoothness_kernel(params, ncoeff)
 
-        elif self.time == 'ald':
+        elif self.time == "ald":
             return locality_kernel(params, ncoeff)
 
-        elif self.time == 'ard':
+        elif self.time == "ard":
             return sparsity_kernel(params, ncoeff)
 
-        elif self.time == 'ridge':
+        elif self.time == "ridge":
             return ridge_kernel(params, ncoeff)
 
         else:
-            raise NotImplementedError(f'`{self.time}` is not supported.' +
-                                      'You can implement it yourself by overwriting the `self.cov1d_time()` method.')
+            raise NotImplementedError(
+                f"`{self.time}` is not supported."
+                + "You can implement it yourself by overwriting the `self.cov1d_time()` method."
+            )
 
     def cov1d_space(self, params, ncoeff):
 
-        if self.space == 'asd':
+        if self.space == "asd":
             return smoothness_kernel(params, ncoeff)
 
-        elif self.space == 'ald':
+        elif self.space == "ald":
             return locality_kernel(params, ncoeff)
 
-        elif self.space == 'ard':
+        elif self.space == "ard":
             return sparsity_kernel(params, ncoeff)
 
-        elif self.space == 'ridge':
+        elif self.space == "ridge":
             return ridge_kernel(params, ncoeff)
 
         else:
-            raise NotImplementedError(f'`{self.space}` is not supported.' +
-                                      'You can implement it yourself by overwriting the `self.cov1d_space()` method.')
+            raise NotImplementedError(
+                f"`{self.space}` is not supported."
+                + "You can implement it yourself by overwriting the `self.cov1d_space()` method."
+            )
 
     def update_C_prior(self, params):
-
         """
-        
+
         Using kronecker product to construct high-dimensional prior covariance.
 
         Given RF dims = [t, y, x], the prior covariance:
 
             C = kron(Ct, kron(Cy, Cx))
             Cinv = kron(Ctinv, kron(Cyinv, Cxinv))
-            
+
         """
 
         n_hp_time = self.n_hp_time
         n_hp_space = self.n_hp_space
 
         rho = params[1]
-        params_time = params[2: 2 + n_hp_time]
+        params_time = params[2 : 2 + n_hp_time]
 
         # Covariance Matrix in Time
         C_t, C_t_inv = self.cov1d_time(params_time, self.dims[0])
@@ -155,19 +157,19 @@ class EmpiricalBayes:
 
         elif len(self.dims) == 2:
 
-            # Covariance Matrix in Space 
-            params_space = params[2 + n_hp_time: 2 + n_hp_time + n_hp_space]
+            # Covariance Matrix in Space
+            params_space = params[2 + n_hp_time : 2 + n_hp_time + n_hp_space]
             C_s, C_s_inv = self.cov1d_space(params_space, self.dims[1])
 
-            # Build 2D Covariance Matrix 
+            # Build 2D Covariance Matrix
             C = rho * jnp.kron(C_t, C_s)
             C_inv = (1 / rho) * jnp.kron(C_t_inv, C_s_inv)
 
         elif len(self.dims) == 3:
 
-            # Covariance Matrix in Space 
-            params_spacey = params[2 + n_hp_time: 2 + n_hp_time + n_hp_space]
-            params_spacex = params[2 + n_hp_time + n_hp_space:]
+            # Covariance Matrix in Space
+            params_spacey = params[2 + n_hp_time : 2 + n_hp_time + n_hp_space]
+            params_spacex = params[2 + n_hp_time + n_hp_space :]
 
             C_sy, C_sy_inv = self.cov1d_space(params_spacey, self.dims[1])
             C_sx, C_sx_inv = self.cov1d_space(params_spacex, self.dims[2])
@@ -185,7 +187,6 @@ class EmpiricalBayes:
         return C, C_inv
 
     def update_C_posterior(self, params, C_prior_inv):
-
         """
 
         See eq(9) in Park & Pillow (2011).
@@ -194,17 +195,16 @@ class EmpiricalBayes:
 
         sigma = params[0]
 
-        C_post_inv = self.XtX / sigma ** 2 + C_prior_inv
+        C_post_inv = self.XtX / sigma**2 + C_prior_inv
         C_post = jnp.linalg.pinv(C_post_inv)
 
-        m_post = C_post @ self.XtY / (sigma ** 2)
+        m_post = C_post @ self.XtY / (sigma**2)
 
         return C_post, C_post_inv, m_post
 
     def negative_log_evidence(self, params):
-
         """
-        
+
         See eq(10) in Park & Pillow (2011).
 
         """
@@ -215,26 +215,25 @@ class EmpiricalBayes:
 
         (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
 
-        t0 = jnp.log(jnp.abs(2 * jnp.pi * sigma ** 2)) * self.n_samples
+        t0 = jnp.log(jnp.abs(2 * jnp.pi * sigma**2)) * self.n_samples
         t1 = jnp.linalg.slogdet(C_prior @ C_post_inv)[1]
         t2 = -m_post.T @ C_post @ m_post
-        t3 = self.YtY / sigma ** 2
+        t3 = self.YtY / sigma**2
 
         return 0.5 * (t0 + t1 + t2 + t3)
 
     @staticmethod
     def print_progress_header(params):
-        print('Iter\tcost')
+        print("Iter\tcost")
 
     @staticmethod
     def print_progress(i, params, cost):
-        print('{0:4d}\t{1:1.3f}'.format(i, cost))
+        print("{0:4d}\t{1:1.3f}".format(i, cost))
 
     def optimize_params(self, p0, num_iters, step_size, tolerance, verbose, atol=1e-5):
-
         """
-        
-        Perform gradient descent using JAX optimizers. 
+
+        Perform gradient descent using JAX optimizers.
 
         """
 
@@ -268,12 +267,22 @@ class EmpiricalBayes:
                 if jnp.all((jnp.array(cost_list[1:])) - jnp.array(cost_list[:-1]) > 0):
                     params = params_list[0]
                     if verbose:
-                        print('Stop: cost has been monotonically increasing for {} steps.'.format(tolerance))
+                        print(
+                            "Stop: cost has been monotonically increasing for {} steps.".format(
+                                tolerance
+                            )
+                        )
                     break
-                elif jnp.all(jnp.array(cost_list[:-1]) - jnp.array(cost_list[1:]) < atol):
+                elif jnp.all(
+                    jnp.array(cost_list[:-1]) - jnp.array(cost_list[1:]) < atol
+                ):
                     params = params_list[-1]
                     if verbose:
-                        print('Stop: cost has been stop changing for {} steps.'.format(tolerance))
+                        print(
+                            "Stop: cost has been stop changing for {} steps.".format(
+                                tolerance
+                            )
+                        )
                     break
                 else:
                     params_list.pop(0)
@@ -283,12 +292,15 @@ class EmpiricalBayes:
 
             params = params_list[-1]
             if verbose:
-                print('Stop: reached {0} steps, final cost={1:.5f}.'.format(num_iters, cost_list[-1]))
+                print(
+                    "Stop: reached {0} steps, final cost={1:.5f}.".format(
+                        num_iters, cost_list[-1]
+                    )
+                )
 
         return params
 
     def fit(self, p0, num_iters=20, step_size=1e-2, tolerance=10, verbose=True):
-
         """
         Parameters
         ==========
@@ -303,9 +315,9 @@ class EmpiricalBayes:
 
         step_size : float
             Initial step size for Jax optimizer.
-            
+
         tolerance : int
-            Set early stop tolerance. Optimization stops when cost monotonically 
+            Set early stop tolerance. Optimization stops when cost monotonically
             increases or stop increases for tolerance=n steps.
 
         verbose: int
@@ -316,17 +328,18 @@ class EmpiricalBayes:
 
         self.p0 = jnp.array(p0)
         self.num_iters = num_iters
-        self.optimized_params = self.optimize_params(self.p0, num_iters, step_size, tolerance, verbose)
+        self.optimized_params = self.optimize_params(
+            self.p0, num_iters, step_size, tolerance, verbose
+        )
 
-        (optimized_C_prior,
-         optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
+        (optimized_C_prior, optimized_C_prior_inv) = self.update_C_prior(
+            self.optimized_params
+        )
 
-        (optimized_C_post,
-         optimized_C_post_inv,
-         optimized_m_post) = self.update_C_posterior(self.optimized_params,
-                                                     optimized_C_prior_inv)
+        (optimized_C_post, optimized_C_post_inv, optimized_m_post) = (
+            self.update_C_posterior(self.optimized_params, optimized_C_prior_inv)
+        )
 
         self.optimized_C_prior = optimized_C_prior
         self.optimized_C_post = optimized_C_post
         self.w_opt = optimized_m_post
-
