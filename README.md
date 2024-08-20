@@ -58,36 +58,26 @@ For more information, see [here](https://github.com/berenslab/RFEst/blob/master/
 
 ## Installation
 
-RFEst uses [JAX](https://github.com/google/jax) for automatic differentiation and JIT compilation to GPU/CPU, so you
-need to install JAX first.
+`rfest` is available on [`pypi`](https://pypi.org/project/rfest/):
 
-To install CPU-only version for **Linux and macOS**, simply clone this repo into a local directory and install
-via `pip`:
+```sh
+pip install rfest
+```
 
-```bash
+This will install `rfest` with CPU support. 
+
+Alternative, you can clone this repo into a local directory and install via pip editable mode:
+
+```sh
 git clone https://github.com/berenslab/RFEst
 pip install -e RFEst
 ```
 
-To enable GPU support on **Linux**, you need to consult
-the [JAX install guide](https://github.com/google/jax#pip-installation). For reference purpose, I copied the relevant
-steps here, but please always check the JAX README page for up-to-date information.
+If you want GPU support, follow the instructions on the [`JAX` github repository](https://github.com/google/jax) to install `JAX` with GPU support (**before** installing `rfest`). For example, for NVIDIA GPUs, run
 
-```bash
-# install jaxlib
-PYTHON_VERSION=cp37  # alternatives: cp36, cp37, cp38
-CUDA_VERSION=cuda100  # alternatives: cuda100, cuda101, cuda102, cuda110
-PLATFORM=manylinux2010_x86_64  # alternatives: manylinux2010_x86_64
-BASE_URL='https://storage.googleapis.com/jax-releases'
-pip install --upgrade $BASE_URL/$CUDA_VERSION/jaxlib-0.1.50-$PYTHON_VERSION-none-$PLATFORM.whl
-
-pip install --upgrade jax  # install jax
+```sh
+pip install -U "jax[cuda12]"
 ```
-
-### A Note For Windows Users
-
-JAX has no native Windows support yet, but can be installed on **CPU via the Windows Subsystem for Linux** (Windows 10
-only, and make sure that the pip version is the latest `pip install --upgrade pip`).
 
 ## Dependencies
 
