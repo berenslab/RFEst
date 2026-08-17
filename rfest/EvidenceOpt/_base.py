@@ -207,6 +207,23 @@ class EmpiricalBayes:
 
         See eq(10) in Park & Pillow (2011).
 
+        NOTE: eq(10) as printed has `mu' Lambda mu` in the quadratic term, where
+        Lambda is the posterior COVARIANCE defined one equation earlier. The
+        Gaussian marginal needs the posterior PRECISION there, so `t2` below
+        deliberately does not match the printed equation. Do not "correct" it
+        back.
+
+        The term has two equivalent forms, which is what makes the slip easy:
+
+            (X'y/sigma^2)' Lambda (X'y/sigma^2)  ==  mu' Lambda^-1 mu
+
+        since mu = Lambda X'y/sigma^2. The left form -- with an un-inverted
+        Lambda -- is the one used by Sahani & Linden (2003) eq(4) and by both
+        reference implementations, pillowlab/fastASD (neglogev_ASDspectral.m)
+        and leaduncker/SimpleEvidenceOpt (fminconWrapper_simpleEvidenceOpt.m).
+        Substituting mu into it without inverting Lambda gives the printed
+        equation. tests/test_evidence.py pins this against the closed form.
+
         """
 
         sigma = params[0]
@@ -217,7 +234,8 @@ class EmpiricalBayes:
 
         t0 = jnp.log(jnp.abs(2 * jnp.pi * sigma**2)) * self.n_samples
         t1 = jnp.linalg.slogdet(C_prior @ C_post_inv)[1]
-        t2 = -m_post.T @ C_post @ m_post
+        # Equivalently, and more cheaply: -m_post.T @ self.XtY / sigma**2
+        t2 = -m_post.T @ C_post_inv @ m_post
         t3 = self.YtY / sigma**2
 
         return 0.5 * (t0 + t1 + t2 + t3)
