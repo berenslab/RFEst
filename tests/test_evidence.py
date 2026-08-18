@@ -1,6 +1,6 @@
 import numpy as np
 
-from rfest import ALD, ASD, Ridge, sARD
+from rfest import ALD, ARD, ASD, Ridge, sARD
 
 
 def _exact_negative_log_evidence(X, y, C, sigma):
@@ -83,3 +83,10 @@ def test_sard_negative_log_evidence_matches_gaussian_marginal():
     for theta in (np.ones(model.n_b), np.linspace(.2, 2., model.n_b)):
         params = np.concatenate([[sigma, 1.], theta])
         _assert_matches_exact(model, params, X, y, sigma, design=Z)
+
+
+def test_ard_negative_log_evidence_matches_gaussian_marginal():
+    X, y, sigma = _smooth_rf_data()
+    model = ARD(X, y, dims=[X.shape[1]])
+    for theta in (np.ones(X.shape[1]), np.linspace(.2, 2., X.shape[1])):
+        _assert_matches_exact(model, np.concatenate([[sigma, 1.], theta]), X, y, sigma)

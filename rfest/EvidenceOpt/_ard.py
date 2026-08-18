@@ -1,3 +1,5 @@
+import math
+
 import jax.numpy as np
 from sklearn.metrics import mean_squared_error
 
@@ -27,7 +29,7 @@ class ARD(EmpiricalBayes):
         """
         rho = params[1]
         theta = params[2:]
-        C, C_inv = sparsity_kernel(theta, np.product(self.dims))
+        C, C_inv = sparsity_kernel(theta, math.prod(self.dims))
         C *= rho
         C_inv /= rho
 
