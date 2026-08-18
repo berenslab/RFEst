@@ -81,12 +81,13 @@ pip install -U "jax[cuda12]"
 
 ## Dependencies
 
-    numpy
-    scipy
-    sklearn
-    matplotlib
-    jax
-    jaxlib
+Declared in `pyproject.toml` and installed with `rfest`: `numpy`, `scipy`,
+`scikit-learn`, `matplotlib` and `jax`. Contour area measurements in
+`rfest.check` additionally need `opencv-python`, available as an extra:
+
+```sh
+pip install "rfest[contours]"
+```
 
 ## Tutorial
 

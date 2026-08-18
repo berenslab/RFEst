@@ -1,6 +1,0 @@
-numpy
-scipy
-scikit-learn
-matplotlib
-jax
-jaxlib

@@ -1,3 +1,46 @@
+[project]
+name = "rfest"
+description = "Python 3 toolbox for receptive field estimation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Ziwei Huang" },
+    { name = "Jonathan Oesterle" },
+]
+maintainers = [{ name = "Ziwei Huang", email = "huang-ziwei@outlook.com" }]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "jax",
+    "matplotlib",
+    "numpy",
+    "scikit-learn",
+    "scipy",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+# rfest.check falls back to a warning when cv2 is missing, and skips contour areas.
+contours = ["opencv-python"]
+
+[project.urls]
+Homepage = "https://github.com/berenslab/RFEst"
+Issues = "https://github.com/berenslab/RFEst/issues"
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = { attr = "rfest.version.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["rfest*"]
