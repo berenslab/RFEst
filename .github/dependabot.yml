@@ -1,10 +1,17 @@
-# Actions are pinned to commit SHAs, which is the safer way to depend on
-# third-party code but only works if something bumps them. Nothing did: the
-# publish action sat on v1.4.2 for four years, and by the end it predated the
-# authentication method the workflow needed.
+# The publish action is pinned to a commit SHA and the rest to major tags;
+# either way something has to bump them, and nothing did. That action sat on
+# v1.4.2 for four years, until it predated the authentication method the
+# workflow needed.
+#
+# Grouped into one pull request. Ungrouped, a month's worth of action releases
+# arrives as five separate PRs that each want their own review and CI run.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
