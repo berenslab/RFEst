@@ -496,11 +496,13 @@ class GLM:
         self.w["mle"] = {}
         self.intercept["mle"] = {}
 
-        # slicing the mle matrix into each filter
-        l = jnp.cumsum(
-            jnp.hstack([0, [self.n_features[name] + 1 for name in self.n_features]])
+        # Slicing the mle matrix into each filter. The +1 per filter is its
+        # intercept, and the order has to be `filter_names`, which is the order
+        # the columns of X were built in above.
+        edges = jnp.cumsum(
+            jnp.array([0] + [self.n_features[name] + 1 for name in self.filter_names])
         )
-        idx = [jnp.array((l[i], l[i + 1])) for i in range(len(l) - 1)]
+        idx = [jnp.array((edges[i], edges[i + 1])) for i in range(len(edges) - 1)]
         self.idx = idx
 
         for i, name in enumerate(self.filter_names):
