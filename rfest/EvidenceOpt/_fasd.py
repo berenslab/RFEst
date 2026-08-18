@@ -6,6 +6,8 @@ try:
 except ImportError:
     from jax.experimental import optimizers
 
+from rfest.priors import JITTER
+
 config.update("jax_enable_x64", True)
 
 __all__ = ["fASD"]
@@ -296,7 +298,12 @@ def asdf_cov(delta, ncoeff, freq, ext=1.25):
     const = (2 * np.pi / ncoeff_ext) ** 2
     freq *= const
     C_prior = np.sqrt(2 * np.pi) * np.exp(-0.5 * delta * freq**2)
-    C_prior_inv = 1 / (C_prior + 1e-7)
+
+    # Floored relative to the largest prior variance, then inverted exactly, so
+    # that C_prior and C_prior_inv are each other's inverse. See `_dense_prior`
+    # in rfest/priors.py for why that matters to the evidence.
+    C_prior = np.maximum(C_prior, JITTER * np.max(C_prior))
+    C_prior_inv = 1 / C_prior
 
     return C_prior, C_prior_inv
 

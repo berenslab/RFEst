@@ -3,6 +3,53 @@ import numpy as np
 
 __all__ = ["ridge_kernel", "sparsity_kernel", "smoothness_kernel", "locality_kernel", "realfftbasis"]
 
+# Jitter applied to a prior covariance before inverting it, as a fraction of the
+# largest prior variance. Relative rather than absolute: the prior covariance
+# carries the units of the RF, so a fixed jitter regularizes an arbitrary
+# amount -- nothing at all for a prior with large variances, and everything for
+# one with small variances.
+JITTER = 1e-7
+
+
+def _jitter(variances):
+    """`JITTER`, scaled to a prior with the given variances."""
+
+    scale = jnp.max(variances)
+
+    # `scale` is 0 only for a prior that has collapsed everywhere, which has no
+    # scale to be relative to; fall back to an absolute jitter there.
+    return JITTER * jnp.where(scale > 0, scale, 1.)
+
+
+def _diagonal_prior(variances, ncoeff):
+    """Jittered (C, C_inv) for a diagonal prior covariance.
+
+    Inverting elementwise is exact for a diagonal matrix, so the jitter only
+    has to keep the variances away from zero and is applied as a floor rather
+    than added throughout: well scaled variances are left untouched.
+    """
+
+    variances = jnp.broadcast_to(variances, (ncoeff,))
+    variances = jnp.maximum(variances, _jitter(variances))
+
+    return jnp.diag(variances), jnp.diag(1 / variances)
+
+
+def _dense_prior(C):
+    """Jittered (C, C_inv) for a dense prior covariance.
+
+    The jittered C is returned rather than kept private to this function,
+    so that C and C_inv are each other's inverse. The evidence uses both, and
+    `log|C Lambda^-1|` relies on the cancellation between them to stay well
+    conditioned when C is not -- pairing an unjittered C with a jittered
+    C_inv costs over 100 nats for the SE kernel at moderate smoothness, where
+    cond(C) exceeds 1e18 at only 20 coefficients.
+    """
+
+    C = C + jnp.eye(C.shape[0]) * _jitter(jnp.diag(C))
+
+    return C, jnp.linalg.inv(C)
+
 
 def ridge_kernel(params, ncoeff):
     """
@@ -10,10 +57,8 @@ def ridge_kernel(params, ncoeff):
     """
 
     theta = jnp.abs(params[0])
-    C = jnp.eye(ncoeff) * theta
-    C_inv = jnp.linalg.inv(C + jnp.eye(ncoeff) * 1e-07)
 
-    return C, C_inv
+    return _diagonal_prior(theta, ncoeff)
 
 
 def sparsity_kernel(params, ncoeff):
@@ -25,10 +70,8 @@ def sparsity_kernel(params, ncoeff):
     """
 
     theta = jnp.abs(params)
-    C = jnp.eye(ncoeff) * theta
-    C_inv = jnp.linalg.inv(C + jnp.eye(ncoeff) * 1e-07)
 
-    return C, C_inv
+    return _diagonal_prior(theta, ncoeff)
 
 
 def smoothness_kernel(params, ncoeff):
@@ -43,9 +86,8 @@ def smoothness_kernel(params, ncoeff):
     grid = jnp.arange(ncoeff)
     square_distance = (grid - grid.reshape(-1, 1)) ** 2  # pairwise squared distance
     C = jnp.exp(-.5 * square_distance / delta ** 2)
-    C_inv = jnp.linalg.inv(C + jnp.eye(ncoeff) * 1e-07)
 
-    return C, C_inv
+    return _dense_prior(C)
 
 
 def locality_kernel(params, ncoeff):
@@ -71,9 +113,8 @@ def locality_kernel(params, ncoeff):
     Cf = B.T @ jnp.diag(jnp.exp(-0.5 * (jnp.abs(tauf * freq) - nuf) ** 2)) @ B
 
     C = CxSqrt @ Cf @ CxSqrt
-    C_inv = jnp.linalg.inv(C + jnp.eye(ncoeff) * 1e-07)
 
-    return C, C_inv
+    return _dense_prior(C)
 
 
 def realfftbasis(nx):
