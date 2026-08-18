@@ -1,6 +1,6 @@
 import numpy as np
 
-from rfest import ASD, Ridge
+from rfest import ALD, ASD, Ridge
 
 
 def _exact_negative_log_evidence(X, y, C, sigma):
@@ -38,13 +38,11 @@ def _assert_matches_exact(model, params, X, y, sigma):
 
 
 def test_asd_negative_log_evidence_matches_gaussian_marginal():
-    # The smoothness scale is held small enough that the prior covariance stays
-    # well conditioned. `priors.py` forms its inverse as `inv(C + 1e-7 I)`, an
-    # absolute jitter, so at larger scales the objective departs from the exact
-    # evidence for a reason unrelated to the term under test here.
+    # cond(C) reaches 5e9 by a smoothness of 3 and 1e17 by 8, so the grid also
+    # covers the regime where the prior covariance is numerically singular.
     X, y, sigma = _smooth_rf_data()
     model = ASD(X, y, dims=[X.shape[1]])
-    for delta in [1., 1.5]:
+    for delta in [1., 1.5, 3., 8., 20.]:
         _assert_matches_exact(model, [sigma, 1., delta], X, y, sigma)
 
 
@@ -53,3 +51,23 @@ def test_ridge_negative_log_evidence_matches_gaussian_marginal():
     model = Ridge(X, y, dims=[X.shape[1]])
     for theta in [0.5, 2.]:
         _assert_matches_exact(model, [sigma, 1., theta], X, y, sigma)
+
+
+def test_ald_negative_log_evidence_matches_gaussian_marginal():
+    X, y, sigma = _smooth_rf_data()
+    model = ALD(X, y, dims=[X.shape[1]])
+    for params in ([sigma, 1., 2., 4., 1., 1.], [sigma, 1., 1., 4., 3., 1.]):
+        _assert_matches_exact(model, params, X, y, sigma)
+
+
+def test_negative_log_evidence_is_consistent_across_prior_scales():
+    """The prior scale rho must not change how accurately the evidence is computed.
+
+    A jitter that is absolute rather than relative to the prior variances
+    regularizes a differing amount at each scale, which shows up here as an
+    error that grows as rho shrinks.
+    """
+    X, y, sigma = _smooth_rf_data()
+    model = ASD(X, y, dims=[X.shape[1]])
+    for rho in [1e-4, 1e-2, 1., 1e2, 1e4]:
+        _assert_matches_exact(model, [sigma, rho, 3.], X, y, sigma)
