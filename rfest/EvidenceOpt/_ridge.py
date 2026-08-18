@@ -3,7 +3,7 @@ from sklearn.metrics import mean_squared_error
 
 from rfest.EvidenceOpt._base import EmpiricalBayes
 
-__all__ = ['Ridge', 'RidgeFixedPoint']
+__all__ = ["Ridge", "RidgeFixedPoint"]
 
 
 class Ridge(EmpiricalBayes):
@@ -12,7 +12,16 @@ class Ridge(EmpiricalBayes):
     """
 
     def __init__(self, X, Y, dims, compute_mle=True):
-        super().__init__(X, Y, dims, compute_mle, time='ridge', space='ridge', n_hp_time=1, n_hp_space=1)
+        super().__init__(
+            X,
+            Y,
+            dims,
+            compute_mle,
+            time="ridge",
+            space="ridge",
+            n_hp_time=1,
+            n_hp_space=1,
+        )
 
 
 class RidgeFixedPoint:
@@ -43,7 +52,7 @@ class RidgeFixedPoint:
         # sigma = params[0]
         theta = params[1]
 
-        theta = (self.n_features - theta * np.trace(C_post)) / np.sum(m_post ** 2)
+        theta = (self.n_features - theta * np.trace(C_post)) / np.sum(m_post**2)
 
         upper = np.sum(self.YtY - 2 * self.XtY * m_post + m_post.T @ self.XtX @ m_post)
         lower = self.n_features - np.sum(1 - theta * np.diag(C_post))
@@ -64,10 +73,10 @@ class RidgeFixedPoint:
 
         sigma = params[0]
 
-        C_post_inv = self.XtX / sigma ** 2 + C_prior_inv
+        C_post_inv = self.XtX / sigma**2 + C_prior_inv
         C_post = np.linalg.inv(C_post_inv)
 
-        m_post = C_post @ self.XtY / (sigma ** 2)
+        m_post = C_post @ self.XtY / (sigma**2)
 
         return C_post, C_post_inv, m_post
 
@@ -76,12 +85,11 @@ class RidgeFixedPoint:
         params = p0
 
         if verbose:
-            print('Iter\tσ\tθ')
-            print('{0}\t{1:.3f}\t{2:.3f}'.format(0, params[0], params[1]))
+            print("Iter\tσ\tθ")
+            print("{0}\t{1:.3f}\t{2:.3f}".format(0, params[0], params[1]))
 
         i = 0
         for i in np.arange(1, num_iters + 1):
-
             params0 = params
 
             (C_prior, C_prior_inv) = self.update_C_prior(params)
@@ -93,28 +101,28 @@ class RidgeFixedPoint:
 
             if dparams < threshold:
                 if verbose:
-                    print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
-                    print('Finished: Converged in {} steps'.format(i))
+                    print("{0}\t{1:.3f}\t{2:.3f}".format(i, params[0], params[1]))
+                    print("Finished: Converged in {} steps".format(i))
                 break
             elif params[1] > MAXTHETA:
                 if verbose:
-                    print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
-                    print('Finished: ridge regression: filter is all-zeros.')
+                    print("{0}\t{1:.3f}\t{2:.3f}".format(i, params[0], params[1]))
+                    print("Finished: ridge regression: filter is all-zeros.")
                 break
         else:
             if verbose:
-                print('{0}\t{1:.3f}\t{2:.3f}'.format(i, params[0], params[1]))
-                print('Finished: reached maxiter = {}.'.format(num_iters))
+                print("{0}\t{1:.3f}\t{2:.3f}".format(i, params[0], params[1]))
+                print("Finished: reached maxiter = {}.".format(num_iters))
 
         self.optimized_params = params
 
-        (optimized_C_prior,
-         optimized_C_prior_inv) = self.update_C_prior(self.optimized_params)
+        (optimized_C_prior, optimized_C_prior_inv) = self.update_C_prior(
+            self.optimized_params
+        )
 
-        (optimized_C_post,
-         optimized_C_post_inv,
-         optimized_m_post) = self.update_C_posterior(self.optimized_params,
-                                                     optimized_C_prior_inv)
+        (optimized_C_post, optimized_C_post_inv, optimized_m_post) = (
+            self.update_C_posterior(self.optimized_params, optimized_C_prior_inv)
+        )
 
         self.optimized_C_prior = optimized_C_prior
         self.optimized_C_post = optimized_C_post
@@ -122,7 +130,6 @@ class RidgeFixedPoint:
 
     @staticmethod
     def _rcv(w, wSTA_test, X_test, y_test):
-
         """Relative Mean Squared Error"""
 
         a = mean_squared_error(y_test, X_test @ w)

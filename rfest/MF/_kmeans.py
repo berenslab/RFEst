@@ -5,7 +5,7 @@ from scipy.spatial.distance import cdist
 
 from rfest.splines import build_spline_matrix
 
-__all__ = ['KMeans']
+__all__ = ["KMeans"]
 
 
 class KMeans:
@@ -14,23 +14,27 @@ class KMeans:
     Kmeans clustering. V = WH, where W is the cluster centroid, H the cluster labels.
 
     Modified from https://github.com/cthurau/pymf/blob/master/pymf/kmeans.py
-    
+
     """
 
     def __init__(self, V, k=2, random_seed=2046, **kwargs):
 
         # meta
-        self.rcond = kwargs['rcond'] if 'rcond' in kwargs.keys() else None
+        self.rcond = kwargs["rcond"] if "rcond" in kwargs.keys() else None
         self.random_seed = random_seed
 
         # build spline matrix, or not
 
-        self.build_S = kwargs['build_S'] if 'build_S' in kwargs.keys() else False
-        self.dims = kwargs['dims'] if self.build_S else None
-        self.df = kwargs['df'] if self.build_S else None
-        self.smooth = kwargs['smooth'] if 'smooth' in kwargs.keys() else 'cr'
+        self.build_S = kwargs["build_S"] if "build_S" in kwargs.keys() else False
+        self.dims = kwargs["dims"] if self.build_S else None
+        self.df = kwargs["df"] if self.build_S else None
+        self.smooth = kwargs["smooth"] if "smooth" in kwargs.keys() else "cr"
 
-        self.S = build_spline_matrix(self.dims, self.df, self.smooth) if self.build_S else None
+        self.S = (
+            build_spline_matrix(self.dims, self.df, self.smooth)
+            if self.build_S
+            else None
+        )
 
         # store input data
         self.V = V  # data
@@ -62,7 +66,6 @@ class KMeans:
                 W[:, i] = np.mean(V[:, idx], axis=1)
 
         if S is not None:
-
             W0 = W.copy()
 
             B = np.linalg.lstsq(S, W0, rcond=self.rcond)[0]
@@ -102,12 +105,11 @@ class KMeans:
         if verbose:
             self.cost = []
             self.iter = []
-            print('{0:>1}\t{1:>10}\t{2:>10}'.format('Iter', 'Cost', 'Time (s)'))
+            print("{0:>1}\t{1:>10}\t{2:>10}".format("Iter", "Cost", "Time (s)"))
 
         # start updating
         time_start = time.time()
         for itr in range(num_iters):
-
             self.H = self.update_H()
             self.W, self.B = self.update_W()
 
@@ -117,16 +119,28 @@ class KMeans:
                 if itr % verbose == 0:
                     self.cost.append(self.compute_cost())
                     self.iter.append(itr)
-                    print('{0:>5}\t{1:>10.3f}\t{2:>10.3f}'.format(itr, self.cost[-1], time_elapsed))
+                    print(
+                        "{0:>5}\t{1:>10.3f}\t{2:>10.3f}".format(
+                            itr, self.cost[-1], time_elapsed
+                        )
+                    )
 
-                    if len(self.cost) >= tolerance and (np.abs(np.diff(self.cost[-tolerance:])) < 1e-7).all():
+                    if (
+                        len(self.cost) >= tolerance
+                        and (np.abs(np.diff(self.cost[-tolerance:])) < 1e-7).all()
+                    ):
                         total_time_elapsed = time.time() - time_start
                         print(
-                            'Stop: cost has been changing so small in the last {0} check points. Final cost = {1:.03f}, total time elapsed = {2:.03f} s'.format(
-                                tolerance, self.cost[-1], total_time_elapsed))
+                            "Stop: cost has been changing so small in the last {0} check points. Final cost = {1:.03f}, total time elapsed = {2:.03f} s".format(
+                                tolerance, self.cost[-1], total_time_elapsed
+                            )
+                        )
                         break
         else:
             total_time_elapsed = time.time() - time_start
             if verbose:
-                print('Stop: reached {0} iterations. Final cost = {1:.3f}, total time elapsed = {2:.3f} s'.format(
-                    num_iters, self.cost[-1], total_time_elapsed))
+                print(
+                    "Stop: reached {0} iterations. Final cost = {1:.3f}, total time elapsed = {2:.3f} s".format(
+                        num_iters, self.cost[-1], total_time_elapsed
+                    )
+                )

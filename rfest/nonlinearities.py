@@ -1,6 +1,16 @@
 import jax.numpy as jnp
 
-__all__ = ['softplus', 'softmax', 'sigmoid', 'relu', 'leaky_relu', 'selu', 'swish', 'elu', 'identity']
+__all__ = [
+    "softplus",
+    "softmax",
+    "sigmoid",
+    "relu",
+    "leaky_relu",
+    "selu",
+    "swish",
+    "elu",
+    "identity",
+]
 
 
 def softplus(x):
@@ -17,15 +27,15 @@ def sigmoid(x):
 
 
 def relu(x):
-    return jnp.where(x > 0., x, 0.)
+    return jnp.where(x > 0.0, x, 0.0)
 
 
 def leaky_relu(x):
-    return jnp.where(x > 0., x, x * 0.01)
+    return jnp.where(x > 0.0, x, x * 0.01)
 
 
 def selu(x):
-    return 1.0507 * jnp.where(x > 0., x, 1.6733 * jnp.exp(x) - 1.6733)
+    return 1.0507 * jnp.where(x > 0.0, x, 1.6733 * jnp.exp(x) - 1.6733)
 
 
 def swish(x):

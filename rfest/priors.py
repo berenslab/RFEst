@@ -1,7 +1,13 @@
 import jax.numpy as jnp
 import numpy as np
 
-__all__ = ["ridge_kernel", "sparsity_kernel", "smoothness_kernel", "locality_kernel", "realfftbasis"]
+__all__ = [
+    "ridge_kernel",
+    "sparsity_kernel",
+    "smoothness_kernel",
+    "locality_kernel",
+    "realfftbasis",
+]
 
 # Jitter applied to a prior covariance before inverting it, as a fraction of the
 # largest prior variance. Relative rather than absolute: the prior covariance
@@ -18,7 +24,7 @@ def _jitter(variances):
 
     # `scale` is 0 only for a prior that has collapsed everywhere, which has no
     # scale to be relative to; fall back to an absolute jitter there.
-    return JITTER * jnp.where(scale > 0, scale, 1.)
+    return JITTER * jnp.where(scale > 0, scale, 1.0)
 
 
 def _diagonal_prior(variances, ncoeff):
@@ -66,7 +72,7 @@ def sparsity_kernel(params, ncoeff):
     Sparse prior for ARD.
 
     See: Section 4 of Sahani & Linden (2003).
-    
+
     """
 
     theta = jnp.abs(params)
@@ -85,7 +91,7 @@ def smoothness_kernel(params, ncoeff):
 
     grid = jnp.arange(ncoeff)
     square_distance = (grid - grid.reshape(-1, 1)) ** 2  # pairwise squared distance
-    C = jnp.exp(-.5 * square_distance / delta ** 2)
+    C = jnp.exp(-0.5 * square_distance / delta**2)
 
     return _dense_prior(C)
 
@@ -93,7 +99,7 @@ def smoothness_kernel(params, ncoeff):
 def locality_kernel(params, ncoeff):
     """
 
-    1D Locality prior covariance. 
+    1D Locality prior covariance.
     See eq(11, 12, 13) in Park & Pillow (2011).
     """
 
@@ -108,7 +114,7 @@ def locality_kernel(params, ncoeff):
     B = jnp.array(B)
     freq = jnp.array(freq)
 
-    CxSqrt = jnp.diag(jnp.exp(-0.25 * 1 / taux ** 2 * (chi - nux) ** 2))
+    CxSqrt = jnp.diag(jnp.exp(-0.25 * 1 / taux**2 * (chi - nux) ** 2))
 
     Cf = B.T @ jnp.diag(jnp.exp(-0.5 * (jnp.abs(tauf * freq) - nuf) ** 2)) @ B
 
@@ -120,10 +126,10 @@ def locality_kernel(params, ncoeff):
 def realfftbasis(nx):
     """
     Basis of sines+cosines for nn-point discrete fourier transform (DFT).
-    
+
     Ported from MatLab code:
     https://github.com/leaduncker/SimpleEvidenceOpt/blob/master/util/realfftbasis.m
-    
+
     """
 
     nn = nx
@@ -131,7 +137,9 @@ def realfftbasis(nx):
     ncos = np.ceil((nn + 1) / 2)
     nsin = np.floor((nn - 1) / 2)
 
-    wvec = np.hstack([np.arange(start=0., stop=ncos), np.arange(start=-nsin, stop=0.)])
+    wvec = np.hstack(
+        [np.arange(start=0.0, stop=ncos), np.arange(start=-nsin, stop=0.0)]
+    )
 
     wcos = wvec[wvec >= 0]
     wsin = wvec[wvec < 0]

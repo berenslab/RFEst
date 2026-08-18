@@ -11,7 +11,6 @@ __all__ = ["splineLNLN"]
 
 
 class splineLNLN(splineBase):
-
     def __init__(
         self,
         X,
@@ -22,7 +21,7 @@ class splineLNLN(splineBase):
         filter_nonlinearity="softplus",
         output_nonlinearity="softplus",
         compute_mle=False,
-        **kwargs
+        **kwargs,
     ):
 
         super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
@@ -167,7 +166,6 @@ class splineLNLN(splineBase):
                 p0.update({"nl_params": [None for _ in range(self.n_s + 1)]})
 
         if extra is not None:
-
             if self.n_c > 1:
                 XS_ext = jnp.dstack(
                     [extra["X"][:, :, i] @ self.S for i in range(self.n_c)]

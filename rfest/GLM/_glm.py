@@ -22,7 +22,6 @@ __all__ = ["GLM"]
 
 # noinspection PyUnboundLocalVariable
 class GLM:
-
     def __init__(self, distr="poisson", output_nonlinearity="none", dtype=jnp.float64):
         """
         Initialize the GLM class with empty variables.
@@ -241,13 +240,7 @@ class GLM:
             self.filter_nonlinearity[name] = filter_nonlinearity
             self.filter_names.append(name)
 
-            dims = (
-                dims
-                if type(dims) is not int
-                else [
-                    dims,
-                ]
-            )
+            dims = dims if type(dims) is not int else [dims]
             self.dims[name] = dims
             self.shift[name] = shift
         else:
@@ -295,13 +288,7 @@ class GLM:
             if kind not in self.XS:
                 self.XS.update({kind: {}})
 
-            self.df[name] = (
-                df
-                if type(df) is not int
-                else [
-                    df,
-                ]
-            )
+            self.df[name] = df if type(df) is not int else [df]
             S = build_spline_matrix(
                 dims=dims, df=self.df[name], smooth=smooth, dtype=self.dtype
             )
@@ -698,9 +685,9 @@ class GLM:
             else:
                 return_model = "best_train_cost"
 
-        assert ("dev" in self.y) or (
-            "dev" not in return_model
-        ), "Cannot use dev set if dev set is not given."
+        assert ("dev" in self.y) or ("dev" not in return_model), (
+            "Cannot use dev set if dev set is not given."
+        )
 
         @jit
         def step(_i, _opt_state):
@@ -759,7 +746,6 @@ class GLM:
                     )
 
             if tolerance and i > min_iters:  # tolerance = 0: no early stop.
-
                 total_time_elapsed = time.time() - time_start
 
                 if "dev" in self.y and np.all(np.diff(cost_dev[i - tolerance : i]) > 0):
@@ -1079,7 +1065,6 @@ class GLM:
         X = self.X["train"]
 
         if self.distr == "gaussian":
-
             y = self.y["train"]
             y_pred = self.y_pred[w_type]["train"]
             rsd = y - y_pred  # residuals
@@ -1122,7 +1107,6 @@ class GLM:
                     w_se[name] = jnp.sqrt(jnp.diag(V[name]))
 
         else:
-
             b = {}
             w = {}
             u = {}

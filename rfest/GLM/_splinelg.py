@@ -9,7 +9,6 @@ __all__ = ["splineLG"]
 
 
 class splineLG(splineBase):
-
     def __init__(
         self,
         X,
@@ -19,7 +18,7 @@ class splineLG(splineBase):
         smooth="cr",
         compute_mle=False,
         output_nonlinearity="none",
-        **kwargs
+        **kwargs,
     ):
 
         super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
