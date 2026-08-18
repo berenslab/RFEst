@@ -143,7 +143,7 @@ class fASD:
 
         (C_prior, C_prior_inv) = self.update_C_prior(params)
 
-        (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
+        (_, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
 
         t0 = np.log(np.abs(2 * np.pi * sigma**2)) * self.n_samples
         t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]

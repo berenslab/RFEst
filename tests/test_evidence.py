@@ -1,6 +1,6 @@
 import numpy as np
 
-from rfest import ALD, ASD, Ridge
+from rfest import ALD, ASD, Ridge, sARD
 
 
 def _exact_negative_log_evidence(X, y, C, sigma):
@@ -30,10 +30,13 @@ def _smooth_rf_data(n_features=12, n_samples=400, sigma=0.5, random_seed=2046):
     return X, y, sigma
 
 
-def _assert_matches_exact(model, params, X, y, sigma):
+def _assert_matches_exact(model, params, X, y, sigma, design=None):
+    # `design` is what the coefficients carrying the prior get multiplied by.
+    # That is X, unless the model reparameterizes: sARD places its prior on
+    # spline coefficients, so there it is the spline-projected X.
     C = np.asarray(model.update_C_prior(np.asarray(params))[0])
     got = float(model.negative_log_evidence(np.asarray(params)))
-    want = _exact_negative_log_evidence(X, y, C, sigma)
+    want = _exact_negative_log_evidence(X if design is None else design, y, C, sigma)
     assert np.isclose(got, want, rtol=1e-5), (params, got, want)
 
 
@@ -71,3 +74,12 @@ def test_negative_log_evidence_is_consistent_across_prior_scales():
     model = ASD(X, y, dims=[X.shape[1]])
     for rho in [1e-4, 1e-2, 1., 1e2, 1e4]:
         _assert_matches_exact(model, [sigma, rho, 3.], X, y, sigma)
+
+
+def test_sard_negative_log_evidence_matches_gaussian_marginal():
+    X, y, sigma = _smooth_rf_data()
+    model = sARD(X, y, dims=[X.shape[1]], df=[7])
+    Z = np.asarray(model.Z)
+    for theta in (np.ones(model.n_b), np.linspace(.2, 2., model.n_b)):
+        params = np.concatenate([[sigma, 1.], theta])
+        _assert_matches_exact(model, params, X, y, sigma, design=Z)

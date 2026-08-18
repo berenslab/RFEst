@@ -85,17 +85,24 @@ class sARD:
         """
 
         See eq(10) in Park & Pillow (2011).
+
+        NOTE: `t2` deliberately does not match eq(10) as printed, which has the
+        posterior covariance where the Gaussian marginal needs the posterior
+        precision. See EmpiricalBayes.negative_log_evidence for the derivation
+        and for why the printed form is easy to arrive at. Do not "correct" it
+        back.
         """
 
         sigma = params[0]
 
         (C_prior, C_prior_inv) = self.update_C_prior(params)
 
-        (C_post, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
+        (_, C_post_inv, m_post) = self.update_C_posterior(params, C_prior_inv)
 
         t0 = np.log(np.abs(2 * np.pi * sigma**2)) * self.n_samples
         t1 = np.linalg.slogdet(C_prior @ C_post_inv)[1]
-        t2 = -m_post.T @ C_post @ m_post
+        # Equivalently, and more cheaply: -m_post.T @ self.ZtY / sigma**2
+        t2 = -m_post.T @ C_post_inv @ m_post
         t3 = self.YtY / sigma**2
 
         return 0.5 * (t0 + t1 + t2 + t3)
