@@ -9,7 +9,6 @@ __all__ = ["splineLNP"]
 
 
 class splineLNP(splineBase):
-
     def __init__(
         self,
         X,
@@ -19,7 +18,7 @@ class splineLNP(splineBase):
         smooth="cr",
         output_nonlinearity="softplus",
         compute_mle=False,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(X, y, dims, df, smooth, compute_mle, **kwargs)
         self.output_nonlinearity = output_nonlinearity

@@ -25,7 +25,7 @@ class LNLN(Base):
         compute_mle=False,
         output_nonlinearity="softplus",
         filter_nonlinearity="softplus",
-        **kwargs
+        **kwargs,
     ):
 
         super().__init__(X, y, dims, compute_mle, **kwargs)
@@ -141,7 +141,6 @@ class LNLN(Base):
         self.fit_intercept = fit_intercept
 
         if extra is not None:
-
             if self.h_mle is not None:
                 yh = jnp.array(
                     build_design_matrix(

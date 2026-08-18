@@ -179,7 +179,6 @@ class Base:
         y = self.y
 
         if prewhiten:
-
             if self.compute_mle is False:
                 self.XtX = self.X.T @ self.X
                 self.w_mle = jnp.linalg.solve(self.XtX, self.XtY)
@@ -209,9 +208,10 @@ class Base:
                 if verbose:
                     print(f"Done.")
             eigval_null = jnp.vstack(eigval_null)
-            max_null, min_null = jnp.percentile(
-                eigval_null, percentile
-            ), jnp.percentile(eigval_null, 100 - percentile)
+            max_null, min_null = (
+                jnp.percentile(eigval_null, percentile),
+                jnp.percentile(eigval_null, 100 - percentile),
+            )
             mask_sig_pos = eigval > max_null
             mask_sig_neg = eigval < min_null
             mask_sig = jnp.logical_or(mask_sig_pos, mask_sig_neg)
@@ -447,7 +447,6 @@ class Base:
             return self.fnl_nonparametric(x)
 
         elif nl == "spline" or nl == "nn":
-
             return self.fnl_fitted(params, x)
 
         else:
@@ -578,9 +577,9 @@ class Base:
             else:
                 return_model = "best_train_cost"
 
-        assert (extra is not None) or (
-            "dev" not in return_model
-        ), "Cannot use dev set if dev set is not given."
+        assert (extra is not None) or ("dev" not in return_model), (
+            "Cannot use dev set if dev set is not given."
+        )
 
         if num_epochs != 1:
             raise NotImplementedError()
@@ -618,7 +617,6 @@ class Base:
         y_pred_dev = None
 
         for i in range(num_iters):
-
             opt_state = step(i, opt_state)
             params = get_params(opt_state)
             params_list.append(params)
@@ -633,7 +631,6 @@ class Base:
                 cost_dev[i] = c_dev
 
             if metric is not None:
-
                 m_train = self.compute_score(self.y, y_pred_train, metric)
                 metric_train[i] = m_train
 
@@ -653,7 +650,6 @@ class Base:
                 )
 
             if tolerance and i > min_iters:  # tolerance = 0: no early stop.
-
                 total_time_elapsed = time.time() - time_start
                 cost_train_slice = cost_train[i - tolerance : i]
                 cost_dev_slice = cost_dev[i - tolerance : i]
@@ -850,7 +846,6 @@ class Base:
                 p0.update({"nl_params": None})
 
         if extra is not None:
-
             if self.h_mle is not None:
                 yh = jnp.array(
                     build_design_matrix(
@@ -908,7 +903,6 @@ class Base:
 
         extra = {"X": X, "y": y}
         if self.h_mle is not None:
-
             if y is None:
                 raise ValueError("`y` is needed for calculating response history.")
 
@@ -1022,15 +1016,7 @@ class splineBase(Base):
     def initialize_Cinv(self, params):
 
         df = self.df
-        Cinvs = [
-            smoothness_kernel(
-                [
-                    params[i],
-                ],
-                df[i],
-            )[1]
-            for i in range(len(df))
-        ]
+        Cinvs = [smoothness_kernel([params[i]], df[i])[1] for i in range(len(df))]
 
         if len(Cinvs) == 1:
             self.Cinv = Cinvs[0]
@@ -1064,17 +1050,7 @@ class splineBase(Base):
         """
 
         y = self.y
-        Sh = jnp.array(
-            build_spline_matrix(
-                [
-                    dims,
-                ],
-                [
-                    df,
-                ],
-                smooth,
-            )
-        )  # for h
+        Sh = jnp.array(build_spline_matrix([dims], [df], smooth))  # for h
         yh = jnp.array(
             build_design_matrix(self.y[:, jnp.newaxis], Sh.shape[0], shift=shift)
         )
@@ -1209,7 +1185,6 @@ class splineBase(Base):
                 p0.update({"nl_params": None})
 
         if extra is not None:
-
             if self.n_c > 1:
                 XS_ext = jnp.dstack(
                     [extra["X"][:, :, i] @ self.S for i in range(self.n_c)]
@@ -1291,7 +1266,6 @@ class splineBase(Base):
         extra = {"X": X, "XS": XS, "y": y}
 
         if self.h_spl is not None:
-
             if y is None:
                 raise ValueError("`y` is needed for calculating response history.")
 

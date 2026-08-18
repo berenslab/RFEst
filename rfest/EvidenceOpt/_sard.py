@@ -15,7 +15,6 @@ __all__ = ["sARD"]
 
 
 class sARD:
-
     def __init__(self, X, y, dims, df, smooth="cr", compute_mle=False):
 
         self.optimized_C_post = None
@@ -141,7 +140,6 @@ class sARD:
             self.print_progress_header()
 
         for i in range(num_iters):
-
             opt_state = step(i, opt_state)
             params_list.append(get_params(opt_state))
             cost_list.append(self.negative_log_evidence(params_list[-1]))
@@ -151,7 +149,6 @@ class sARD:
                     self.print_progress(i, params_list[-1], cost_list[-1])
 
             if len(params_list) > tolerance:
-
                 if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0):
                     params = params_list[0]
                     if verbose:
@@ -175,7 +172,6 @@ class sARD:
                     cost_list.pop(0)
 
         else:
-
             params = params_list[-1]
             if verbose:
                 print(

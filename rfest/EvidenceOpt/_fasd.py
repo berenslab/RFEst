@@ -76,11 +76,9 @@ class fASD:
         C_t, C_t_inv = asdf_cov(params_time, self.dims[0], self.freq_each_dim[0])
 
         if len(self.dims) == 1:
-
             C, C_inv = rho * C_t, (1 / rho) * C_t_inv
 
         elif len(self.dims) == 2:
-
             # Covariance Matrix in Space
             params_space = params[3]
             C_s, C_s_inv = asdf_cov(params_space, self.dims[1], self.freq_each_dim[1])
@@ -90,7 +88,6 @@ class fASD:
             C_inv = (1 / rho) * np.kron(C_t_inv, C_s_inv)
 
         elif len(self.dims) == 3:
-
             # Covariance Matrix in Space
             params_spacey = params[3]
             params_spacex = params[4]
@@ -206,7 +203,6 @@ class fASD:
             self.print_progress_header(p0)
 
         for i in range(num_iters):
-
             opt_state = step(i, opt_state)
             params_list.append(get_params(opt_state))
             cost_list.append(self.negative_log_evidence(params_list[-1]))
@@ -216,7 +212,6 @@ class fASD:
                     self.print_progress(i, params_list[-1], cost_list[-1])
 
             if len(params_list) > tolerance:
-
                 if np.all((np.array(cost_list[1:])) - np.array(cost_list[:-1]) > 0):
                     params = params_list[0]
                     if verbose:
@@ -240,7 +235,6 @@ class fASD:
                     cost_list.pop(0)
 
         else:
-
             params = params_list[-1]
             if verbose:
                 print(
@@ -366,7 +360,6 @@ def fourier_transform(dims, p0, ext=1.25):
 
     else:
         if len(dims_sRF) == 1:
-
             ncoeff_ext_s = np.floor(dims_sRF[0] * ext).astype(int)
             wvec_s = fourierfreq(ncoeff_ext_s, params_space[0])
             U_s, freq_s = realfftbasis(
@@ -385,7 +378,6 @@ def fourier_transform(dims, p0, ext=1.25):
             freq_each_dim.append(freq_s)
 
         elif len(dims_sRF) == 2:
-
             params_spacex = params_space[0]
             params_spacey = params_space[1]
 

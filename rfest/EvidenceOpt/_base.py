@@ -152,11 +152,9 @@ class EmpiricalBayes:
         C_t, C_t_inv = self.cov1d_time(params_time, self.dims[0])
 
         if len(self.dims) == 1:
-
             C, C_inv = rho * C_t, (1 / rho) * C_t_inv
 
         elif len(self.dims) == 2:
-
             # Covariance Matrix in Space
             params_space = params[2 + n_hp_time : 2 + n_hp_time + n_hp_space]
             C_s, C_s_inv = self.cov1d_space(params_space, self.dims[1])
@@ -166,7 +164,6 @@ class EmpiricalBayes:
             C_inv = (1 / rho) * jnp.kron(C_t_inv, C_s_inv)
 
         elif len(self.dims) == 3:
-
             # Covariance Matrix in Space
             params_spacey = params[2 + n_hp_time : 2 + n_hp_time + n_hp_space]
             params_spacex = params[2 + n_hp_time + n_hp_space :]
@@ -271,7 +268,6 @@ class EmpiricalBayes:
             self.print_progress_header(p0)
 
         for i in range(num_iters):
-
             opt_state = step(i, opt_state)
             params_list.append(get_params(opt_state))
             cost_list.append(self.negative_log_evidence(params_list[-1]))
@@ -281,7 +277,6 @@ class EmpiricalBayes:
                     self.print_progress(i, params_list[-1], cost_list[-1])
 
             if len(params_list) > tolerance:
-
                 if jnp.all((jnp.array(cost_list[1:])) - jnp.array(cost_list[:-1]) > 0):
                     params = params_list[0]
                     if verbose:
@@ -307,7 +302,6 @@ class EmpiricalBayes:
                     cost_list.pop(0)
 
         else:
-
             params = params_list[-1]
             if verbose:
                 print(

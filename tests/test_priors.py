@@ -14,10 +14,10 @@ NCOEFF = 20
 # is the ordinary case: cond(C) for the SE kernel passes 1e12 at a smoothness
 # of 3 bins over 20 coefficients.
 KERNELS = {
-    "ridge": (ridge_kernel, [1.]),
-    "sparsity": (sparsity_kernel, np.linspace(.1, 1., NCOEFF)),
-    "smoothness": (smoothness_kernel, [8.]),
-    "locality": (locality_kernel, [2., NCOEFF / 2, 2., 1.]),
+    "ridge": (ridge_kernel, [1.0]),
+    "sparsity": (sparsity_kernel, np.linspace(0.1, 1.0, NCOEFF)),
+    "smoothness": (smoothness_kernel, [8.0]),
+    "locality": (locality_kernel, [2.0, NCOEFF / 2, 2.0, 1.0]),
 }
 
 
@@ -36,7 +36,7 @@ def test_kernel_returns_a_matched_pair(name):
 
 
 @pytest.mark.parametrize("name", ["ridge", "sparsity"])
-@pytest.mark.parametrize("scale", [1e-6, 1e-3, 1., 1e3, 1e6])
+@pytest.mark.parametrize("scale", [1e-6, 1e-3, 1.0, 1e3, 1e6])
 def test_variance_kernel_is_scale_invariant(name, scale):
     """Scaling the prior variances must scale the prior precision inversely.
 
@@ -60,7 +60,7 @@ def test_variance_kernel_survives_a_collapsed_variance(name):
     """
     kernel, params = KERNELS[name]
     params = np.asarray(params, dtype=float) * np.ones(NCOEFF)
-    params[0] = 0.
+    params[0] = 0.0
 
     C, C_inv = (np.asarray(a) for a in kernel(params, NCOEFF))
 

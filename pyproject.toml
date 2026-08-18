@@ -33,7 +33,9 @@ Homepage = "https://github.com/berenslab/RFEst"
 Issues = "https://github.com/berenslab/RFEst/issues"
 
 [dependency-groups]
-dev = ["pytest", "ruff"]
+# ruff is pinned to a minor series: it is a gate in CI, and a formatting change
+# in a new release would turn that gate red on a tree nobody touched.
+dev = ["pytest", "ruff>=0.16,<0.17"]
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -44,3 +46,25 @@ version = { attr = "rfest.version.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["rfest*"]
+
+[tool.ruff]
+# Pinned rather than left to the default, so that a change in ruff's own
+# default is a deliberate edit here rather than a repo-wide reformat nobody
+# asked for. 88 is what the already-formatted files in the tree use.
+line-length = 88
+
+# Markdown is left alone. Ruff formats the python blocks inside it, and in a
+# README that means splitting a one-line call across three because a trailing
+# comment pushed it past the limit -- a worse example for the sake of a rule
+# the block is not compiled under anyway.
+extend-exclude = ["*.md"]
+
+[tool.ruff.format]
+# The trailing commas in this tree are a habit of writing `[8, ]` and
+# `f([params[i], ], ...)`, not a request to keep those calls exploded across
+# eight lines. Collapse whatever fits.
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint.isort]
+# Required to agree with skip-magic-trailing-comma above.
+split-on-trailing-comma = false
